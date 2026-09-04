@@ -1,0 +1,13 @@
+dev
+staging
+api
+test
+qa
+uat
+admin
+beta
+internal
+sandbox
+demo
+old
+legacy
