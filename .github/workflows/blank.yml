@@ -9,14 +9,14 @@ on:
 
 jobs:
   build:
-    runs-on: ubuntu-latest   # changed from slim to full image
+    runs-on: ubuntu-latest
     env:
       GO_VERSION: "1.24.2"
       GOBIN: "/usr/local/bin"
-      GOPATH: "/root/go"
+      GOPATH: "${{ github.workspace }}/go"  # Use workspace path instead of /root
       SECLISTS: "/usr/share/seclists"
       DEBIAN_FRONTEND: "noninteractive"
-      PATH: "/root/go/bin:/usr/local/bin:/usr/local/go/bin:$PATH"
+      # DO NOT set PATH here - let actions/setup-go handle it
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -24,22 +24,24 @@ jobs:
       - name: Setup system
         run: |
           set -euo pipefail
-          # Ensure tar is present (should already be there in debian:stable)
-          apt-get update -qq
-          apt-get install -y --no-install-recommends tar
-          if [ -f /etc/apt/sources.list.d/debian.sources ]; then
-            sed -i 's/^Components: .*/& non-free/' /etc/apt/sources.list.d/debian.sources
-          fi
-          apt-get install -y --no-install-recommends \
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends \
             ca-certificates curl git gcc make pkg-config \
-            libcurl4-openssl-dev python3 python3-pip python3-venv chromium libcjson-dev \
-            ruby ruby-dev zlib1g-dev procps file tor proxychains4 nikto
+            libcurl4-openssl-dev python3 python3-pip python3-venv \
+            chromium libcjson-dev ruby ruby-dev zlib1g-dev \
+            procps file tor proxychains4 nikto \
+            perl libnet-ssleay-perl libwww-perl  # Dependencies for nikto
 
       - name: Setup Go
         uses: actions/setup-go@v5
         with:
           go-version: ${{ env.GO_VERSION }}
           cache: true
+
+      - name: Set up PATH for Go tools
+        run: |
+          echo "${{ env.GOPATH }}/bin" >> $GITHUB_PATH
+          echo "/usr/local/go/bin" >> $GITHUB_PATH
 
       - name: Install Go tools
         run: |
@@ -51,7 +53,6 @@ jobs:
           go install github.com/hahwul/dalfox/v2@latest
           go install -v github.com/PentestPad/subzy@latest
           go install -mod=mod github.com/haccer/subjack@latest
-          hash -r
 
       - name: Install gem tools (wpscan)
         run: |
@@ -62,20 +63,20 @@ jobs:
         run: |
           set -euo pipefail
           if [ ! -d /opt/XSStrike ]; then
-            git clone --depth 1 https://github.com/s0md3v/XSStrike /opt/XSStrike
+            sudo git clone --depth 1 https://github.com/s0md3v/XSStrike /opt/XSStrike
           fi
-          python3 -m venv /opt/xsenv 2>/dev/null || true
-          /opt/xsenv/bin/pip install --upgrade pip -q
-          /opt/xsenv/bin/pip install -r /opt/XSStrike/requirements.txt -q
+          sudo python3 -m venv /opt/xsenv 2>/dev/null || true
+          sudo /opt/xsenv/bin/pip install --upgrade pip -q
+          sudo /opt/xsenv/bin/pip install -r /opt/XSStrike/requirements.txt -q
 
       - name: Download SecLists
         run: |
           set -euo pipefail
-          mkdir -p "${SECLISTS}/Discovery/DNS" "${SECLISTS}/Discovery/Web-Content"
-          curl -fsSL \
+          sudo mkdir -p "${SECLISTS}/Discovery/DNS" "${SECLISTS}/Discovery/Web-Content"
+          sudo curl -fsSL \
             "https://raw.githubusercontent.com/danielmiessler/SecLists/master/Discovery/DNS/subdomains-top1million-5000.txt" \
             -o "${SECLISTS}/Discovery/DNS/subdomains-top1million-5000.txt"
-          curl -fsSL \
+          sudo curl -fsSL \
             "https://raw.githubusercontent.com/danielmiessler/SecLists/master/Discovery/Web-Content/common.txt" \
             -o "${SECLISTS}/Discovery/Web-Content/common.txt"
 
@@ -101,7 +102,7 @@ jobs:
     needs: build
     env:
       GOBIN: "/usr/local/bin"
-      GOPATH: "/root/go"
+      GOPATH: "${{ github.workspace }}/go"
       SECLISTS: "/usr/share/seclists"
       DEBIAN_FRONTEND: "noninteractive"
     steps:
@@ -111,15 +112,12 @@ jobs:
       - name: Setup system (for test)
         run: |
           set -euo pipefail
-          apt-get update -qq
-          apt-get install -y --no-install-recommends tar
-          if [ -f /etc/apt/sources.list.d/debian.sources ]; then
-            sed -i 's/^Components: .*/& non-free/' /etc/apt/sources.list.d/debian.sources
-          fi
-          apt-get install -y --no-install-recommends \
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends \
             ca-certificates curl git gcc make pkg-config \
-            libcurl4-openssl-dev python3 python3-pip python3-venv chromium libcjson-dev \
-            ruby ruby-dev zlib1g-dev procps file tor proxychains4 nikto
+            libcurl4-openssl-dev python3 python3-pip python3-venv \
+            chromium libcjson-dev ruby ruby-dev zlib1g-dev \
+            procps file tor proxychains4 nikto
 
       - name: Download sentinel binary
         uses: actions/download-artifact@v4
