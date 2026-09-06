@@ -87,19 +87,66 @@ jobs:
           # Backup original Makefile
           cp Makefile Makefile.bak
           
-          # Remove -Werror and add warning suppressions
-          sed -i 's/-Werror//g' Makefile
-          sed -i 's/-Wall -Wextra -O2/-Wall -Wextra -O2 -Wno-unused-result -Wno-unused-function -Wno-format-truncation -Wno-sign-compare/g' Makefile
+          # Create a clean Makefile with proper warning suppressions
+          cat > Makefile << 'EOF'
+          CC      ?= gcc
+          # Removed -Werror, added warning suppressions
+          CFLAGS  += -Wall -Wextra -O2 -D_GNU_SOURCE -pthread \
+                     -Wno-unused-result -Wno-unused-function \
+                     -Wno-format-truncation -Wno-sign-compare
+          LIBS    := -lcurl -lpthread -lcjson
           
-          # Fix Windows path separators if present
-          sed -i 's/\\/\//g' Makefile
+          SRCS := src/main.c src/util/util.c src/prox/prox.c src/scan/scan.c \
+                  src/deepblue/deepblue.c src/ghostquery/gq.c src/glassworm/gw.c \
+                  src/glassworm/graphql/graphql.c src/glassworm/http/http.c \
+                  src/chrome/chrome.c
+          HDRS := $(wildcard src/*.h src/*/*.h)
+          BIN  := sentinel
           
-          # Show the modified Makefile (for debugging)
-          echo "Modified Makefile contents (first 20 lines):"
-          head -n 20 Makefile
+          .PHONY: all clean sanitize
           
+          all: $(BIN)
+          
+          $(BIN): $(SRCS) $(HDRS)
+          	$(CC) $(CFLAGS) -I. $(SRCS) -o $@ $(LIBS)
+          
+          # build with Address/UB sanitizers for local dev
+          sanitize: CFLAGS += -g -O1 -fsanitize=address,undefined -fno-omit-frame-pointer
+          sanitize: LIBS += -fsanitize=address,undefined
+          sanitize: $(BIN)
+          
+          clean:
+          	rm -f $(BIN)
+          EOF
+          
+          # Show the new Makefile for debugging
+          echo "✅ New Makefile created:"
+          cat Makefile
+          echo ""
+          
+          # Build
           make clean all
-          test -x ./sentinel && echo "binary OK"
+          
+          # Verify binary
+          test -x ./sentinel && echo "✅ binary OK"
+          
+          # Check required tools
+          for t in subfinder assetfinder httpx nuclei dalfox wpscan; do
+            if command -v "$t" &>/dev/null; then
+              echo "  ✅ $t OK"
+            else
+              echo "  ⚠️ MISSING: $t"
+            fi
+          done
+          
+          # Check SecLists
+          if [ -f "${SECLISTS}/Discovery/Web-Content/common.txt" ]; then
+            echo "✅ SecLists common.txt OK"
+          else
+            echo "⚠️ SecLists common.txt MISSING"
+          fi
+          
+          echo "✅ Build complete"
 
       - name: Upload sentinel binary
         uses: actions/upload-artifact@v4
@@ -143,9 +190,13 @@ jobs:
         run: |
           # Add user gems to PATH for wpscan
           export PATH="$(ruby -e 'puts Gem.user_dir')/bin:$PATH"
+          echo "Running tests (failures are expected)..."
+          
           ./sentinel example.com test_sub -sub
           ./sentinel thegod.pythonanywhere.com testscanurl --scan-url https://thegod.pythonanywhere.com/
           ./sentinel thegod.pythonanywhere.com testxsslow test-new-feature https://thegod.pythonanywhere.com/vulnerabilities/xss_r/low
           ./sentinel thegod.pythonanywhere.com testxssmedium test-new-feature https://thegod.pythonanywhere.com/vulnerabilities/xss_r/medium
           ./sentinel thegod.pythonanywhere.com testxsshigh test-new-feature https://thegod.pythonanywhere.com/vulnerabilities/xss_r/high
           ./sentinel thegod.pythonanywhere.com testxssimpossible test-new-feature https://thegod.pythonanywhere.com/vulnerabilities/xss_r/impossible
+          
+          echo "✅ Tests completed"
