@@ -688,6 +688,104 @@ static void perform_security_analysis(SchemaData *schema) {
     printf("=========================================\n\n");
 }
 
+
+// ------------------------------------------------------------------
+// Free SchemaData
+// ------------------------------------------------------------------
+static void free_schema_data(SchemaData *schema) {
+    if (!schema) return;
+
+    // Helper to free a FieldInfo
+    void free_field_info(FieldInfo *f) {
+        if (!f) return;
+        free(f->name);
+        free(f->type_string);
+        free(f->default_value);
+        for (int i = 0; i < f->num_args; i++) {
+            free(f->args[i].name);
+            free(f->args[i].type_string);
+        }
+        free(f->args);
+    }
+
+    // Helper to free a TypeInfo
+    void free_type_info(TypeInfo *t) {
+        if (!t) return;
+        free(t->name);
+        free(t->kind);
+        free(t->description);
+        
+        // Free fields
+        for (int i = 0; i < t->num_fields; i++) {
+            free_field_info(&t->fields[i]);
+        }
+        free(t->fields);
+        
+        // Free interfaces
+        for (int i = 0; i < t->num_interfaces; i++) {
+            free(t->interfaces[i]);
+        }
+        free(t->interfaces);
+        
+        // Free enum values
+        for (int i = 0; i < t->num_enum_values; i++) {
+            free(t->enum_values[i].name);
+        }
+        free(t->enum_values);
+        
+        // Free input fields
+        for (int i = 0; i < t->num_input_fields; i++) {
+            free_field_info(&t->input_fields[i]);
+        }
+        free(t->input_fields);
+        
+        // Free possible types
+        for (int i = 0; i < t->num_possible_types; i++) {
+            free(t->possible_types[i]);
+        }
+        free(t->possible_types);
+        
+        free(t->specified_by_url);
+        free(t);
+    }
+
+    // Free query_type
+    if (schema->query_type) {
+        free_type_info(schema->query_type);
+    }
+
+    // Free mutation_type
+    if (schema->mutation_type) {
+        free_type_info(schema->mutation_type);
+    }
+
+    // Free subscription_type
+    if (schema->subscription_type) {
+        free_type_info(schema->subscription_type);
+    }
+
+    // Free all types
+    for (int i = 0; i < schema->num_types; i++) {
+        if (schema->types[i]) {
+            free_type_info(schema->types[i]);
+        }
+    }
+    free(schema->types);
+
+    // Free directives
+    for (int i = 0; i < schema->num_directives; i++) {
+        free(schema->directives[i].name);
+        for (int j = 0; j < schema->directives[i].num_args; j++) {
+            free(schema->directives[i].args[j].name);
+            free(schema->directives[i].args[j].type_string);
+        }
+        free(schema->directives[i].args);
+    }
+    free(schema->directives);
+
+    free(schema);
+}
+
 // ------------------------------------------------------------------
 // Helper: read file and skip non-JSON preamble
 // ------------------------------------------------------------------
@@ -776,7 +874,7 @@ int detect_graphql(char *api_path, char *graphql_path) {
 
     char *json = malloc(json_size + 1);
     if (!json) { fclose(f); return 1; }
-    if (fread(json, 1, json_size, f) != json_size) {
+    if ((long)fread(json, 1, json_size, f) != json_size) {
         free(json); fclose(f); return 1;
     }
     json[json_size] = '\0';
@@ -885,7 +983,7 @@ int graphql_scanning(char *path) {
 
     char *json = malloc(json_size + 1);
     if (!json) { fclose(f); fclose(graphql_file); return 1; }
-    if (fread(json, 1, json_size, f) != json_size) {
+    if ((long)fread(json, 1, json_size, f) != json_size) {
         free(json); fclose(f); fclose(graphql_file); return 1;
     }
     json[json_size] = '\0';

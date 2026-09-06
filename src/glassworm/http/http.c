@@ -41,20 +41,6 @@ static const char* detect_content_type(const char *filename) {
     return "application/octet-stream";
 }
 
-static char* read_file_content(const char *filename) {
-    FILE *f = fopen(filename, "rb");
-    if (!f) return NULL;
-    fseek(f, 0, SEEK_END);
-    long sz = ftell(f);
-    if (sz < 0) { fclose(f); return NULL; }
-    rewind(f);
-    char *buf = malloc((size_t)sz + 1);
-    if (!buf) { fclose(f); return NULL; }
-    size_t rd = fread(buf, 1, (size_t)sz, f);
-    fclose(f);
-    buf[rd] = '\0';
-    return buf;
-}
 
 static bool setup_curl(CURL *curl, const char *url, FILE *fp) {
     if (!curl || !url || !fp) return false;

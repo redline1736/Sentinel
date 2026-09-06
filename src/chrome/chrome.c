@@ -112,7 +112,11 @@ int init_chrome(int port) {
              ">/dev/null 2>&1 &",
              port, port);
     printf("[CDP] Launching: %s\n", cmd);
-    system(cmd);
+    
+    if (system(cmd) == -1) {
+        fprintf(stderr, "Failed to launch Chrome\n");
+        return -1;
+    }
 
     if (wait_for_port(port, 10) != 0) {
         fprintf(stderr, "Timed out waiting for Chrome on port %d\n", port);
@@ -320,5 +324,5 @@ void close_chrome() {
         curl_easy_cleanup(c.curl);
         c.curl = NULL;
     }
-    system("pkill -f 'remote-debugging-port' 2>/dev/null");
+    (void)system("pkill -f 'remote-debugging-port' 2>/dev/null");
 }
