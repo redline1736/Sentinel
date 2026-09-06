@@ -15,7 +15,7 @@
 typedef struct {
     CURL *curl;
     char ws_url[MAX_WS_URL];
-    int use_websocket;  /* Flag to indicate if WebSocket is supported */
+    int use_websocket;
 } chrome;
 
 chrome c = {0};
@@ -167,9 +167,23 @@ int init_chrome(int port) {
     /* Try WebSocket first if available */
     c.use_websocket = 0;
     
-    /* Check if WebSocket is supported */
+    /* Check if WebSocket is supported - using feature check that works with older libcurl */
     curl_version_info_data *ver = curl_version_info(CURLVERSION_NOW);
-    if (ver && ver->features & CURL_VERSION_WEBSOCKETS) {
+    int ws_supported = 0;
+    
+    /* Check if CURL_VERSION_WEBSOCKETS is defined and supported */
+#ifdef CURL_VERSION_WEBSOCKETS
+    if (ver && (ver->features & CURL_VERSION_WEBSOCKETS)) {
+        ws_supported = 1;
+    }
+#else
+    /* CURL_VERSION_WEBSOCKETS not defined - check version instead */
+    if (ver && ver->version_num >= 0x075600) { /* >= 7.86.0 */
+        ws_supported = 1;
+    }
+#endif
+    
+    if (ws_supported) {
         printf("[CDP] WebSocket support detected\n");
         c.use_websocket = 1;
         
@@ -182,6 +196,7 @@ int init_chrome(int port) {
                     curl_easy_strerror(res));
             c.use_websocket = 0;
             /* Try HTTP fallback */
+            curl_easy_cleanup(c.curl);
             c.curl = curl_easy_init();
             if (!c.curl) return -1;
         } else {
@@ -291,9 +306,7 @@ int handle_dialogs(int max_polls) {
     if (!c.curl) return -1;
 
     if (!c.use_websocket) {
-        /* HTTP fallback - just check if we can detect XSS via other means */
-        fprintf(stderr, "[CDP] Dialog detection not available in HTTP mode\n");
-        return 1; /* No XSS detected */
+        return 1;
     }
 
     for (int i = 0; i < max_polls; i++) {

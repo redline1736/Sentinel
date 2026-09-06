@@ -16,6 +16,7 @@
 #include "../prox/prox.h"
 #include "../chrome/chrome.h"
 #include "../glassworm/http/http.h"
+#include "../global.h"
 #include "gq.h"
 
 /* ============================================================================
