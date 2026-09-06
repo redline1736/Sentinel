@@ -2,7 +2,6 @@
 
 > A modular, pipeline-driven security assessment toolkit built in C with Python-based XSS analysis, SQL injection detection, headless browser verification, and pre-built exploit modules for Lighttpd and Nginx. Designed for authorized penetration testing engagements.
 
-[![Pipeline](https://gitlab.com/mind-loom/sentinel/badges/main/pipeline.svg)](https://gitlab.com/mind-loom/sentinel/-/pipelines)
 [![C](https://img.shields.io/badge/language-C-555555?logo=c&logoColor=white)](https://en.wikipedia.org/wiki/C_(programming_language))
 [![Python](https://img.shields.io/badge/language-Python-3776AB?logo=python&logoColor=white)](https://www.python.org/)
 [![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)

@@ -1,36 +1,140 @@
-# This is a basic workflow to help you get started with Actions
+name: Sentinel CI
 
-name: CI
-
-# Controls when the workflow will run
 on:
-  # Triggers the workflow on push or pull request events but only for the "main" branch
   push:
-    branches: [ "main" ]
+    branches: [ main, master ]
   pull_request:
-    branches: [ "main" ]
-
-  # Allows you to run this workflow manually from the Actions tab
+    branches: [ main, master ]
   workflow_dispatch:
 
-# A workflow run is made up of one or more jobs that can run sequentially or in parallel
 jobs:
-  # This workflow contains a single job called "build"
   build:
-    # The type of runner that the job will run on
     runs-on: ubuntu-latest
-
-    # Steps represent a sequence of tasks that will be executed as part of the job
+    container: debian:stable-slim
+    env:
+      GO_VERSION: "1.24.2"
+      GOBIN: "/usr/local/bin"
+      GOPATH: "/root/go"
+      SECLISTS: "/usr/share/seclists"
+      DEBIAN_FRONTEND: "noninteractive"
+      PATH: "/root/go/bin:/usr/local/bin:/usr/local/go/bin:$PATH"
     steps:
-      # Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
-      - uses: actions/checkout@v4
+      - name: Checkout code
+        uses: actions/checkout@v4
 
-      # Runs a single command using the runners shell
-      - name: Run a one-line script
-        run: echo Hello, world!
-
-      # Runs a set of commands using the runners shell
-      - name: Run a multi-line script
+      - name: Setup system
         run: |
-          echo Add other actions to build,
-          echo test, and deploy your project.
+          set -euo pipefail
+          if [ -f /etc/apt/sources.list.d/debian.sources ]; then
+            sed -i 's/^Components: .*/& non-free/' /etc/apt/sources.list.d/debian.sources
+          fi
+          apt-get update -qq
+          apt-get install -y --no-install-recommends \
+            ca-certificates curl git gcc make pkg-config \
+            libcurl4-openssl-dev python3 python3-pip python3-venv chromium libcjson-dev \
+            ruby ruby-dev zlib1g-dev procps file tor proxychains4 nikto
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache: true
+
+      - name: Install Go tools
+        run: |
+          set -euo pipefail
+          go install github.com/projectdiscovery/subfinder/v2/cmd/subfinder@latest
+          go install github.com/tomnomnom/assetfinder@latest
+          go install github.com/projectdiscovery/httpx/cmd/httpx@latest
+          go install github.com/projectdiscovery/nuclei/v3/cmd/nuclei@latest
+          go install github.com/hahwul/dalfox/v2@latest
+          go install -v github.com/PentestPad/subzy@latest
+          go install -mod=mod github.com/haccer/subjack@latest
+          hash -r
+
+      - name: Install gem tools (wpscan)
+        run: |
+          set -euo pipefail
+          gem install wpscan 2>&1 || echo "[WARN] wpscan install failed"
+
+      - name: Setup XSStrike
+        run: |
+          set -euo pipefail
+          if [ ! -d /opt/XSStrike ]; then
+            git clone --depth 1 https://github.com/s0md3v/XSStrike /opt/XSStrike
+          fi
+          python3 -m venv /opt/xsenv 2>/dev/null || true
+          /opt/xsenv/bin/pip install --upgrade pip -q
+          /opt/xsenv/bin/pip install -r /opt/XSStrike/requirements.txt -q
+
+      - name: Download SecLists
+        run: |
+          set -euo pipefail
+          mkdir -p "${SECLISTS}/Discovery/DNS" "${SECLISTS}/Discovery/Web-Content"
+          curl -fsSL \
+            "https://raw.githubusercontent.com/danielmiessler/SecLists/master/Discovery/DNS/subdomains-top1million-5000.txt" \
+            -o "${SECLISTS}/Discovery/DNS/subdomains-top1million-5000.txt"
+          curl -fsSL \
+            "https://raw.githubusercontent.com/danielmiessler/SecLists/master/Discovery/Web-Content/common.txt" \
+            -o "${SECLISTS}/Discovery/Web-Content/common.txt"
+
+      - name: Build Sentinel
+        run: |
+          make clean all
+          # verify binary & dependencies
+          test -x ./sentinel && echo "binary OK"
+          for t in subfinder assetfinder httpx nuclei dalfox wpscan; do
+            command -v "$t" || echo "MISSING: $t"
+          done
+          test -f "${SECLISTS}/Discovery/Web-Content/common.txt" && echo "SecLists common.txt OK"
+          echo "build complete"
+
+      - name: Upload sentinel binary
+        uses: actions/upload-artifact@v4
+        with:
+          name: sentinel-binary
+          path: sentinel
+          retention-days: 7
+
+  test:
+    runs-on: ubuntu-latest
+    container: debian:stable-slim
+    needs: build
+    env:
+      GOBIN: "/usr/local/bin"
+      GOPATH: "/root/go"
+      SECLISTS: "/usr/share/seclists"
+      DEBIAN_FRONTEND: "noninteractive"
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup system (for test)
+        run: |
+          set -euo pipefail
+          if [ -f /etc/apt/sources.list.d/debian.sources ]; then
+            sed -i 's/^Components: .*/& non-free/' /etc/apt/sources.list.d/debian.sources
+          fi
+          apt-get update -qq
+          apt-get install -y --no-install-recommends \
+            ca-certificates curl git gcc make pkg-config \
+            libcurl4-openssl-dev python3 python3-pip python3-venv chromium libcjson-dev \
+            ruby ruby-dev zlib1g-dev procps file tor proxychains4 nikto
+
+      - name: Download sentinel binary
+        uses: actions/download-artifact@v4
+        with:
+          name: sentinel-binary
+
+      - name: Make binary executable
+        run: chmod +x sentinel
+
+      - name: Run tests
+        continue-on-error: true
+        run: |
+          ./sentinel example.com test_sub -sub
+          ./sentinel thegod.pythonanywhere.com testscanurl --scan-url https://thegod.pythonanywhere.com/
+          ./sentinel thegod.pythonanywhere.com testxsslow test-new-feature https://thegod.pythonanywhere.com/vulnerabilities/xss_r/low
+          ./sentinel thegod.pythonanywhere.com testxssmedium test-new-feature https://thegod.pythonanywhere.com/vulnerabilities/xss_r/medium
+          ./sentinel thegod.pythonanywhere.com testxsshigh test-new-feature https://thegod.pythonanywhere.com/vulnerabilities/xss_r/high
+          ./sentinel thegod.pythonanywhere.com testxssimpossible test-new-feature https://thegod.pythonanywhere.com/vulnerabilities/xss_r/impossible

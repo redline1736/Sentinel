@@ -1,67 +1,57 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <stdbool.h>
 #include <cjson/cJSON.h>
+
+#include "../http/http.h"
 
 // ------------------------------------------------------------------
 // Data structures
 // ------------------------------------------------------------------
 
-// Argument of a field
-typedef struct {
-    char *name;          // argument name
-    char *type_string;   // e.g., "String!", "[Int]"
-} ArgInfo;
-
-// A field (for OBJECT, INTERFACE, INPUT_OBJECT)
 typedef struct {
     char *name;
-    ArgInfo *args;       // dynamic array
+    char *type_string;
+} ArgInfo;
+
+typedef struct {
+    char *name;
+    ArgInfo *args;
     int num_args;
-    char *type_string;   // return type (or input type)
+    char *type_string;
     int is_deprecated;
-    // For input object fields, there may be a default value:
-    char *default_value; // NULL if none
+    char *default_value;
 } FieldInfo;
 
-// Enum value
 typedef struct {
     char *name;
     int is_deprecated;
 } EnumValueInfo;
 
-// A type definition
 typedef struct {
     char *name;
-    char *kind;          // "OBJECT", "INTERFACE", "ENUM", "UNION", "SCALAR", "INPUT_OBJECT"
-    char *description;   // optional, may be NULL
-    // For OBJECT and INTERFACE:
+    char *kind;
+    char *description;
     FieldInfo *fields;
     int num_fields;
-    // For OBJECT only: list of interface names it implements
     char **interfaces;
     int num_interfaces;
-    // For ENUM:
     EnumValueInfo *enum_values;
     int num_enum_values;
-    // For INPUT_OBJECT:
-    FieldInfo *input_fields; // same structure as fields
+    FieldInfo *input_fields;
     int num_input_fields;
-    // For UNION:
-    char **possible_types; // names
+    char **possible_types;
     int num_possible_types;
-    // For SCALAR:
     char *specified_by_url;
 } TypeInfo;
 
-// The complete schema
 typedef struct {
-    TypeInfo *query_type;        // root Query object
-    TypeInfo *mutation_type;     // root Mutation (may be NULL)
-    TypeInfo *subscription_type; // root Subscription (may be NULL)
-    TypeInfo **types;            // all custom types (excluding built‑ins and internal)
+    TypeInfo *query_type;
+    TypeInfo *mutation_type;
+    TypeInfo *subscription_type;
+    TypeInfo **types;
     int num_types;
-    // Directives
     struct {
         char *name;
         ArgInfo *args;
@@ -80,6 +70,8 @@ static TypeInfo* parse_type(cJSON *type_json);
 static SchemaData* build_schema_data(cJSON *root);
 static void print_schema_data(SchemaData *schema);
 static void free_schema_data(SchemaData *schema);
+static void perform_security_analysis(SchemaData *schema);
+static char* read_json_from_file(const char *filename, long *out_len);
 
 // ------------------------------------------------------------------
 // Helper: unwrap a GraphQL type (LIST, NON_NULL) into a string
@@ -102,7 +94,6 @@ static void append_type_string(cJSON *type_obj, char *buffer) {
         append_type_string(of_type, buffer);
         strcat(buffer, "]");
     } else {
-        // SCALAR, OBJECT, ENUM, INTERFACE, UNION, INPUT_OBJECT
         if (name && name->valuestring) {
             strcat(buffer, name->valuestring);
         } else {
@@ -112,7 +103,7 @@ static void append_type_string(cJSON *type_obj, char *buffer) {
 }
 
 // ------------------------------------------------------------------
-// Parse a single field (for OBJECT, INTERFACE, or INPUT_OBJECT)
+// Parse a single field
 // ------------------------------------------------------------------
 static FieldInfo* parse_field(cJSON *field_json) {
     FieldInfo *fi = calloc(1, sizeof(FieldInfo));
@@ -121,7 +112,6 @@ static FieldInfo* parse_field(cJSON *field_json) {
     cJSON *name = cJSON_GetObjectItem(field_json, "name");
     if (name && name->valuestring) fi->name = strdup(name->valuestring);
 
-    // Arguments
     cJSON *args = cJSON_GetObjectItem(field_json, "args");
     if (args) {
         int count = cJSON_GetArraySize(args);
@@ -142,7 +132,6 @@ static FieldInfo* parse_field(cJSON *field_json) {
         }
     }
 
-    // Return type
     cJSON *type = cJSON_GetObjectItem(field_json, "type");
     if (type) {
         char type_buf[256] = {0};
@@ -150,11 +139,9 @@ static FieldInfo* parse_field(cJSON *field_json) {
         fi->type_string = strdup(type_buf);
     }
 
-    // Deprecated
     cJSON *dep = cJSON_GetObjectItem(field_json, "isDeprecated");
     fi->is_deprecated = (dep && dep->type == cJSON_True);
 
-    // Default value (for input fields)
     cJSON *def = cJSON_GetObjectItem(field_json, "defaultValue");
     if (def && def->valuestring) {
         fi->default_value = strdup(def->valuestring);
@@ -180,7 +167,7 @@ static EnumValueInfo* parse_enum_value(cJSON *val_json) {
 }
 
 // ------------------------------------------------------------------
-// Parse a single type (including fields, enum values, etc.)
+// Parse a type
 // ------------------------------------------------------------------
 static TypeInfo* parse_type(cJSON *type_json) {
     TypeInfo *t = calloc(1, sizeof(TypeInfo));
@@ -196,7 +183,6 @@ static TypeInfo* parse_type(cJSON *type_json) {
 
     const char *kind_str = t->kind;
 
-    // OBJECT and INTERFACE: fields
     if (strcmp(kind_str, "OBJECT") == 0 || strcmp(kind_str, "INTERFACE") == 0) {
         cJSON *fields = cJSON_GetObjectItem(type_json, "fields");
         if (fields) {
@@ -206,12 +192,11 @@ static TypeInfo* parse_type(cJSON *type_json) {
                 t->fields = calloc(count, sizeof(FieldInfo));
                 for (int i = 0; i < count; i++) {
                     cJSON *field_json = cJSON_GetArrayItem(fields, i);
-                    t->fields[i] = *parse_field(field_json); // shallow copy; we'll manage memory in free
+                    t->fields[i] = *parse_field(field_json);
                 }
             }
         }
 
-        // Interfaces (only for OBJECT)
         if (strcmp(kind_str, "OBJECT") == 0) {
             cJSON *interfaces = cJSON_GetObjectItem(type_json, "interfaces");
             if (interfaces) {
@@ -230,7 +215,6 @@ static TypeInfo* parse_type(cJSON *type_json) {
             }
         }
     }
-    // ENUM
     else if (strcmp(kind_str, "ENUM") == 0) {
         cJSON *enum_values = cJSON_GetObjectItem(type_json, "enumValues");
         if (enum_values) {
@@ -245,7 +229,6 @@ static TypeInfo* parse_type(cJSON *type_json) {
             }
         }
     }
-    // INPUT_OBJECT
     else if (strcmp(kind_str, "INPUT_OBJECT") == 0) {
         cJSON *input_fields = cJSON_GetObjectItem(type_json, "inputFields");
         if (input_fields) {
@@ -260,7 +243,6 @@ static TypeInfo* parse_type(cJSON *type_json) {
             }
         }
     }
-    // UNION
     else if (strcmp(kind_str, "UNION") == 0) {
         cJSON *possible_types = cJSON_GetObjectItem(type_json, "possibleTypes");
         if (possible_types) {
@@ -278,7 +260,6 @@ static TypeInfo* parse_type(cJSON *type_json) {
             }
         }
     }
-    // SCALAR
     else if (strcmp(kind_str, "SCALAR") == 0) {
         cJSON *spec_url = cJSON_GetObjectItem(type_json, "specifiedByURL");
         if (spec_url && spec_url->valuestring) {
@@ -290,7 +271,7 @@ static TypeInfo* parse_type(cJSON *type_json) {
 }
 
 // ------------------------------------------------------------------
-// Build the complete schema data from JSON root
+// Build schema data from JSON
 // ------------------------------------------------------------------
 static SchemaData* build_schema_data(cJSON *root) {
     cJSON *data = cJSON_GetObjectItem(root, "data");
@@ -314,7 +295,6 @@ static SchemaData* build_schema_data(cJSON *root) {
     SchemaData *sdata = calloc(1, sizeof(SchemaData));
     if (!sdata) return NULL;
 
-    // Helper to find a type by name
     cJSON *find_type_json_by_name(cJSON * types, const char * target) {
         int count = cJSON_GetArraySize(types);
         for (int i = 0; i < count; i++) {
@@ -327,7 +307,6 @@ static SchemaData* build_schema_data(cJSON *root) {
         return NULL;
     }
 
-    // Root operations
     cJSON *query_type = cJSON_GetObjectItem(schema, "queryType");
     cJSON *mutation_type = cJSON_GetObjectItem(schema, "mutationType");
     cJSON *subscription_type = cJSON_GetObjectItem(schema, "subscriptionType");
@@ -336,9 +315,7 @@ static SchemaData* build_schema_data(cJSON *root) {
         cJSON *qname = cJSON_GetObjectItem(query_type, "name");
         if (qname && qname->valuestring) {
             cJSON *qobj = find_type_json_by_name(types, qname->valuestring);
-            if (qobj) {
-                sdata->query_type = parse_type(qobj);
-            }
+            if (qobj) sdata->query_type = parse_type(qobj);
         }
     }
 
@@ -346,9 +323,7 @@ static SchemaData* build_schema_data(cJSON *root) {
         cJSON *mname = cJSON_GetObjectItem(mutation_type, "name");
         if (mname && mname->valuestring) {
             cJSON *mobj = find_type_json_by_name(types, mname->valuestring);
-            if (mobj) {
-                sdata->mutation_type = parse_type(mobj);
-            }
+            if (mobj) sdata->mutation_type = parse_type(mobj);
         }
     }
 
@@ -356,16 +331,12 @@ static SchemaData* build_schema_data(cJSON *root) {
         cJSON *sname = cJSON_GetObjectItem(subscription_type, "name");
         if (sname && sname->valuestring) {
             cJSON *sobj = find_type_json_by_name(types, sname->valuestring);
-            if (sobj) {
-                sdata->subscription_type = parse_type(sobj);
-            }
+            if (sobj) sdata->subscription_type = parse_type(sobj);
         }
     }
 
-    // Collect all custom types (skip built-in scalars and __* types)
     int total_types = cJSON_GetArraySize(types);
     int custom_count = 0;
-    // First pass: count custom types
     for (int i = 0; i < total_types; i++) {
         cJSON *type = cJSON_GetArrayItem(types, i);
         cJSON *name = cJSON_GetObjectItem(type, "name");
@@ -397,7 +368,6 @@ static SchemaData* build_schema_data(cJSON *root) {
         }
     }
 
-    // Directives
     cJSON *directives = cJSON_GetObjectItem(schema, "directives");
     if (directives) {
         int dcount = cJSON_GetArraySize(directives);
@@ -437,13 +407,12 @@ static SchemaData* build_schema_data(cJSON *root) {
 }
 
 // ------------------------------------------------------------------
-// Print a field from FieldInfo
+// Print a field (compact)
 // ------------------------------------------------------------------
 static void print_field_info(FieldInfo *field, int indent) {
     for (int i = 0; i < indent; i++) printf("  ");
     printf("%s", field->name);
 
-    // Arguments
     if (field->num_args > 0) {
         printf("(");
         for (int i = 0; i < field->num_args; i++) {
@@ -456,13 +425,13 @@ static void print_field_info(FieldInfo *field, int indent) {
     }
 
     printf(": %s", field->type_string);
-    if (field->is_deprecated) printf(" [DEPRECATED]");
+    if (field->is_deprecated) printf(" [deprecated]");
     if (field->default_value) printf(" = %s", field->default_value);
     printf("\n");
 }
 
 // ------------------------------------------------------------------
-// Print a type from TypeInfo
+// Print a type (compact)
 // ------------------------------------------------------------------
 static void print_type_info(TypeInfo *type, int indent) {
     if (!type) return;
@@ -477,11 +446,9 @@ static void print_type_info(TypeInfo *type, int indent) {
     const char *kind = type->kind;
 
     if (strcmp(kind, "OBJECT") == 0 || strcmp(kind, "INTERFACE") == 0) {
-        // Fields
         for (int i = 0; i < type->num_fields; i++) {
             print_field_info(&type->fields[i], indent + 1);
         }
-        // Interfaces (only OBJECT)
         if (strcmp(kind, "OBJECT") == 0 && type->num_interfaces > 0) {
             for (int i = 0; i < indent + 1; i++) printf("  ");
             printf("implements ");
@@ -497,7 +464,7 @@ static void print_type_info(TypeInfo *type, int indent) {
         for (int i = 0; i < type->num_enum_values; i++) {
             for (int j = 0; j < indent + 1; j++) printf("  ");
             printf("%s", type->enum_values[i].name);
-            if (type->enum_values[i].is_deprecated) printf(" [DEPRECATED]");
+            if (type->enum_values[i].is_deprecated) printf(" [deprecated]");
             printf("\n");
         }
         printf("\n");
@@ -529,16 +496,15 @@ static void print_type_info(TypeInfo *type, int indent) {
 }
 
 // ------------------------------------------------------------------
-// Print the entire schema from SchemaData
+// Print the entire schema (compact)
 // ------------------------------------------------------------------
 static void print_schema_data(SchemaData *schema) {
     if (!schema) return;
 
-    printf("\n========== GRAPHQL SCHEMA ANALYSIS (STRUCT-BASED) ==========\n\n");
+    printf("\n========== GRAPHQL SCHEMA ==========\n\n");
 
-    // Root operations
     if (schema->query_type) {
-        printf("🔍 ROOT QUERY:\n");
+        printf("ROOT QUERY:\n");
         print_type_info(schema->query_type, 0);
     }
     if (schema->mutation_type) {
@@ -548,19 +514,17 @@ static void print_schema_data(SchemaData *schema) {
         printf("ROOT MUTATION: (none)\n\n");
     }
     if (schema->subscription_type) {
-        printf("📡 ROOT SUBSCRIPTION:\n");
+        printf("ROOT SUBSCRIPTION:\n");
         print_type_info(schema->subscription_type, 0);
     } else {
-        printf("📡 ROOT SUBSCRIPTION: (none)\n\n");
+        printf("ROOT SUBSCRIPTION: (none)\n\n");
     }
 
-    // All custom types
-    printf("ALL CUSTOM TYPES (objects, enums, scalars, unions, interfaces, input objects):\n\n");
+    printf("ALL CUSTOM TYPES:\n\n");
     for (int i = 0; i < schema->num_types; i++) {
         print_type_info(schema->types[i], 0);
     }
 
-    // Directives
     if (schema->num_directives > 0) {
         printf("DIRECTIVES:\n");
         for (int i = 0; i < schema->num_directives; i++) {
@@ -579,284 +543,377 @@ static void print_schema_data(SchemaData *schema) {
         printf("\n");
     }
 
-    // Summary (counts are already in the struct, but we can compute)
-    int total_types = schema->num_types;
-    int builtin = 0;
-    // We don't have built-in count in struct, but we can compute from original idea; skip for brevity.
-    printf("SUMMARY:\n");
-    printf("  - Custom types: %d\n", total_types);
-    printf("  - Directives: %d\n", schema->num_directives);
-    // Additional summary can be added if needed.
+    printf("SUMMARY: %d custom types, %d directives\n\n",
+           schema->num_types, schema->num_directives);
 }
 
 // ------------------------------------------------------------------
-// Free all allocated memory in a FieldInfo
+// Security analysis (no emojis, concise)
 // ------------------------------------------------------------------
-static void free_field_info(FieldInfo *fi) {
-    if (!fi) return;
-    free(fi->name);
-    for (int i = 0; i < fi->num_args; i++) {
-        free(fi->args[i].name);
-        free(fi->args[i].type_string);
-    }
-    free(fi->args);
-    free(fi->type_string);
-    free(fi->default_value);
-}
-
-// ------------------------------------------------------------------
-// Free an EnumValueInfo
-// ------------------------------------------------------------------
-static void free_enum_value_info(EnumValueInfo *ev) {
-    if (!ev) return;
-    free(ev->name);
-}
-
-// ------------------------------------------------------------------
-// Free a TypeInfo completely
-// ------------------------------------------------------------------
-static void free_type_info(TypeInfo *t) {
-    if (!t) return;
-    free(t->name);
-    free(t->kind);
-    free(t->description);
-    for (int i = 0; i < t->num_fields; i++) {
-        free_field_info(&t->fields[i]);
-    }
-    free(t->fields);
-    for (int i = 0; i < t->num_interfaces; i++) {
-        free(t->interfaces[i]);
-    }
-    free(t->interfaces);
-    for (int i = 0; i < t->num_enum_values; i++) {
-        free_enum_value_info(&t->enum_values[i]);
-    }
-    free(t->enum_values);
-    for (int i = 0; i < t->num_input_fields; i++) {
-        free_field_info(&t->input_fields[i]);
-    }
-    free(t->input_fields);
-    for (int i = 0; i < t->num_possible_types; i++) {
-        free(t->possible_types[i]);
-    }
-    free(t->possible_types);
-    free(t->specified_by_url);
-    free(t);
-}
-
-// ------------------------------------------------------------------
-// Free the entire SchemaData
-// ------------------------------------------------------------------
-static void free_schema_data(SchemaData *schema) {
+static void perform_security_analysis(SchemaData *schema) {
     if (!schema) return;
-    free_type_info(schema->query_type);
-    free_type_info(schema->mutation_type);
-    free_type_info(schema->subscription_type);
+
+    printf("========== SECURITY ANALYSIS ==========\n\n");
+
+    // 1. Sensitive fields
+    const char *sensitive_keywords[] = {
+        "password", "pass", "secret", "token", "apiKey", "apikey",
+        "credit", "card", "ssn", "social", "tax", "bank", "account",
+        "private", "internal", "admin", "root", "superuser"
+    };
+    int num_keywords = sizeof(sensitive_keywords) / sizeof(sensitive_keywords[0]);
+
+    printf("SENSITIVE FIELDS:\n");
+    int found_sensitive = 0;
     for (int i = 0; i < schema->num_types; i++) {
-        free_type_info(schema->types[i]);
-    }
-    free(schema->types);
-    for (int i = 0; i < schema->num_directives; i++) {
-        free(schema->directives[i].name);
-        for (int j = 0; j < schema->directives[i].num_args; j++) {
-            free(schema->directives[i].args[j].name);
-            free(schema->directives[i].args[j].type_string);
+        TypeInfo *t = schema->types[i];
+        if (strcmp(t->kind, "OBJECT") == 0 || strcmp(t->kind, "INTERFACE") == 0) {
+            for (int j = 0; j < t->num_fields; j++) {
+                FieldInfo *f = &t->fields[j];
+                for (int k = 0; k < num_keywords; k++) {
+                    if (strstr(f->name, sensitive_keywords[k]) != NULL) {
+                        printf("  %s.%s : %s\n", t->name, f->name, f->type_string);
+                        found_sensitive++;
+                        break;
+                    }
+                }
+            }
         }
-        free(schema->directives[i].args);
+        if (strcmp(t->kind, "INPUT_OBJECT") == 0) {
+            for (int j = 0; j < t->num_input_fields; j++) {
+                FieldInfo *f = &t->input_fields[j];
+                for (int k = 0; k < num_keywords; k++) {
+                    if (strstr(f->name, sensitive_keywords[k]) != NULL) {
+                        printf("  %s (input) : %s\n", f->name, f->type_string);
+                        found_sensitive++;
+                        break;
+                    }
+                }
+            }
+        }
     }
-    free(schema->directives);
-    free(schema);
+    if (!found_sensitive) printf("  (none)\n");
+
+    // 2. Mutations
+    if (schema->mutation_type) {
+        printf("\nMUTATIONS (data modification):\n");
+        TypeInfo *mut = schema->mutation_type;
+        for (int i = 0; i < mut->num_fields; i++) {
+            FieldInfo *f = &mut->fields[i];
+            printf("  %s(", f->name);
+            for (int j = 0; j < f->num_args; j++) {
+                printf("%s: %s", f->args[j].name, f->args[j].type_string);
+                if (j < f->num_args - 1) printf(", ");
+            }
+            printf(") -> %s\n", f->type_string);
+        }
+    } else {
+        printf("\nMUTATIONS: (none)\n");
+    }
+
+    // 3. List fields (DoS risk)
+    printf("\nLIST FIELDS (possible DoS):\n");
+    int found_lists = 0;
+    for (int i = 0; i < schema->num_types; i++) {
+        TypeInfo *t = schema->types[i];
+        if (strcmp(t->kind, "OBJECT") == 0 || strcmp(t->kind, "INTERFACE") == 0) {
+            for (int j = 0; j < t->num_fields; j++) {
+                FieldInfo *f = &t->fields[j];
+                if (strstr(f->type_string, "[") != NULL) {
+                    printf("  %s.%s : %s\n", t->name, f->name, f->type_string);
+                    found_lists++;
+                }
+            }
+        }
+    }
+    if (!found_lists) printf("  (none)\n");
+
+    // 4. Object fields (nesting risk)
+    const char *scalars[] = {"String", "Int", "Float", "Boolean", "ID"};
+    int num_scalars = 5;
+    printf("\nOBJECT FIELDS (deep nesting potential):\n");
+    int found_objects = 0;
+    for (int i = 0; i < schema->num_types; i++) {
+        TypeInfo *t = schema->types[i];
+        if (strcmp(t->kind, "OBJECT") == 0 || strcmp(t->kind, "INTERFACE") == 0) {
+            for (int j = 0; j < t->num_fields; j++) {
+                FieldInfo *f = &t->fields[j];
+                int is_scalar = 0;
+                for (int k = 0; k < num_scalars; k++) {
+                    if (strcmp(f->type_string, scalars[k]) == 0) {
+                        is_scalar = 1;
+                        break;
+                    }
+                }
+                if (!is_scalar && strchr(f->type_string, '[') == NULL) {
+                    printf("  %s.%s -> %s\n", t->name, f->name, f->type_string);
+                    found_objects++;
+                }
+            }
+        }
+    }
+    if (!found_objects) printf("  (none)\n");
+
+    // 5. Deprecated fields
+    printf("\nDEPRECATED FIELDS:\n");
+    int found_deprecated = 0;
+    for (int i = 0; i < schema->num_types; i++) {
+        TypeInfo *t = schema->types[i];
+        if (strcmp(t->kind, "OBJECT") == 0 || strcmp(t->kind, "INTERFACE") == 0) {
+            for (int j = 0; j < t->num_fields; j++) {
+                if (t->fields[j].is_deprecated) {
+                    printf("  %s.%s\n", t->name, t->fields[j].name);
+                    found_deprecated++;
+                }
+            }
+        }
+        if (strcmp(t->kind, "ENUM") == 0) {
+            for (int j = 0; j < t->num_enum_values; j++) {
+                if (t->enum_values[j].is_deprecated) {
+                    printf("  %s.%s (enum)\n", t->name, t->enum_values[j].name);
+                    found_deprecated++;
+                }
+            }
+        }
+    }
+    if (!found_deprecated) printf("  (none)\n");
+
+    // 6. Recommendations
+    printf("\nRECOMMENDATIONS:\n");
+    if (schema->mutation_type) printf("  - Mutations exist: enforce authentication and authorization.\n");
+    if (found_sensitive) printf("  - Sensitive fields exposed: restrict access or use field-level permissions.\n");
+    if (found_lists) printf("  - List fields: implement pagination (first, after) to prevent DoS.\n");
+    if (found_objects) printf("  - Object fields: implement query depth limiting.\n");
+    printf("  - Disable introspection in production unless required.\n");
+    printf("=========================================\n\n");
 }
 
 // ------------------------------------------------------------------
-// Main analysis entry point (kept same name and signature as original)
+// Helper: read file and skip non-JSON preamble
 // ------------------------------------------------------------------
-int inrropection_check(char *intro_json) {
-    FILE *file = fopen(intro_json, "rb");
-    if (!file) {
-        perror("Failed to open file");
-        return 1;
-    }
+static char* read_json_from_file(const char *filename, long *out_len) {
+    FILE *file = fopen(filename, "rb");
+    if (!file) return NULL;
 
     fseek(file, 0, SEEK_END);
     long length = ftell(file);
     fseek(file, 0, SEEK_SET);
 
-    char *data = (char *)malloc(length + 1);
-    if (!data) {
-        perror("Memory allocation failed");
-        fclose(file);
-        return 1;
-    }
+    char *data = malloc(length + 1);
+    if (!data) { fclose(file); return NULL; }
 
     size_t read_len = fread(data, 1, length, file);
+    fclose(file);
     if (read_len != (size_t)length) {
-        perror("Read error");
         free(data);
-        fclose(file);
-        return 1;
+        return NULL;
     }
     data[length] = '\0';
-    fclose(file);
+
+    char *start = strchr(data, '{');
+    if (!start) {
+        free(data);
+        return NULL;
+    }
+
+    if (start != data) {
+        memmove(data, start, length - (start - data) + 1);
+        length = length - (start - data);
+    }
+
+    if (out_len) *out_len = length;
+    return data;
+}
+
+// ------------------------------------------------------------------
+// Main analysis entry point
+// ------------------------------------------------------------------
+int inrropection_check(char *intro_json) {
+    long length;
+    char *data = read_json_from_file(intro_json, &length);
+    if (!data) {
+        fprintf(stderr, "Failed to read JSON from %s\n", intro_json);
+        return 1;
+    }
 
     cJSON *json = cJSON_Parse(data);
     free(data);
 
     if (!json) {
         const char *error_ptr = cJSON_GetErrorPtr();
-        if (error_ptr != NULL) {
-            fprintf(stderr, "JSON Parse Error: %s\n", error_ptr);
-        }
+        if (error_ptr) fprintf(stderr, "JSON Parse Error: %s\n", error_ptr);
         return 1;
     }
 
-    // Build schema data
     SchemaData *schema = build_schema_data(json);
     if (schema) {
-        // Print from the structs
         print_schema_data(schema);
-        // Free all memory
+        perform_security_analysis(schema);
         free_schema_data(schema);
+        cJSON_Delete(json);
+        return 0;
     }
 
     cJSON_Delete(json);
-    return 0;
+    return 1;
 }
 
-
-int detect_graphql(char *full_path){
+// ------------------------------------------------------------------
+// Detect GraphQL endpoints with a lightweight probe
+// ------------------------------------------------------------------
+int detect_graphql(char *api_path, char *graphql_path) {
     request r = {0};
-
 
     FILE *f = fopen("glassworm/graphql/uni.json", "r");
     if (!f) {
         fprintf(stderr, "Failed to open uni.json\n");
-        return;
+        return 1;
     }
 
-    // Read the JSON content from the file
     fseek(f, 0, SEEK_END);
     long json_size = ftell(f);
     rewind(f);
 
     char *json = malloc(json_size + 1);
-    if (!json) {
-        fprintf(stderr, "Failed to allocate memory for JSON content\n");
-        fclose(f);
-        return;
-    }
-
+    if (!json) { fclose(f); return 1; }
     if (fread(json, 1, json_size, f) != json_size) {
-        fprintf(stderr, "Failed to read JSON content\n");
-        free(json);
-        fclose(f);
-        return;
+        free(json); fclose(f); return 1;
     }
     json[json_size] = '\0';
     fclose(f);
 
-    FILE *api = fopen(full_path, "r");
-    
-    if (!api) {
-        fprintf(stderr, "Failed to open api.txt\n");
-        free(json);
-        return;
-    }
+    FILE *api = fopen(api_path, "r");
+    if (!api) { free(json); return 1; }
+
+    FILE *graphql = fopen(graphql_path, "w");
+    if (!graphql) { free(json); fclose(api); return 1; }
+
     char api_url[256];
+    int found_any = 0;
 
     while (fgets(api_url, sizeof(api_url), api)) {
-        http_send_post(
-            &r,
-            api_url,
-            false,       // upload = false
-            NULL,
-            true,        // is_raw = true
-            json
-        );
+        api_url[strcspn(api_url, "\n")] = '\0';
+
+        if (!http_send_post(&r, api_url, false, NULL, true, json)) {
+            fprintf(stderr, "HTTP POST failed for %s\n", api_url);
+            continue;
+        }
 
         if (r.code != 200) {
-            fprintf(stderr, "Failed to send GraphQL request\n");
-            return 1;
+            fprintf(stderr, "Non-200 response for %s\n", api_url);
+            continue;
         }
 
-        FILE *fp = fopen(r.filename, "r");
-        fseek(fp, 0, SEEK_END);
-        long needle_size = ftell(f);
-        rewind(f);
+        char *resp = read_json_from_file(r.filename, NULL);
+        if (!resp) continue;
 
-        char *needle = malloc(needle_size + 1);
-        if (!needle) {
-            fprintf(stderr, "Failed to allocate memory for JSON content\n");
-            fclose(f);
-            return;
+        if (strstr(resp, "__schema") || strstr(resp, "\"data\"") ||
+            strstr(resp, "\"errors\"") || strstr(resp, "\"query\"")) {
+            printf("[+] GraphQL detected at %s\n", api_url);
+            fprintf(graphql, "%s\n", api_url);
+            found_any = 1;
         }
-
-        if (fread(needle, 1, needle_size, fp) != needle_size) {
-            fprintf(stderr, "Failed to read JSON content\n");
-            free(needle);
-            fclose(f);
-            return;
-        }
-        needle[needle_size] = '\0';
-
-        fclose(f);
-
-        char *result_one = strstr("__schema", needle);
-        char *result_two = strstr("\"data\"", needle);
-        char *result_three = strstr("\"errors\"", needle);
-        char *result_four = strstr("\"query\"", needle);
-
-        if (result_one || result_two || result_three || result_four) {
-         printf("GraphQL detected\n");
-            return 1;
-        } else {
-            printf("GraphQL not detected\n");
-            return 0;
-        }
-        free(needle);
+        free(resp);
     }
 
-   
+    fclose(api);
+    fclose(graphql);
     free(json);
+    return found_any ? 0 : 1;
 }
 
+// ------------------------------------------------------------------
+// Main orchestration function
+// ------------------------------------------------------------------
 int graphql_scanning(char *path) {
-
-    // get gobuster.txt data
-    char gobuster_path[256];
+    char gobuster_path[512];
     snprintf(gobuster_path, sizeof(gobuster_path), "%s/gobuster.txt", path);
+
+    char api_path[512];
+    snprintf(api_path, sizeof(api_path), "%s/api.txt", path);
+
+    char graphql_path[512];
+    snprintf(graphql_path, sizeof(graphql_path), "%s/graphql.txt", path);
+
+    // Filter gobuster.txt -> api.txt
     FILE *gobuster_file = fopen(gobuster_path, "r");
     if (!gobuster_file) {
         fprintf(stderr, "Failed to open gobuster.txt\n");
         return 1;
     }
-    char gobuster_url[512];
 
-    // api.txt
-    char api_path[256];
-    snprintf(api_path,"%s/api.txt", path);
     FILE *api_file = fopen(api_path, "w");
     if (!api_file) {
-        fprintf(stderr, "Failed to open api.txt\n");
         fclose(gobuster_file);
         return 1;
     }
 
-    while(fgets(gobuster_url, sizeof(gobuster_url), gobuster_file)) {
-        if (scanf(gobuster_url, "graphql") == 0) {
-            fprintf(stderr, "Failed to parse URL from gobuster.txt\n");
-            fprintf(api_file, "%s", gobuster_url);
+    char gobuster_url[512];
+    while (fgets(gobuster_url, sizeof(gobuster_url), gobuster_file)) {
+        gobuster_url[strcspn(gobuster_url, "\n")] = '\0';
+        if (strstr(gobuster_url, "graphql") || strstr(gobuster_url, "api")) {
+            fprintf(api_file, "%s\n", gobuster_url);
         }
-        if (scanf(gobuster_url, "api") == 0) {
-            fprintf(stderr, "Failed to parse URL from gobuster.txt\n");
-            fprintf(api_file, "%s", gobuster_url);
-        }
+    }
+    fclose(gobuster_file);
+    fclose(api_file);
 
+    // Detect GraphQL endpoints
+    int detect_ret = detect_graphql(api_path, graphql_path);
+    if (detect_ret == 0)
+        printf("[+] GraphQL detection completed.\n");
+    else
+        printf("[-] No GraphQL endpoints found.\n");
+
+    // Read full introspection query
+    FILE *graphql_file = fopen(graphql_path, "r");
+    if (!graphql_file) {
+        fprintf(stderr, "Failed to open graphql.txt\n");
+        return 1;
     }
-    if (detect_graphql(api_path) == 1) {
-        printf("[+] GraphQL detected\n");
-    } else {
-        printf("[-] GraphQL not detected\n");
+
+    FILE *f = fopen("glassworm/graphql/introspection.json", "r");
+    if (!f) {
+        fprintf(stderr, "Failed to open introspection.json\n");
+        fclose(graphql_file);
+        return 1;
     }
+
+    fseek(f, 0, SEEK_END);
+    long json_size = ftell(f);
+    rewind(f);
+
+    char *json = malloc(json_size + 1);
+    if (!json) { fclose(f); fclose(graphql_file); return 1; }
+    if (fread(json, 1, json_size, f) != json_size) {
+        free(json); fclose(f); fclose(graphql_file); return 1;
+    }
+    json[json_size] = '\0';
+    fclose(f);
+
+    request r = {0};
+    char graphql_url[1028];
+    int sent_count = 0;
+
+    while (fgets(graphql_url, sizeof(graphql_url), graphql_file)) {
+        graphql_url[strcspn(graphql_url, "\n")] = '\0';
+
+        if (http_send_post(&r, graphql_url, false, NULL, true, json)) {
+            printf("[+] Sent introspection to %s, response saved to %s\n",
+                   graphql_url, r.filename);
+            sent_count++;
+
+            // Analyze the response immediately
+            printf("\n--- Analysis for %s ---\n", graphql_url);
+            inrropection_check(r.filename);
+            printf("------------------------\n");
+        } else {
+            fprintf(stderr, "[-] Failed to send introspection to %s\n", graphql_url);
+        }
+    }
+
+    fclose(graphql_file);
+    free(json);
+    printf("\n[+] Done. %d introspection responses analyzed.\n", sent_count);
+    return 0;
 }
-

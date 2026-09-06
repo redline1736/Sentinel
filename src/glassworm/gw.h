@@ -1,6 +1,6 @@
 #ifndef GW_H
 #define GW_H
 
-int dvr(char *argv);
+int run_graphql_scanning(char *path);
 
 #endif
