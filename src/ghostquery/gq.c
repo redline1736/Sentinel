@@ -271,7 +271,7 @@ static int gq_http_send(request *r, const char *url) {
  * Find parameters that are reflected in the response body.
  * Writes valid parameters to ghostquery/xss/valid_params.txt
  */
-int find_param_reflecting(char *url) {
+int find_param_reflecting(char *url, char *path) {
     int size;
     int allocated;
     char full_url[MAX_URL_LEN];
@@ -702,7 +702,7 @@ int xss_run(char *url, char *path) {
     char *payloads = "ghostquery/xss/payloads.txt";
 
     if (file_exists(payloads)) {
-        printf("[xss_run] Using existing valid parameters file: %s\n", param_file);
+        printf("[xss_run] Using existing valid parameters file: %s\n", payloads);
     }else {
         if (system("python3 ghostquery/xss/xss.py") != 0) {
             fprintf(stderr, "warning: xss.py exited with an error (continuing anyway)\n");
@@ -711,7 +711,7 @@ int xss_run(char *url, char *path) {
     }
     /* Step 2: Find reflecting parameters */
     printf("[xss_run] Finding reflecting parameters...\n");
-    if (find_param_reflecting(url) != 0) {
+    if (find_param_reflecting(url, path) != 0) {
         fprintf(stderr, "warning: find_param_reflecting failed\n");
     }
     
