@@ -713,6 +713,38 @@ static int write_proxychains_conf(const char *uri, char *conf_path, size_t cap) 
     return 0;
 }
 
+/* Check if a tool should use HTTP pre-flight */
+static bool tool_uses_http(const char *tool_name) {
+    const char *http_tools[] = {
+        "nuclei", "nikto", "httpx", "curl", "wpscan", "dalfox",
+        "ffuf", "gobuster", "dirb", "dirsearch", "hydra", "medusa",
+        "whatweb", "wafw00f", NULL
+    };
+    
+    for (int i = 0; http_tools[i] != NULL; i++) {
+        if (strstr(tool_name, http_tools[i]) != NULL) {
+            return true;
+        }
+    }
+    return false;
+}
+
+/* Check if a tool should skip proxy entirely */
+static bool tool_skip_proxy(const char *tool_name) {
+    const char *skip_tools[] = {
+        "subfinder", "assetfinder", "gobuster", "subzy", "subjack",
+        "dns", "nmap", "masscan", "dnsrecon", "dnsenum", "fierce",
+        "amass", "knock", "dnsx", "puredns", "shuffledns", NULL
+    };
+    
+    for (int i = 0; skip_tools[i] != NULL; i++) {
+        if (strstr(tool_name, skip_tools[i]) != NULL) {
+            return true;
+        }
+    }
+    return false;
+}
+
 /* Pre-flight request through the current proxy (GET/HEAD only).
  * Returns HTTP status (>=100), -1 transport error,
  *         -2 proxy rotated (429/503), -3 pool down. */
@@ -761,13 +793,22 @@ static int run_tool_impl(char *const argv[], int timeout_secs,
                          const char *out_path, bool append) {
     char conf_path[512];
     bool proxied = false;
+    bool skip_proxy = false;
+    bool uses_http = false;
+
+    /* Determine if this tool should use proxy or not */
+    const char *tool_name = argv[0];
+    if (tool_name) {
+        skip_proxy = tool_skip_proxy(tool_name);
+        uses_http = tool_uses_http(tool_name);
+    }
 
     /* Snapshot mode + current proxy URI under the lock (may rotate below). */
     int mode;
     const char *cur_uri = NULL;
     lock_acquire();
     mode = pool_mode;
-    if (mode != PROXY_NONE && pool_count > 0) {
+    if (mode != PROXY_NONE && pool_count > 0 && !skip_proxy) {
         for (int i = 0; i < pool_count; i++) {
             if (pool[i].current && pool[i].ready && !pool[i].burned) {
                 cur_uri = pool[i].uri;
@@ -777,60 +818,94 @@ static int run_tool_impl(char *const argv[], int timeout_secs,
     }
     lock_release();
 
-    if (mode != PROXY_NONE) {
+    if (mode != PROXY_NONE && !skip_proxy) {
         if (!cur_uri) {
             fprintf(stderr, "[-] No healthy proxy — aborting tool launch\n");
             return -2;
         }
         proxied = true;
 
-        /* Pre-flight: probe URL args through the current proxy.
-         * 429/503 burns+rotates; transport failures are non-fatal. */
-        for (int i = 0; argv[i] != NULL; i++) {
-            if (strncmp(argv[i], "http://", 7) == 0 ||
-                strncmp(argv[i], "https://", 8) == 0) {
-                int r = proxy_preflight(argv[i]);
-                if (r == -3) {
-                    fprintf(stderr, "[-] Proxy pool unavailable — aborting tool launch\n");
-                    return -2;
+        /* Pre-flight: only for tools that use HTTP and have URL arguments */
+        if (uses_http) {
+            for (int i = 0; argv[i] != NULL; i++) {
+                if (strncmp(argv[i], "http://", 7) == 0 ||
+                    strncmp(argv[i], "https://", 8) == 0) {
+                    int r = proxy_preflight(argv[i]);
+                    if (r == -3) {
+                        fprintf(stderr, "[-] Proxy pool unavailable — aborting tool launch\n");
+                        return -2;
+                    }
+                    // If proxy was rotated, update cur_uri
+                    if (r == -2) {
+                        lock_acquire();
+                        cur_uri = NULL;
+                        for (int j = 0; j < pool_count; j++) {
+                            if (pool[j].current && pool[j].ready && !pool[j].burned) {
+                                cur_uri = pool[j].uri;
+                                break;
+                            }
+                        }
+                        lock_release();
+                        if (!cur_uri) {
+                            fprintf(stderr, "[-] Proxy pool unavailable after rotation\n");
+                            return -2;
+                        }
+                    }
                 }
             }
         }
 
         /* Re-read the (possibly rotated) current proxy for the conf. */
-        lock_acquire();
-        cur_uri = NULL;
-        for (int i = 0; i < pool_count; i++) {
-            if (pool[i].current && pool[i].ready && !pool[i].burned) {
-                cur_uri = pool[i].uri;
-                break;
+        if (proxied) {
+            lock_acquire();
+            cur_uri = NULL;
+            for (int i = 0; i < pool_count; i++) {
+                if (pool[i].current && pool[i].ready && !pool[i].burned) {
+                    cur_uri = pool[i].uri;
+                    break;
+                }
             }
+            lock_release();
+            if (!cur_uri) {
+                fprintf(stderr, "[-] Proxy pool unavailable after rotation\n");
+                return -2;
+            }
+            if (write_proxychains_conf(cur_uri, conf_path, sizeof(conf_path)) != 0)
+                return -1;
         }
-        lock_release();
-        if (!cur_uri) {
-            fprintf(stderr, "[-] Proxy pool unavailable after rotation\n");
-            return -2;
-        }
-        if (write_proxychains_conf(cur_uri, conf_path, sizeof(conf_path)) != 0)
-            return -1;
     }
 
-    /* Direct mode: exec the tool as-is. Proxy mode: wrap in proxychains. */
+    /* Build the command */
     char *wrapped[128];
     int argc = 0;
-    if (proxied) {
+    
+    // For DNS/Domain tools, don't wrap with proxychains
+    if (proxied && !skip_proxy) {
         wrapped[argc++] = "proxychains4";
         wrapped[argc++] = "-f";
         wrapped[argc++] = conf_path;
     }
+    
     for (int i = 0; argv[i] != NULL; i++) {
-        if (argc >= 126) {          /* no silent truncation */
+        if (argc >= 126) {
             fprintf(stderr, "[-] too many argv entries for run_tool\n");
             return -1;
         }
         wrapped[argc++] = argv[i];
     }
     wrapped[argc] = NULL;
+
+    /* Debug output - uncomment for debugging */
+    #ifdef DEBUG
+    printf("[DEBUG] Running: ");
+    for (int i = 0; wrapped[i] != NULL; i++) {
+        printf("%s ", wrapped[i]);
+    }
+    printf("\n");
+    printf("[DEBUG] Proxy mode: %s, Skip proxy: %s\n", 
+           proxied ? "enabled" : "disabled",
+           skip_proxy ? "yes" : "no");
+    #endif
 
     pid_t pid = fork();
     if (pid < 0)
