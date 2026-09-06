@@ -253,7 +253,6 @@ static int gq_http_send(request *r, const char *url) {
     if (result == CURLE_OK) {
         curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &http_code);
         r->code = (int)http_code;
-        printf("Response saved to %s\n", filename);
     } else {
         fprintf(stderr, "Request failed for %s: %s\n", url, curl_easy_strerror(result));
         safe_remove(filename);
@@ -282,7 +281,9 @@ int find_param_reflecting(char *url) {
     FILE *fptr;
     int i = 0;
     char *param_file = "ghostquery/params.txt";
-    char *output_file = "ghostquery/xss/valid_params.txt";  /* FIXED: consistent path */
+    char output_file[256];
+    snprintf(output_file, sizeof(output_file), "%s/valid_params.txt", path);
+
     char *output_dir = "ghostquery/xss";
     
     if (!url) {
@@ -394,22 +395,14 @@ int find_param_reflecting(char *url) {
     return 0;
 }
 
-/* ============================================================================
- * XSS Scanning (Generated Payloads)
- * ============================================================================ */
-
-/**
- * Scan for XSS using generated payloads from xss.py.
- * FIXED: Uses ghostquery/xss/valid_params.txt (consistent path)
- * Uses chrome.h's detect_xss() function directly - no custom detection
- */
 void xss_generated(char *url, char *path) {
     int nparams;
     int npayloads;
     char full_url[MAX_URL_LEN];
     char param[MAX_PARAM_LEN];
     char payload[MAX_PAYLOAD_LEN];
-    char *params_file = "ghostquery/xss/valid_params.txt";
+    char param_file[256];
+    snprintf(param_file, sizeof(param_file), "%s/valid_params.txt", path);
     char *payload_file = "ghostquery/xss/payloads.txt";
     char valid_payloads_path[256];
     FILE *fp, *ex, *found;
@@ -541,21 +534,14 @@ void xss_generated(char *url, char *path) {
     printf("[xss_generated] Results written to %s\n", valid_payloads_path);
 }
 
-/* ============================================================================
- * XSS Scanning (Custom Payloads)
- * ============================================================================ */
-
-/**
- * Scan for XSS using custom payloads from custom.txt.
- * FIXED: Uses ghostquery/xss/valid_params.txt (consistent path)
- */
 void xss_custom(char *url, char *path) {
     int nparams;
     int npayloads;
     char full_url[MAX_URL_LEN];
     char param[MAX_PARAM_LEN];
     char payload[MAX_PAYLOAD_LEN];
-    char *params_file = "ghostquery/xss/valid_params.txt";
+    char param_file[256];
+    snprintf(param_file, sizeof(param_file), "%s/valid_params.txt", path);
     char *payload_file = "ghostquery/xss/custom.txt";
     char valid_payloads_path[256];
     FILE *fp, *ex, *found;
@@ -698,6 +684,13 @@ void xss_custom(char *url, char *path) {
  * 3. Scan with generated payloads
  * 4. Scan with custom payloads
  */
+
+int file_exists(const char *filename) {
+    // access() returns 0 if the file exists
+    return access(filename, F_OK) == 0;
+}
+
+
 int xss_run(char *url, char *path) {
     if (!url || !path) {
         fprintf(stderr, "xss_run: invalid arguments\n");
@@ -706,11 +699,16 @@ int xss_run(char *url, char *path) {
     
     /* Step 1: Generate payloads using Python script */
     printf("[xss_run] Generating XSS payloads...\n");
-    if (system("python3 ghostquery/xss/xss.py") != 0) {
-        fprintf(stderr, "warning: xss.py exited with an error (continuing anyway)\n");
-        /* Continue anyway - maybe there are existing payloads */
+    char payloads = "ghostquery/xss/payloads.txt";
+
+    if (file_exists(payloads)) {
+        printf("[xss_run] Using existing valid parameters file: %s\n", param_file);
+    }else {
+        if (system("python3 ghostquery/xss/xss.py") != 0) {
+            fprintf(stderr, "warning: xss.py exited with an error (continuing anyway)\n");
+            /* Continue anyway - maybe there are existing payloads */
+        }
     }
-    
     /* Step 2: Find reflecting parameters */
     printf("[xss_run] Finding reflecting parameters...\n");
     if (find_param_reflecting(url) != 0) {

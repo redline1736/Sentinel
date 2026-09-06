@@ -299,7 +299,10 @@ void scanning() {
 }
 
 void *wpscan(void *arg){
+    
     char *host = arg;
+    
+    printf("[+] Running wpscan on %s\n", host);
 
     char outfile[2048];
     snprintf(outfile, sizeof(outfile), "%s/%s/wpscan.txt", g.dir, host);
