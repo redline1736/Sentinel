@@ -324,5 +324,7 @@ void close_chrome() {
         curl_easy_cleanup(c.curl);
         c.curl = NULL;
     }
-    (void)system("pkill -f 'remote-debugging-port' 2>/dev/null");
+    if (system("pkill -f 'remote-debugging-port' 2>/dev/null") == -1) {
+        // Process may not exist, ignore
+    }
 }

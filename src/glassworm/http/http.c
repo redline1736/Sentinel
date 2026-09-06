@@ -7,16 +7,6 @@
 #include "http.h"
 
 /* Trim helper */
-static char *local_trim(char *s) {
-    if (!s) return s;
-    char *end = s + strlen(s);
-    while (end > s && (end[-1] == ' ' || end[-1] == '\t' || end[-1] == '\r' || end[-1] == '\n')) end--;
-    *end = '\0';
-    char *start = s;
-    while (*start && (*start == ' ' || *start == '\t')) start++;
-    if (start != s) memmove(s, start, strlen(start) + 1);
-    return s;
-}
 
 static size_t write_file(void *ptr, size_t size, size_t nmemb, void *stream) {
     return fwrite(ptr, size, nmemb, (FILE *)stream);

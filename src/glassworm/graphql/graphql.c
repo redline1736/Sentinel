@@ -826,7 +826,7 @@ static char* read_json_from_file(const char *filename, long *out_len) {
 // ------------------------------------------------------------------
 // Main analysis entry point
 // ------------------------------------------------------------------
-int inrropection_check(char *intro_json) {
+int introspection_check(char *intro_json) {
     long length;
     char *data = read_json_from_file(intro_json, &length);
     if (!data) {
@@ -1003,7 +1003,7 @@ int graphql_scanning(char *path) {
 
             // Analyze the response immediately
             printf("\n--- Analysis for %s ---\n", graphql_url);
-            inrropection_check(r.filename);
+            introspection_check(r.filename);
             printf("------------------------\n");
         } else {
             fprintf(stderr, "[-] Failed to send introspection to %s\n", graphql_url);
