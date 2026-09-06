@@ -9,7 +9,7 @@ on:
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     env:
       GO_VERSION: "1.24.2"
       GOBIN: "/usr/local/bin"
@@ -27,9 +27,10 @@ jobs:
           sudo apt-get install -y --no-install-recommends \
             ca-certificates curl git gcc make pkg-config \
             libcurl4-openssl-dev python3 python3-pip python3-venv \
-            chromium libcjson-dev ruby ruby-dev zlib1g-dev \
+            chromium-browser chromium libcjson-dev ruby ruby-dev zlib1g-dev \
             procps file tor proxychains4 nikto \
-            perl libnet-ssleay-perl libwww-perl
+            perl libnet-ssleay-perl libwww-perl \
+            libssl-dev build-essential
 
       - name: Setup Go
         uses: actions/setup-go@v5
@@ -56,9 +57,7 @@ jobs:
       - name: Install wpscan with proper permissions
         run: |
           set -euo pipefail
-          # Install wpscan as a user gem instead of system gem
           gem install --user-install wpscan 2>&1 || echo "[WARN] wpscan install failed"
-          # Add user gems to PATH
           echo "$(ruby -e 'puts Gem.user_dir')/bin" >> $GITHUB_PATH
 
       - name: Setup XSStrike
@@ -82,15 +81,16 @@ jobs:
             "https://raw.githubusercontent.com/danielmiessler/SecLists/master/Discovery/Web-Content/common.txt" \
             -o "${SECLISTS}/Discovery/Web-Content/common.txt"
 
+      - name: Create directories
+        run: |
+          mkdir -p ghostquery/xss
+
       - name: Fix Makefile and build
         run: |
-          # Backup original Makefile
           cp Makefile Makefile.bak
           
-          # Create a clean Makefile with proper warning suppressions
           cat > Makefile << 'EOF'
           CC      ?= gcc
-          # Removed -Werror, added warning suppressions
           CFLAGS  += -Wall -Wextra -O2 -D_GNU_SOURCE -pthread \
                      -Wno-unused-result -Wno-unused-function \
                      -Wno-format-truncation -Wno-sign-compare
@@ -110,7 +110,6 @@ jobs:
           $(BIN): $(SRCS) $(HDRS)
           	$(CC) $(CFLAGS) -I. $(SRCS) -o $@ $(LIBS)
           
-          # build with Address/UB sanitizers for local dev
           sanitize: CFLAGS += -g -O1 -fsanitize=address,undefined -fno-omit-frame-pointer
           sanitize: LIBS += -fsanitize=address,undefined
           sanitize: $(BIN)
@@ -119,34 +118,8 @@ jobs:
           	rm -f $(BIN)
           EOF
           
-          # Show the new Makefile for debugging
-          echo "✅ New Makefile created:"
-          cat Makefile
-          echo ""
-          
-          # Build
           make clean all
-          
-          # Verify binary
           test -x ./sentinel && echo "✅ binary OK"
-          
-          # Check required tools
-          for t in subfinder assetfinder httpx nuclei dalfox wpscan; do
-            if command -v "$t" &>/dev/null; then
-              echo "  ✅ $t OK"
-            else
-              echo "  ⚠️ MISSING: $t"
-            fi
-          done
-          
-          # Check SecLists
-          if [ -f "${SECLISTS}/Discovery/Web-Content/common.txt" ]; then
-            echo "✅ SecLists common.txt OK"
-          else
-            echo "⚠️ SecLists common.txt MISSING"
-          fi
-          
-          echo "✅ Build complete"
 
       - name: Upload sentinel binary
         uses: actions/upload-artifact@v4
@@ -156,7 +129,7 @@ jobs:
           retention-days: 7
 
   test:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     needs: build
     env:
       GOBIN: "/usr/local/bin"
@@ -174,8 +147,9 @@ jobs:
           sudo apt-get install -y --no-install-recommends \
             ca-certificates curl git gcc make pkg-config \
             libcurl4-openssl-dev python3 python3-pip python3-venv \
-            chromium libcjson-dev ruby ruby-dev zlib1g-dev \
-            procps file tor proxychains4 nikto
+            chromium-browser chromium libcjson-dev ruby ruby-dev zlib1g-dev \
+            procps file tor proxychains4 nikto \
+            perl libnet-ssleay-perl libwww-perl
 
       - name: Download sentinel binary
         uses: actions/download-artifact@v4
@@ -185,103 +159,29 @@ jobs:
       - name: Make binary executable
         run: chmod +x sentinel
 
-      - name: Create test results directory
-        run: |
-          mkdir -p test-results
-          mkdir -p test-results/logs
-          mkdir -p test-results/outputs
-
-      - name: Run tests and save results
+      - name: Run tests
         continue-on-error: true
         run: |
-          # Add user gems to PATH for wpscan
           export PATH="$(ruby -e 'puts Gem.user_dir')/bin:$PATH"
           
-          # Create timestamp for this test run
-          TIMESTAMP=$(date +%Y%m%d_%H%M%S)
-          TEST_DIR="test-results/run_${TIMESTAMP}"
-          mkdir -p "$TEST_DIR"
-          
-          echo "=== Starting test run at $(date) ===" | tee "$TEST_DIR/summary.txt"
-          echo "Test directory: $TEST_DIR" | tee -a "$TEST_DIR/summary.txt"
-          echo "" | tee -a "$TEST_DIR/summary.txt"
-          
-          # Function to run a test and save output
-          run_test() {
-            local test_name="$1"
-            local cmd="$2"
-            local output_file="$TEST_DIR/${test_name}.log"
-            local result_file="$TEST_DIR/${test_name}.result"
-            
-            echo "Running: $test_name" | tee -a "$TEST_DIR/summary.txt"
-            echo "Command: $cmd" >> "$TEST_DIR/summary.txt"
-            
-            # Run the command and capture output
-            eval "$cmd" > "$output_file" 2>&1
-            local exit_code=$?
-            
-            # Save exit code
-            echo "$exit_code" > "$result_file"
-            
-            if [ $exit_code -eq 0 ]; then
-              echo "  ✅ PASSED (exit code: 0)" | tee -a "$TEST_DIR/summary.txt"
-            else
-              echo "  ❌ FAILED (exit code: $exit_code)" | tee -a "$TEST_DIR/summary.txt"
-            fi
-            
-            # Show first 10 lines of output for quick reference
-            echo "  First 10 lines of output:" >> "$TEST_DIR/summary.txt"
-            head -n 10 "$output_file" | sed 's/^/    /' >> "$TEST_DIR/summary.txt"
-            echo "" >> "$TEST_DIR/summary.txt"
-          }
-          
-          # Run all tests
-          run_test "test_sub" "./sentinel example.com test_sub -sub"
-          run_test "testscanurl" "./sentinel thegod.pythonanywhere.com testscanurl --scan-url https://thegod.pythonanywhere.com/"
-          run_test "testxsslow" "./sentinel thegod.pythonanywhere.com testxsslow test-new-feature https://thegod.pythonanywhere.com/vulnerabilities/xss_r/low"
-          run_test "testxssmedium" "./sentinel thegod.pythonanywhere.com testxssmedium test-new-feature https://thegod.pythonanywhere.com/vulnerabilities/xss_r/medium"
-          run_test "testxsshigh" "./sentinel thegod.pythonanywhere.com testxsshigh test-new-feature https://thegod.pythonanywhere.com/vulnerabilities/xss_r/high"
-          run_test "testxssimpossible" "./sentinel thegod.pythonanywhere.com testxssimpossible test-new-feature https://thegod.pythonanywhere.com/vulnerabilities/xss_r/impossible"
-          
-          echo "" | tee -a "$TEST_DIR/summary.txt"
-          echo "=== Test run completed at $(date) ===" | tee -a "$TEST_DIR/summary.txt"
-          
-          # Count passed/failed
-          PASSED=$(grep -c "PASSED" "$TEST_DIR/summary.txt" || true)
-          FAILED=$(grep -c "FAILED" "$TEST_DIR/summary.txt" || true)
-          echo "Results: $PASSED passed, $FAILED failed" | tee -a "$TEST_DIR/summary.txt"
-          
-          # Save current test directory for artifact upload
-          echo "$TEST_DIR" > test-results/latest_run.txt
+          ./sentinel example.com test_sub -sub
+          ./sentinel thegod.pythonanywhere.com testscanurl --scan-url https://thegod.pythonanywhere.com/
+          ./sentinel thegod.pythonanywhere.com testxsslow test-new-feature https://thegod.pythonanywhere.com/vulnerabilities/xss_r/low
+          ./sentinel thegod.pythonanywhere.com testxssmedium test-new-feature https://thegod.pythonanywhere.com/vulnerabilities/xss_r/medium
+          ./sentinel thegod.pythonanywhere.com testxsshigh test-new-feature https://thegod.pythonanywhere.com/vulnerabilities/xss_r/high
+          ./sentinel thegod.pythonanywhere.com testxssimpossible test-new-feature https://thegod.pythonanywhere.com/vulnerabilities/xss_r/impossible
 
-      - name: List test results
-        run: |
-          echo "=== Test Results Directory Structure ==="
-          find test-results -type f -name "*.log" -o -name "*.result" -o -name "summary.txt" | sort
-          echo ""
-          
-          if [ -f test-results/latest_run.txt ]; then
-            LATEST=$(cat test-results/latest_run.txt)
-            echo "Latest test run: $LATEST"
-            echo ""
-            echo "=== Summary ==="
-            cat "$LATEST/summary.txt" 2>/dev/null || echo "Summary not found"
-          fi
-
-      - name: Upload test results
-        uses: actions/upload-artifact@v4
-        with:
-          name: test-results
-          path: test-results/
-          retention-days: 14
-
-      - name: Upload individual test logs (backup)
+      - name: Upload all test output directories
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: test-logs-$(date +%Y%m%d-%H%M%S)
+          name: test-outputs
           path: |
-            test-results/**/*.log
-            test-results/**/*.result
-            test-results/**/summary.txt
+            test_sub/
+            testscanurl/
+            testxsslow/
+            testxssmedium/
+            testxsshigh/
+            testxssimpossible/
+            ghostquery/
           retention-days: 14

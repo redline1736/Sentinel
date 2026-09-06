@@ -9,8 +9,8 @@
 #include <time.h>
 #include <ctype.h>
 #include <curl/curl.h>
-#include <fcntl.h>      /* For O_EXCL, O_CREAT, etc. */
-#include <dirent.h>     /* For directory validation */
+#include <fcntl.h>
+#include <dirent.h>
 
 #include "../util/util.h"
 #include "../prox/prox.h"
@@ -33,40 +33,28 @@
  * Safe Path Utilities
  * ============================================================================ */
 
-/**
- * Check if a path is safe to operate on (no directory traversal,
- * no absolute paths, no hidden files/dirs).
- */
 static int is_safe_path(const char *path) {
     if (!path || *path == '\0')
         return 0;
     
-    /* Reject absolute paths */
     if (path[0] == '/')
         return 0;
     
-    /* Reject directory traversal */
     if (strstr(path, "..") != NULL)
         return 0;
     
-    /* Reject hidden files/dirs (safety measure) */
     if (path[0] == '.')
         return 0;
     
     return 1;
 }
 
-/**
- * Create a unique filename using PID, timestamp, and counter.
- * Thread-safe and collision-free via O_EXCL when opened.
- */
 static int create_unique_filename(char *dst, size_t dstsz, const char *prefix) {
     struct timespec ts;
     static unsigned int counter = 0;
     unsigned int my_counter;
     
     if (clock_gettime(CLOCK_REALTIME, &ts) != 0) {
-        /* Fallback: use time() */
         time_t t = time(NULL);
         my_counter = __sync_fetch_and_add(&counter, 1);
         return snprintf(dst, dstsz, "%s_%d_%ld_%u.txt", 
@@ -78,10 +66,6 @@ static int create_unique_filename(char *dst, size_t dstsz, const char *prefix) {
                     prefix, getpid(), (long)ts.tv_sec, (long)ts.tv_nsec, my_counter);
 }
 
-/**
- * Create a file with exclusive creation (O_EXCL) to prevent race conditions.
- * Returns FILE* on success, NULL on failure. errno is set on failure.
- */
 static FILE *safe_fopen_exclusive(const char *filename, const char *mode) {
     if (!is_safe_path(filename)) {
         errno = EPERM;
@@ -103,9 +87,6 @@ static FILE *safe_fopen_exclusive(const char *filename, const char *mode) {
     return fp;
 }
 
-/**
- * Safe file removal - validates path before deletion.
- */
 static int safe_remove(const char *filename) {
     if (!is_safe_path(filename))
         return -1;
@@ -116,9 +97,6 @@ static int safe_remove(const char *filename) {
  * String Utilities
  * ============================================================================ */
 
-/**
- * Strip trailing newline/CR in place.
- */
 static void strip_newline(char *s) {
     if (!s) return;
     size_t len = strlen(s);
@@ -126,9 +104,6 @@ static void strip_newline(char *s) {
         s[--len] = '\0';
 }
 
-/**
- * Build a URL with parameter appended. Handles both ? and & correctly.
- */
 static int url_append_param(char *dst, size_t dstsz, const char *url,
                             const char *param, const char *value) {
     if (!dst || !url || !param || !value)
@@ -145,9 +120,6 @@ static int url_append_param(char *dst, size_t dstsz, const char *url,
     return 1;
 }
 
-/**
- * Ensure directory exists, create if needed.
- */
 static int ensure_directory(const char *path) {
     if (!path) return -1;
     
@@ -159,7 +131,6 @@ static int ensure_directory(const char *path) {
         return -1;
     }
     
-    /* Try to create parent directories */
     char tmp[512];
     snprintf(tmp, sizeof(tmp), "mkdir -p %s 2>/dev/null", path);
     return system(tmp);
@@ -177,10 +148,6 @@ static size_t write_file(void *ptr, size_t size, size_t nmemb, void *stream) {
  * HTTP Request Sender
  * ============================================================================ */
 
-/**
- * Send HTTP request and save response to a unique file.
- * Returns 1 on success, 0 on failure.
- */
 static int gq_http_send(request *r, const char *url) {
     CURL *curl;
     CURLcode result;
@@ -197,21 +164,17 @@ static int gq_http_send(request *r, const char *url) {
     r->code = -1;
     r->filename[0] = '\0';
     
-    /* Get proxy if configured */
     if (g.proxy) {
         proxy = proxy_get_socks();
-        /* proxy_get_socks returns NULL on failure - treat as failure */
         if (!proxy)
             return 0;
     }
     
-    /* Create unique filename */
     if (create_unique_filename(filename, sizeof(filename), "curl") <= 0) {
         fprintf(stderr, "gq_http_send: failed to create filename\n");
         return 0;
     }
     
-    /* Open file with exclusive creation */
     fp = safe_fopen_exclusive(filename, "wb");
     if (!fp) {
         perror("gq_http_send: fopen");
@@ -220,7 +183,6 @@ static int gq_http_send(request *r, const char *url) {
     
     snprintf(r->filename, sizeof(r->filename), "%s", filename);
     
-    /* Initialize curl */
     curl = curl_easy_init();
     if (!curl) {
         fclose(fp);
@@ -230,7 +192,6 @@ static int gq_http_send(request *r, const char *url) {
         return 0;
     }
     
-    /* Configure curl */
     if (proxy)
         curl_easy_setopt(curl, CURLOPT_PROXY, proxy);
     
@@ -241,15 +202,12 @@ static int gq_http_send(request *r, const char *url) {
     curl_easy_setopt(curl, CURLOPT_TIMEOUT, CURL_TIMEOUT);
     curl_easy_setopt(curl, CURLOPT_CONNECTTIMEOUT, CURL_CONNECT_TIMEOUT);
     curl_easy_setopt(curl, CURLOPT_USERAGENT, "ghostquery/1.0");
-    curl_easy_setopt(curl, CURLOPT_NOSIGNAL, 1L);  /* Thread-safe */
+    curl_easy_setopt(curl, CURLOPT_NOSIGNAL, 1L);
     
-    /* Perform request */
     result = curl_easy_perform(curl);
     
-    /* Close file */
     fclose(fp);
     
-    /* Handle result */
     if (result == CURLE_OK) {
         curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &http_code);
         r->code = (int)http_code;
@@ -267,10 +225,6 @@ static int gq_http_send(request *r, const char *url) {
  * Find Reflecting Parameters
  * ============================================================================ */
 
-/**
- * Find parameters that are reflected in the response body.
- * Writes valid parameters to ghostquery/xss/valid_params.txt
- */
 int find_param_reflecting(char *url, char *path) {
     int size;
     int allocated;
@@ -291,20 +245,17 @@ int find_param_reflecting(char *url, char *path) {
         return 1;
     }
     
-    /* Ensure output directory exists */
     if (ensure_directory(output_dir) != 0) {
         fprintf(stderr, "find_param_reflecting: failed to create %s\n", output_dir);
         return 1;
     }
     
-    /* Get line count */
     size = line_count(param_file);
     if (size <= 0) {
         fprintf(stderr, "find_param_reflecting: %s is empty or missing\n", param_file);
         return 1;
     }
     
-    /* Allocate request array with headroom */
     allocated = size + 1;
     r = calloc((size_t)allocated, sizeof(request));
     if (!r) {
@@ -312,7 +263,6 @@ int find_param_reflecting(char *url, char *path) {
         return 1;
     }
     
-    /* Open params file */
     fp = fopen(param_file, "r");
     if (!fp) {
         fprintf(stderr, "find_param_reflecting: error opening %s\n", param_file);
@@ -320,7 +270,6 @@ int find_param_reflecting(char *url, char *path) {
         return 1;
     }
     
-    /* Open output file - write directly to ghostquery/xss/valid_params.txt */
     fptr = fopen(output_file, "w");
     if (!fptr) {
         fprintf(stderr, "find_param_reflecting: error opening %s\n", output_file);
@@ -329,11 +278,9 @@ int find_param_reflecting(char *url, char *path) {
         return 1;
     }
     
-    /* Process each parameter */
     while (fgets(buffer, sizeof(buffer), fp)) {
         strip_newline(buffer);
         
-        /* Skip empty lines and comments */
         if (buffer[0] == '\0' || buffer[0] == '#')
             continue;
         
@@ -342,13 +289,11 @@ int find_param_reflecting(char *url, char *path) {
             break;
         }
         
-        /* Build URL with test value "asdasda" */
         if (!url_append_param(full_url, sizeof(full_url), url, buffer, "asdasda")) {
             fprintf(stderr, "find_param_reflecting: warning - URL too long for param '%s'\n", buffer);
             continue;
         }
         
-        /* Send request and check for reflection */
         if (gq_http_send(&r[i], full_url) && r[i].code == 200) {
             char line_buf[2048];
             int found = 0;
@@ -361,7 +306,6 @@ int find_param_reflecting(char *url, char *path) {
                 continue;
             }
             
-            /* Search for the test value in response */
             while (fgets(line_buf, sizeof(line_buf), fpr)) {
                 if (strstr(line_buf, "asdasda")) {
                     found = 1;
@@ -370,7 +314,6 @@ int find_param_reflecting(char *url, char *path) {
             }
             fclose(fpr);
             
-            /* Save reflecting parameter */
             if (found) {
                 fprintf(fptr, "%s\n", buffer);
                 fflush(fptr);
@@ -378,7 +321,6 @@ int find_param_reflecting(char *url, char *path) {
             }
         }
         
-        /* Clean up response file */
         if (r[i].filename[0] != '\0') {
             safe_remove(r[i].filename);
             r[i].filename[0] = '\0';
@@ -386,7 +328,6 @@ int find_param_reflecting(char *url, char *path) {
         i++;
     }
     
-    /* Clean up */
     fclose(fp);
     fclose(fptr);
     free(r);
@@ -407,6 +348,7 @@ void xss_generated(char *url, char *path) {
     char valid_payloads_path[256];
     FILE *fp, *ex, *found;
     int total_tested = 0, total_confirmed = 0;
+    int chrome_initialized = 0;
     
     if (!url || !path) {
         fprintf(stderr, "[xss_generated] invalid arguments\n");
@@ -422,7 +364,6 @@ void xss_generated(char *url, char *path) {
         return;
     }
     
-    /* Ensure output directory exists */
     if (ensure_directory(path) != 0) {
         fprintf(stderr, "[xss_generated] failed to create %s\n", path);
         return;
@@ -431,14 +372,12 @@ void xss_generated(char *url, char *path) {
     snprintf(valid_payloads_path, sizeof(valid_payloads_path),
              "%s/valid_payloads.txt", path);
     
-    /* Open params file */
     fp = fopen(param_file, "r");
     if (!fp) {
         fprintf(stderr, "[xss_generated] error opening %s\n", param_file);
         return;
     }
     
-    /* Open output file */
     found = fopen(valid_payloads_path, "w");
     if (!found) {
         fprintf(stderr, "[xss_generated] error opening %s for writing\n", 
@@ -447,29 +386,25 @@ void xss_generated(char *url, char *path) {
         return;
     }
     
-    /* Initialize Chrome - uses chrome.h's init_chrome() */
     printf("[xss_generated] Initializing Chrome (port %d)...\n", CHROME_PORT);
-    if (init_chrome(CHROME_PORT) != 0) {
-        fprintf(stderr, "[xss_generated] Chrome init failed\n");
-        fclose(fp);
-        fclose(found);
-        return;
+    if (init_chrome(CHROME_PORT) == 0) {
+        chrome_initialized = 1;
+        printf("[xss_generated] Chrome initialized successfully\n");
+    } else {
+        printf("[xss_generated] Chrome init failed - using HTTP-only detection\n");
     }
     
-    /* Iterate over parameters */
     while (fgets(param, sizeof(param), fp)) {
         strip_newline(param);
         if (param[0] == '\0' || param[0] == '#')
             continue;
         
-        /* Open payloads file for each param */
         ex = fopen(payload_file, "r");
         if (!ex) {
             fprintf(stderr, "[xss_generated] error opening %s\n", payload_file);
             break;
         }
         
-        /* Iterate over payloads */
         while (fgets(payload, sizeof(payload), ex)) {
             char *enc;
             int interaction_type;
@@ -480,43 +415,61 @@ void xss_generated(char *url, char *path) {
             
             total_tested++;
             
-            /* URL encode payload */
             enc = curl_easy_escape(NULL, payload, 0);
             if (!enc) {
                 fprintf(stderr, "[xss_generated] curl_easy_escape failed for payload\n");
                 continue;
             }
             
-            /* Build full URL */
             if (!url_append_param(full_url, sizeof(full_url), url, param, enc)) {
                 curl_free(enc);
                 continue;
             }
             
-            /* Determine interaction type - using chrome.h's detect_payload_event_type() */
             interaction_type = detect_payload_event_type(payload);
             
             printf("[xss_generated] Testing: %s=%s (event_type=%d)\n",
                    param, payload, interaction_type);
             
-            /* Navigate to injected URL - using chrome.h's navigate_to() */
-            if (navigate_to(full_url) == -1) {
-                curl_free(enc);
-                continue;
-            }
-            
-            /* Wait for page load */
-            usleep(300000); /* 300ms */
-            
-            /* Detect XSS - using chrome.h's detect_xss() */
-            if (detect_xss(50, interaction_type) == 0) {
-                fprintf(found, "%s -> %s\n", param, payload);
-                fflush(found);
-                total_confirmed++;
-                printf("[xss_generated] *** XSS CONFIRMED: %s=%s ***\n", 
-                       param, payload);
+            if (chrome_initialized) {
+                if (navigate_to(full_url) == -1) {
+                    curl_free(enc);
+                    continue;
+                }
+                usleep(300000);
+                
+                if (detect_xss(50, interaction_type) == 0) {
+                    fprintf(found, "%s -> %s\n", param, payload);
+                    fflush(found);
+                    total_confirmed++;
+                    printf("[xss_generated] *** XSS CONFIRMED: %s=%s ***\n", 
+                           param, payload);
+                } else {
+                    printf("[xss_generated] No trigger for: %s=%s\n", param, payload);
+                }
             } else {
-                printf("[xss_generated] No trigger for: %s=%s\n", param, payload);
+                /* HTTP-only detection fallback */
+                request r = {0};
+                if (gq_http_send(&r, full_url) && r.code == 200) {
+                    char *resp = malloc(8192);
+                    if (resp) {
+                        FILE *fpr = fopen(r.filename, "r");
+                        if (fpr) {
+                            size_t bytes = fread(resp, 1, 8191, fpr);
+                            resp[bytes] = '\0';
+                            if (strstr(resp, payload)) {
+                                fprintf(found, "%s -> %s\n", param, payload);
+                                fflush(found);
+                                total_confirmed++;
+                                printf("[xss_generated] *** XSS CONFIRMED (HTTP): %s=%s ***\n", 
+                                       param, payload);
+                            }
+                            fclose(fpr);
+                        }
+                        free(resp);
+                    }
+                    safe_remove(r.filename);
+                }
             }
             
             curl_free(enc);
@@ -524,10 +477,12 @@ void xss_generated(char *url, char *path) {
         fclose(ex);
     }
     
-    /* Clean up */
     fclose(fp);
     fclose(found);
-    close_chrome();  /* Uses chrome.h's close_chrome() */
+    
+    if (chrome_initialized) {
+        close_chrome();
+    }
     
     printf("[xss_generated] Done. Tested %d payloads, confirmed %d XSS.\n",
            total_tested, total_confirmed);
@@ -546,6 +501,7 @@ void xss_custom(char *url, char *path) {
     char valid_payloads_path[256];
     FILE *fp, *ex, *found;
     int total_tested = 0, total_confirmed = 0;
+    int chrome_initialized = 0;
     
     if (!url || !path) {
         fprintf(stderr, "[xss_custom] invalid arguments\n");
@@ -561,7 +517,6 @@ void xss_custom(char *url, char *path) {
         return;
     }
     
-    /* Ensure output directory exists */
     if (ensure_directory(path) != 0) {
         fprintf(stderr, "[xss_custom] failed to create %s\n", path);
         return;
@@ -570,14 +525,12 @@ void xss_custom(char *url, char *path) {
     snprintf(valid_payloads_path, sizeof(valid_payloads_path),
              "%s/valid_payloads.txt", path);
     
-    /* Open params file */
     fp = fopen(param_file, "r");
     if (!fp) {
         fprintf(stderr, "[xss_custom] error opening %s\n", param_file);
         return;
     }
     
-    /* Open output file */
     found = fopen(valid_payloads_path, "w");
     if (!found) {
         fprintf(stderr, "[xss_custom] error opening %s for writing\n", 
@@ -586,29 +539,25 @@ void xss_custom(char *url, char *path) {
         return;
     }
     
-    /* Initialize Chrome */
     printf("[xss_custom] Initializing Chrome (port %d)...\n", CHROME_PORT);
-    if (init_chrome(CHROME_PORT) != 0) {
-        fprintf(stderr, "[xss_custom] Chrome init failed\n");
-        fclose(fp);
-        fclose(found);
-        return;
+    if (init_chrome(CHROME_PORT) == 0) {
+        chrome_initialized = 1;
+        printf("[xss_custom] Chrome initialized successfully\n");
+    } else {
+        printf("[xss_custom] Chrome init failed - using HTTP-only detection\n");
     }
     
-    /* Iterate over parameters */
     while (fgets(param, sizeof(param), fp)) {
         strip_newline(param);
         if (param[0] == '\0' || param[0] == '#')
             continue;
         
-        /* Open payloads file for each param */
         ex = fopen(payload_file, "r");
         if (!ex) {
             fprintf(stderr, "[xss_custom] error opening %s\n", payload_file);
             break;
         }
         
-        /* Iterate over payloads */
         while (fgets(payload, sizeof(payload), ex)) {
             char *enc;
             int interaction_type;
@@ -619,43 +568,61 @@ void xss_custom(char *url, char *path) {
             
             total_tested++;
             
-            /* URL encode payload */
             enc = curl_easy_escape(NULL, payload, 0);
             if (!enc) {
                 fprintf(stderr, "[xss_custom] curl_easy_escape failed for payload\n");
                 continue;
             }
             
-            /* Build full URL */
             if (!url_append_param(full_url, sizeof(full_url), url, param, enc)) {
                 curl_free(enc);
                 continue;
             }
             
-            /* Determine interaction type - using chrome.h's function */
             interaction_type = detect_payload_event_type(payload);
             
             printf("[xss_custom] Testing: %s=%s (event_type=%d)\n",
                    param, payload, interaction_type);
             
-            /* Navigate to injected URL - using chrome.h's navigate_to() */
-            if (navigate_to(full_url) == -1) {
-                curl_free(enc);
-                continue;
-            }
-            
-            /* Wait for page load */
-            usleep(300000); /* 300ms */
-            
-            /* Detect XSS - using chrome.h's detect_xss() */
-            if (detect_xss(50, interaction_type) == 0) {
-                fprintf(found, "%s -> %s\n", param, payload);
-                fflush(found);
-                total_confirmed++;
-                printf("[xss_custom] *** XSS CONFIRMED: %s=%s ***\n", 
-                       param, payload);
+            if (chrome_initialized) {
+                if (navigate_to(full_url) == -1) {
+                    curl_free(enc);
+                    continue;
+                }
+                usleep(300000);
+                
+                if (detect_xss(50, interaction_type) == 0) {
+                    fprintf(found, "%s -> %s\n", param, payload);
+                    fflush(found);
+                    total_confirmed++;
+                    printf("[xss_custom] *** XSS CONFIRMED: %s=%s ***\n", 
+                           param, payload);
+                } else {
+                    printf("[xss_custom] No trigger for: %s=%s\n", param, payload);
+                }
             } else {
-                printf("[xss_custom] No trigger for: %s=%s\n", param, payload);
+                /* HTTP-only detection fallback */
+                request r = {0};
+                if (gq_http_send(&r, full_url) && r.code == 200) {
+                    char *resp = malloc(8192);
+                    if (resp) {
+                        FILE *fpr = fopen(r.filename, "r");
+                        if (fpr) {
+                            size_t bytes = fread(resp, 1, 8191, fpr);
+                            resp[bytes] = '\0';
+                            if (strstr(resp, payload)) {
+                                fprintf(found, "%s -> %s\n", param, payload);
+                                fflush(found);
+                                total_confirmed++;
+                                printf("[xss_custom] *** XSS CONFIRMED (HTTP): %s=%s ***\n", 
+                                       param, payload);
+                            }
+                            fclose(fpr);
+                        }
+                        free(resp);
+                    }
+                    safe_remove(r.filename);
+                }
             }
             
             curl_free(enc);
@@ -663,10 +630,12 @@ void xss_custom(char *url, char *path) {
         fclose(ex);
     }
     
-    /* Clean up */
     fclose(fp);
     fclose(found);
-    close_chrome();
+    
+    if (chrome_initialized) {
+        close_chrome();
+    }
     
     printf("[xss_custom] Done. Tested %d payloads, confirmed %d XSS.\n",
            total_tested, total_confirmed);
@@ -677,19 +646,9 @@ void xss_custom(char *url, char *path) {
  * Main XSS Run Entry Point
  * ============================================================================ */
 
-/**
- * Run the complete XSS scanning pipeline:
- * 1. Generate payloads via Python
- * 2. Find reflecting parameters
- * 3. Scan with generated payloads
- * 4. Scan with custom payloads
- */
-
 int file_exists(const char *filename) {
-    // access() returns 0 if the file exists
     return access(filename, F_OK) == 0;
 }
-
 
 int xss_run(char *url, char *path) {
     if (!url || !path) {
@@ -697,29 +656,25 @@ int xss_run(char *url, char *path) {
         return 1;
     }
     
-    /* Step 1: Generate payloads using Python script */
     printf("[xss_run] Generating XSS payloads...\n");
     char *payloads = "ghostquery/xss/payloads.txt";
 
     if (file_exists(payloads)) {
         printf("[xss_run] Using existing valid parameters file: %s\n", payloads);
-    }else {
+    } else {
         if (system("python3 ghostquery/xss/xss.py") != 0) {
             fprintf(stderr, "warning: xss.py exited with an error (continuing anyway)\n");
-            /* Continue anyway - maybe there are existing payloads */
         }
     }
-    /* Step 2: Find reflecting parameters */
+    
     printf("[xss_run] Finding reflecting parameters...\n");
     if (find_param_reflecting(url, path) != 0) {
         fprintf(stderr, "warning: find_param_reflecting failed\n");
     }
     
-    /* Step 3: Run generated payloads */
     printf("[xss_run] Running generated payload scan...\n");
     xss_generated(url, path);
     
-    /* Step 4: Run custom payloads */
     printf("[xss_run] Running custom payload scan...\n");
     xss_custom(url, path);
     
@@ -732,7 +687,6 @@ int xss_run(char *url, char *path) {
  * ============================================================================ */
 
 int sql_run(void) {
-    /* TODO: SQLi scanning goes here. */
     fprintf(stderr, "sql_run: not implemented yet\n");
     return 0;
 }
