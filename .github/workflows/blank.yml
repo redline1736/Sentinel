@@ -9,8 +9,7 @@ on:
 
 jobs:
   build:
-    runs-on: ubuntu-latest
-    container: debian:stable   # changed from slim to full image
+    runs-on: ubuntu-latest   # changed from slim to full image
     env:
       GO_VERSION: "1.24.2"
       GOBIN: "/usr/local/bin"
@@ -99,7 +98,6 @@ jobs:
 
   test:
     runs-on: ubuntu-latest
-    container: debian:stable   # same fix
     needs: build
     env:
       GOBIN: "/usr/local/bin"
