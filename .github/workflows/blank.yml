@@ -10,7 +10,7 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
-    container: debian:stable-slim
+    container: debian:stable   # changed from slim to full image
     env:
       GO_VERSION: "1.24.2"
       GOBIN: "/usr/local/bin"
@@ -25,10 +25,12 @@ jobs:
       - name: Setup system
         run: |
           set -euo pipefail
+          # Ensure tar is present (should already be there in debian:stable)
+          apt-get update -qq
+          apt-get install -y --no-install-recommends tar
           if [ -f /etc/apt/sources.list.d/debian.sources ]; then
             sed -i 's/^Components: .*/& non-free/' /etc/apt/sources.list.d/debian.sources
           fi
-          apt-get update -qq
           apt-get install -y --no-install-recommends \
             ca-certificates curl git gcc make pkg-config \
             libcurl4-openssl-dev python3 python3-pip python3-venv chromium libcjson-dev \
@@ -81,7 +83,6 @@ jobs:
       - name: Build Sentinel
         run: |
           make clean all
-          # verify binary & dependencies
           test -x ./sentinel && echo "binary OK"
           for t in subfinder assetfinder httpx nuclei dalfox wpscan; do
             command -v "$t" || echo "MISSING: $t"
@@ -98,7 +99,7 @@ jobs:
 
   test:
     runs-on: ubuntu-latest
-    container: debian:stable-slim
+    container: debian:stable   # same fix
     needs: build
     env:
       GOBIN: "/usr/local/bin"
@@ -112,10 +113,11 @@ jobs:
       - name: Setup system (for test)
         run: |
           set -euo pipefail
+          apt-get update -qq
+          apt-get install -y --no-install-recommends tar
           if [ -f /etc/apt/sources.list.d/debian.sources ]; then
             sed -i 's/^Components: .*/& non-free/' /etc/apt/sources.list.d/debian.sources
           fi
-          apt-get update -qq
           apt-get install -y --no-install-recommends \
             ca-certificates curl git gcc make pkg-config \
             libcurl4-openssl-dev python3 python3-pip python3-venv chromium libcjson-dev \
