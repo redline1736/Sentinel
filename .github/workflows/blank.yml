@@ -13,10 +13,9 @@ jobs:
     env:
       GO_VERSION: "1.24.2"
       GOBIN: "/usr/local/bin"
-      GOPATH: "${{ github.workspace }}/go"  # Use workspace path instead of /root
+      GOPATH: "${{ github.workspace }}/go"
       SECLISTS: "/usr/share/seclists"
       DEBIAN_FRONTEND: "noninteractive"
-      # DO NOT set PATH here - let actions/setup-go handle it
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -30,7 +29,7 @@ jobs:
             libcurl4-openssl-dev python3 python3-pip python3-venv \
             chromium libcjson-dev ruby ruby-dev zlib1g-dev \
             procps file tor proxychains4 nikto \
-            perl libnet-ssleay-perl libwww-perl  # Dependencies for nikto
+            perl libnet-ssleay-perl libwww-perl
 
       - name: Setup Go
         uses: actions/setup-go@v5
@@ -54,10 +53,13 @@ jobs:
           go install -v github.com/PentestPad/subzy@latest
           go install -mod=mod github.com/haccer/subjack@latest
 
-      - name: Install gem tools (wpscan)
+      - name: Install wpscan with proper permissions
         run: |
           set -euo pipefail
-          gem install wpscan 2>&1 || echo "[WARN] wpscan install failed"
+          # Install wpscan as a user gem instead of system gem
+          gem install --user-install wpscan 2>&1 || echo "[WARN] wpscan install failed"
+          # Add user gems to PATH
+          echo "$(ruby -e 'puts Gem.user_dir')/bin" >> $GITHUB_PATH
 
       - name: Setup XSStrike
         run: |
@@ -80,12 +82,40 @@ jobs:
             "https://raw.githubusercontent.com/danielmiessler/SecLists/master/Discovery/Web-Content/common.txt" \
             -o "${SECLISTS}/Discovery/Web-Content/common.txt"
 
+      - name: Fix Makefile line endings (if needed)
+        run: |
+          # Convert Windows line endings to Unix if the file exists
+          if [ -f Makefile ]; then
+            sed -i 's/\r$//' Makefile
+            # Fix backslash path separators if they exist in the Makefile
+            sed -i 's/\\/\//g' Makefile
+          fi
+
       - name: Build Sentinel
         run: |
-          make clean all
+          # Check if Makefile exists and show its content for debugging
+          if [ -f Makefile ]; then
+            echo "Makefile contents (first 20 lines):"
+            head -n 20 Makefile
+          else
+            echo "ERROR: Makefile not found!"
+            exit 1
+          fi
+          
+          # Try to build with explicit CFLAGS if needed
+          make clean all || {
+            echo "Build failed. Checking if there are source files..."
+            find . -name "*.c" -o -name "*.go" | head -10
+            exit 1
+          }
+          
           test -x ./sentinel && echo "binary OK"
           for t in subfinder assetfinder httpx nuclei dalfox wpscan; do
-            command -v "$t" || echo "MISSING: $t"
+            if command -v "$t" &>/dev/null; then
+              echo "  ✅ $t OK"
+            else
+              echo "  ⚠️ MISSING: $t"
+            fi
           done
           test -f "${SECLISTS}/Discovery/Web-Content/common.txt" && echo "SecLists common.txt OK"
           echo "build complete"
@@ -130,6 +160,8 @@ jobs:
       - name: Run tests
         continue-on-error: true
         run: |
+          # Add user gems to PATH for wpscan
+          export PATH="$(ruby -e 'puts Gem.user_dir')/bin:$PATH"
           ./sentinel example.com test_sub -sub
           ./sentinel thegod.pythonanywhere.com testscanurl --scan-url https://thegod.pythonanywhere.com/
           ./sentinel thegod.pythonanywhere.com testxsslow test-new-feature https://thegod.pythonanywhere.com/vulnerabilities/xss_r/low
