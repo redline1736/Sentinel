@@ -413,12 +413,12 @@ void xss_generated(char *url, char *path) {
         return;
     }
     
-    nparams = line_count(params_file);
+    nparams = line_count(param_file);
     npayloads = line_count(payload_file);
     
     if (nparams <= 0 || npayloads <= 0) {
         fprintf(stderr, "[xss_generated] %s or %s empty/missing\n", 
-                params_file, payload_file);
+                param_file, payload_file);
         return;
     }
     
@@ -432,9 +432,9 @@ void xss_generated(char *url, char *path) {
              "%s/valid_payloads.txt", path);
     
     /* Open params file */
-    fp = fopen(params_file, "r");
+    fp = fopen(param_file, "r");
     if (!fp) {
-        fprintf(stderr, "[xss_generated] error opening %s\n", params_file);
+        fprintf(stderr, "[xss_generated] error opening %s\n", param_file);
         return;
     }
     
@@ -552,12 +552,12 @@ void xss_custom(char *url, char *path) {
         return;
     }
     
-    nparams = line_count(params_file);
+    nparams = line_count(param_file);
     npayloads = line_count(payload_file);
     
     if (nparams <= 0 || npayloads <= 0) {
         fprintf(stderr, "[xss_custom] %s or %s empty/missing\n", 
-                params_file, payload_file);
+                param_file, payload_file);
         return;
     }
     
@@ -571,9 +571,9 @@ void xss_custom(char *url, char *path) {
              "%s/valid_payloads.txt", path);
     
     /* Open params file */
-    fp = fopen(params_file, "r");
+    fp = fopen(param_file, "r");
     if (!fp) {
-        fprintf(stderr, "[xss_custom] error opening %s\n", params_file);
+        fprintf(stderr, "[xss_custom] error opening %s\n", param_file);
         return;
     }
     
@@ -699,7 +699,7 @@ int xss_run(char *url, char *path) {
     
     /* Step 1: Generate payloads using Python script */
     printf("[xss_run] Generating XSS payloads...\n");
-    char payloads = "ghostquery/xss/payloads.txt";
+    char *payloads = "ghostquery/xss/payloads.txt";
 
     if (file_exists(payloads)) {
         printf("[xss_run] Using existing valid parameters file: %s\n", param_file);
