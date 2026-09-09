@@ -150,6 +150,7 @@ jobs:
             chromium-browser chromium libcjson-dev ruby ruby-dev zlib1g-dev \
             procps file tor proxychains4 nikto \
             perl libnet-ssleay-perl libwww-perl
+          pip install playwright
 
       - name: Download sentinel binary
         uses: actions/download-artifact@v4
