@@ -146,43 +146,59 @@ static int cmp_str(const void *a, const void *b) {
 /* Reads file, strips empty lines, sorts, dedupes, writes back in place. */
 static void dedupe_file(const char *path) {
     FILE *fp = fopen(path, "r");
-    if (!fp) return;
+    if (!fp) { fprintf(stderr, "[!] Cannot open %s for dedupe\n", path); return; }
 
     char **lines = NULL;
     size_t n = 0, cap = 0;
     char buf[4096];
 
     while (fgets(buf, sizeof(buf), fp)) {
-        buf[strcspn(buf, "\n")] = '\0';
         size_t len = strlen(buf);
-        while (len && buf[len - 1] == '\r') buf[--len] = '\0';  /* CRLF */
+        if (len && buf[len-1] == '\n') { buf[--len] = '\0'; }
+        if (len && buf[len-1] == '\r') { buf[--len] = '\0'; }
         if (len == 0) continue;
 
-        if (n == cap) {
-            cap = cap ? cap * 2 : 256;
+        if (n >= cap) {
+            cap = cap ? cap * 2 : 64;
             char **tmp = realloc(lines, cap * sizeof(char *));
-            if (!tmp) { free(lines); fclose(fp); return; }
+            if (!tmp) {
+                fprintf(stderr, "[!] realloc failed in dedupe_file\n");
+                for (size_t i = 0; i < n; i++) free(lines[i]);
+                free(lines); fclose(fp); return;
+            }
             lines = tmp;
         }
         lines[n] = strdup(buf);
-        if (!lines[n]) break;
+        if (!lines[n]) {
+            fprintf(stderr, "[!] strdup failed in dedupe_file\n");
+            for (size_t i = 0; i < n; i++) free(lines[i]);
+            free(lines); fclose(fp); return;
+        }
         n++;
     }
     fclose(fp);
 
+    if (n == 0) { free(lines); return; }
+
     qsort(lines, n, sizeof(char *), cmp_str);
 
     FILE *out = fopen(path, "w");
-    if (out) {
-        for (size_t i = 0; i < n; i++) {
-            if (i > 0 && strcmp(lines[i], lines[i - 1]) == 0)
-                continue;                       /* skip duplicates */
-            fprintf(out, "%s\n", lines[i]);
-            free(lines[i]);
-        }
-        fclose(out);
+    if (!out) {
+        fprintf(stderr, "[!] Cannot open %s for writing\n", path);
+        for (size_t i = 0; i < n; i++) free(lines[i]);
+        free(lines); return;
     }
-    for (size_t i = 0; i < n; i++)
+
+    char *prev = NULL;                       /* last line actually written */
+    for (size_t i = 0; i < n; i++) {
+        if (prev && strcmp(lines[i], prev) == 0)
+            continue;                        /* drop duplicate; free later */
+        fprintf(out, "%s\n", lines[i]);
+        prev = lines[i];                     /* lines[i] still alive here */
+    }
+    fclose(out);
+
+    for (size_t i = 0; i < n; i++)           /* single cleanup pass */
         free(lines[i]);
     free(lines);
 }
@@ -297,7 +313,7 @@ void scanning() {
         char *xss_fallback[] = {"python3", "xss/main.py", buffer, hostdir, NULL};
         rc = run_tool_out(xss_fallback, xss_out, true);
         if (rc != 0) printf("[!] xss fallback failed on %s with code %d\n", buffer, rc);
-        xss_run(buffer, hostdir);
+        xss_run(buffer, hostdir, xss_out);
     }
     fclose(fp);
     printf("[+] Targeted scanning complete.\n");
