@@ -313,7 +313,7 @@ void scanning() {
         char *xss_fallback[] = {"python3", "xss/main.py", buffer, hostdir, NULL};
         rc = run_tool_out(xss_fallback, xss_out, true);
         if (rc != 0) printf("[!] xss fallback failed on %s with code %d\n", buffer, rc);
-        xss_run(buffer, hostdir, xss_out);
+        xss_run(buffer, hostdir);
     }
     fclose(fp);
     printf("[+] Targeted scanning complete.\n");

@@ -69,4 +69,6 @@ int run_tool(char *const argv[]);
 /* Same, with stdout+stderr redirected to out_path (O_APPEND if append). */
 static int run_tool_impl(char *const argv[], const char *out_path, bool append);
 
+int run_tool_out(char *const argv[], const char *out_path, bool append);
+
 #endif /* PROX_H */
