@@ -20,17 +20,6 @@
 #include "../ghostquery/gq.h"
 #include "../global.h"
 
-#define T_SUBFINDER    300
-#define T_ASSETFINDER  180
-#define T_GOBUSTER     600
-#define T_HTTPX        300
-#define T_SUBZY        600
-#define T_SUBJACK      600
-#define T_NUCLEI       1200
-#define T_NIKTO        1200
-#define T_XSS          1200
-#define T_WPSCAN       1200
-
 /* ---------- rate-limit tunables (declared extern in scan.h) ---------- */
 
 int g_rate = 1;
@@ -206,21 +195,19 @@ void subdomain() {
     char subfile[2048];
     snprintf(subfile, sizeof(subfile), "%s/subdomains.txt", g.dir);
 
-    /* Passive: subfinder */
+    /* Passive: subfinder – no built-in output; we capture stdout */
     char *sf_args[] = {"subfinder", "-d", g.domain, "-silent", "-all", NULL};
-    int rc = run_tool_out(sf_args, T_SUBFINDER, subfile, false);
-    if (rc == 124) printf("[!] subfinder timed out\n");
-    else if (rc != 0) printf("[!] subfinder failed with code %d\n", rc);
+    int rc = run_tool_out(sf_args, subfile, false);
+    if (rc != 0) printf("[!] subfinder failed with code %d\n", rc);
 
-    /* Passive: assetfinder */
+    /* Passive: assetfinder – no built-in output; capture stdout */
     char *af_args[] = {"assetfinder", "--subs-only", g.domain, NULL};
-    rc = run_tool_out(af_args, T_ASSETFINDER, subfile, true);
-    if (rc == 124) printf("[!] assetfinder timed out\n");
-    else if (rc != 0) printf("[!] assetfinder failed with code %d\n", rc);
+    rc = run_tool_out(af_args, subfile, true);
+    if (rc != 0) printf("[!] assetfinder failed with code %d\n", rc);
 
     dedupe_file(subfile);
 
-    /* Active: gobuster DNS (wordlist from $SECLISTS or the default path) */
+    /* Active: gobuster DNS – no built-in output; capture stdout */
     const char *sl = getenv("SECLISTS");
     char wl[1024];
     if (sl && sl[0])
@@ -229,37 +216,34 @@ void subdomain() {
         snprintf(wl, sizeof(wl), "/usr/share/seclists/Discovery/DNS/subdomains-top1million-5000.txt");
     
     char *gb_args[] = {"gobuster", "dns", "-d", g.domain, "-w", wl, "-q", NULL};
-    rc = run_tool_out(gb_args, T_GOBUSTER, subfile, true);  // Increased timeout to 15 min
-    if (rc == 124) printf("[!] gobuster timed out\n");
-    else if (rc != 0) printf("[!] gobuster failed with code %d\n", rc);
+    rc = run_tool_out(gb_args, subfile, true);
+    if (rc != 0) printf("[!] gobuster failed with code %d\n", rc);
     
     dedupe_file(subfile);
 
-    /* Health check: httpx -> live.txt */
+    /* Health check: httpx – no built-in output; capture stdout */
     char live[2048];
     snprintf(live, sizeof(live), "%s/live.txt", g.dir);
     char *hx_args[] = {"httpx", "-silent", "-l", subfile, NULL};
-    rc = run_tool_out(hx_args, T_HTTPX, live, false);
-    if (rc == 124) printf("[!] httpx timed out\n");
-    else if (rc != 0) printf("[!] httpx failed with code %d\n", rc);
+    rc = run_tool_out(hx_args, live, false);
+    if (rc != 0) printf("[!] httpx failed with code %d\n", rc);
     
     dedupe_file(live);
 
-    /* Takeover checks (analyze() reads these from g.dir root) */
+    /* Takeover checks: subzy – no built-in output (writes to stdout) */
     char subzy_out[2048], subjack_out[2048];
     snprintf(subzy_out,  sizeof(subzy_out),  "%s/subzy.txt",    g.dir);
     snprintf(subjack_out, sizeof(subjack_out), "%s/subjack.txt", g.dir);
 
     char *sz_args[] = {"subzy", "run", "--targets", live, NULL};
-    rc = run_tool_out(sz_args, T_SUBZY, subzy_out, false);
-    if (rc == 124) printf("[!] subzy timed out\n");
-    else if (rc != 0) printf("[!] subzy failed with code %d\n", rc);
+    rc = run_tool_out(sz_args, subzy_out, false);
+    if (rc != 0) printf("[!] subzy failed with code %d\n", rc);
 
+    /* subjack has its own -o flag – we should NOT capture stdout to the same file */
     char *sj_args[] = {"subjack", "-w", live, "-t", "100", "-timeout", "30",
                        "-o", subjack_out, NULL};
-    rc = run_tool_out(sj_args, T_SUBJACK, subjack_out, false);
-    if (rc == 124) printf("[!] subjack timed out\n");
-    else if (rc != 0) printf("[!] subjack failed with code %d\n", rc);
+    rc = run_tool(sj_args);   /* use run_tool (no redirection) */
+    if (rc != 0) printf("[!] subjack failed with code %d\n", rc);
 
     printf("[+] Subdomain enumeration complete.\n");
 }
@@ -292,38 +276,28 @@ void scanning() {
         char url[1024];
         snprintf(url, sizeof(url), "https://%s", buffer);
 
-        /* nuclei - Increased timeout to 10 minutes */
+        /* nuclei – has -o, so we use run_tool (no redirection) */
         char nuclei_out[4096];
         snprintf(nuclei_out, sizeof(nuclei_out), "%s/nuclei.txt", hostdir);
         char *nuclei_args[] = {"nuclei", "-u", url, "-o", nuclei_out, "-silent", NULL};
-        int rc = run_tool_out(nuclei_args, T_NUCLEI, nuclei_out, false);
-        if (rc == 124) printf("[!] nuclei timed out on %s\n", buffer);
-        else if (rc != 0) printf("[!] nuclei failed on %s with code %d\n", buffer, rc);
+        int rc = run_tool(nuclei_args);
+        if (rc != 0) printf("[!] nuclei failed on %s with code %d\n", buffer, rc);
 
-        /* nikto */
+        /* nikto – no built-in output; capture stdout */
         char nikto_out[4096];
         snprintf(nikto_out, sizeof(nikto_out), "%s/nikto.txt", hostdir);
         char *nikto_args[] = {"nikto", "-host", url, NULL};
-        rc = run_tool_out(nikto_args, T_NIKTO, nikto_out, false);
-        if (rc == 124) printf("[!] nikto timed out on %s\n", buffer);
-        else if (rc != 0) printf("[!] nikto failed on %s with code %d\n", buffer, rc);
+        rc = run_tool_out(nikto_args, nikto_out, false);
+        if (rc != 0) printf("[!] nikto failed on %s with code %d\n", buffer, rc);
 
-        /* xss - Using dalfox as primary XSS scanner */
+        /* xss */
         char xss_out[4096];
         snprintf(xss_out, sizeof(xss_out), "%s/xss.txt", hostdir);
-        
-        // Check if dalfox is available
-        char *xss_args[] = {"dalfox", "url", url, "-o", xss_out, "--silent", NULL};
-        rc = run_tool_out(xss_args, T_XSS, xss_out, false);
-        if (rc == 124) printf("[!] xss scan timed out on %s\n", buffer);
-        else if (rc != 0) {
-            // Fallback to other XSS scanner if dalfox fails
-            printf("[!] dalfox failed on %s, trying alternative...\n", buffer);
-            char *xss_fallback[] = {"python3", "xss/main.py", buffer, hostdir, NULL};
-            rc = run_tool_out(xss_fallback, T_XSS, xss_out, true);
-            if (rc == 124) printf("[!] xss fallback timed out on %s\n", buffer);
-            else if (rc != 0) printf("[!] xss fallback failed on %s with code %d\n", buffer, rc);
-        }
+
+        char *xss_fallback[] = {"python3", "xss/main.py", buffer, hostdir, NULL};
+        rc = run_tool_out(xss_fallback, xss_out, true);
+        if (rc != 0) printf("[!] xss fallback failed on %s with code %d\n", buffer, rc);
+        xss_run(buffer, hostdir);
     }
     fclose(fp);
     printf("[+] Targeted scanning complete.\n");
@@ -341,10 +315,10 @@ void *wpscan(void *arg){
     char url[2048];
     snprintf(url, sizeof(url), "https://%s", host);
 
+    /* wpscan has --output – use run_tool */
     char *wpscan_args[] = {"wpscan", "--url", url, "--output", outfile, NULL};
-    int rc = run_tool(wpscan_args, 600);
-    if (rc == 124) printf("[!] wpscan timed out on %s\n", host);
-    else if (rc != 0) printf("[!] wpscan failed on %s with code %d\n", host, rc);
+    int rc = run_tool(wpscan_args);
+    if (rc != 0) printf("[!] wpscan failed on %s with code %d\n", host, rc);
 
     free(host);
     return NULL;

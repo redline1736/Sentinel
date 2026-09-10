@@ -64,10 +64,9 @@ int burn_rotate(void);
  * PROXY_NONE: executed directly. Otherwise wrapped in proxychains4 -f <conf>.
  * Returns: tool exit code, 124 = timed out, 127 = exec failed,
  *          -1 = fork/config error, -2 = proxy pool unavailable. */
-int run_tool(char *const argv[], int timeout_secs);
+int run_tool(char *const argv[]);
 
 /* Same, with stdout+stderr redirected to out_path (O_APPEND if append). */
-int run_tool_out(char *const argv[], int timeout_secs,
-                 const char *out_path, bool append);
+static int run_tool_impl(char *const argv[], const char *out_path, bool append);
 
 #endif /* PROX_H */
