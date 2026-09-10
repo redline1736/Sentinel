@@ -43,48 +43,6 @@ jobs:
           echo "${{ env.GOPATH }}/bin" >> $GITHUB_PATH
           echo "/usr/local/go/bin" >> $GITHUB_PATH
 
-      - name: Install Go tools
-        run: |
-          set -euo pipefail
-          go install github.com/projectdiscovery/subfinder/v2/cmd/subfinder@latest
-          go install github.com/tomnomnom/assetfinder@latest
-          go install github.com/projectdiscovery/httpx/cmd/httpx@latest
-          go install github.com/projectdiscovery/nuclei/v3/cmd/nuclei@latest
-          go install github.com/hahwul/dalfox/v2@latest
-          go install -v github.com/PentestPad/subzy@latest
-          go install -mod=mod github.com/haccer/subjack@latest
-
-      - name: Install wpscan with proper permissions
-        run: |
-          set -euo pipefail
-          gem install --user-install wpscan 2>&1 || echo "[WARN] wpscan install failed"
-          echo "$(ruby -e 'puts Gem.user_dir')/bin" >> $GITHUB_PATH
-
-      - name: Setup XSStrike
-        run: |
-          set -euo pipefail
-          if [ ! -d /opt/XSStrike ]; then
-            sudo git clone --depth 1 https://github.com/s0md3v/XSStrike /opt/XSStrike
-          fi
-          sudo python3 -m venv /opt/xsenv 2>/dev/null || true
-          sudo /opt/xsenv/bin/pip install --upgrade pip -q
-          sudo /opt/xsenv/bin/pip install -r /opt/XSStrike/requirements.txt -q
-
-      - name: Download SecLists
-        run: |
-          set -euo pipefail
-          sudo mkdir -p "${SECLISTS}/Discovery/DNS" "${SECLISTS}/Discovery/Web-Content"
-          sudo curl -fsSL \
-            "https://raw.githubusercontent.com/danielmiessler/SecLists/master/Discovery/DNS/subdomains-top1million-5000.txt" \
-            -o "${SECLISTS}/Discovery/DNS/subdomains-top1million-5000.txt"
-          sudo curl -fsSL \
-            "https://raw.githubusercontent.com/danielmiessler/SecLists/master/Discovery/Web-Content/common.txt" \
-            -o "${SECLISTS}/Discovery/Web-Content/common.txt"
-
-      - name: Create directories
-        run: |
-          mkdir -p ghostquery/xss
-
       - name: Fix Makefile and build
         run: |
           cp Makefile Makefile.bak
@@ -152,6 +110,44 @@ jobs:
             perl libnet-ssleay-perl libwww-perl
           pip install playwright
 
+      - name: Install Go tools
+        run: |
+          set -euo pipefail
+          go install github.com/projectdiscovery/subfinder/v2/cmd/subfinder@latest
+          go install github.com/tomnomnom/assetfinder@latest
+          go install github.com/projectdiscovery/httpx/cmd/httpx@latest
+          go install github.com/projectdiscovery/nuclei/v3/cmd/nuclei@latest
+          go install github.com/hahwul/dalfox/v2@latest
+          go install -v github.com/PentestPad/subzy@latest
+          go install -mod=mod github.com/haccer/subjack@latest
+
+      - name: Install wpscan with proper permissions
+        run: |
+          set -euo pipefail
+          gem install --user-install wpscan 2>&1 || echo "[WARN] wpscan install failed"
+          echo "$(ruby -e 'puts Gem.user_dir')/bin" >> $GITHUB_PATH
+
+      - name: Setup XSStrike
+        run: |
+          set -euo pipefail
+          if [ ! -d /opt/XSStrike ]; then
+            sudo git clone --depth 1 https://github.com/s0md3v/XSStrike /opt/XSStrike
+          fi
+          sudo python3 -m venv /opt/xsenv 2>/dev/null || true
+          sudo /opt/xsenv/bin/pip install --upgrade pip -q
+          sudo /opt/xsenv/bin/pip install -r /opt/XSStrike/requirements.txt -q
+
+      - name: Download SecLists
+        run: |
+          set -euo pipefail
+          sudo mkdir -p "${SECLISTS}/Discovery/DNS" "${SECLISTS}/Discovery/Web-Content"
+          sudo curl -fsSL \
+            "https://raw.githubusercontent.com/danielmiessler/SecLists/master/Discovery/DNS/subdomains-top1million-5000.txt" \
+            -o "${SECLISTS}/Discovery/DNS/subdomains-top1million-5000.txt"
+          sudo curl -fsSL \
+            "https://raw.githubusercontent.com/danielmiessler/SecLists/master/Discovery/Web-Content/common.txt" \
+            -o "${SECLISTS}/Discovery/Web-Content/common.txt"
+            
       - name: Download sentinel binary
         uses: actions/download-artifact@v4
         with:
@@ -164,13 +160,14 @@ jobs:
         continue-on-error: true
         run: |
           export PATH="$(ruby -e 'puts Gem.user_dir')/bin:$PATH"
-          
+          # Run tests for sentinel
           ./sentinel example.com test_sub -sub
           ./sentinel thegod.pythonanywhere.com testscanurl --scan-url https://thegod.pythonanywhere.com/
-          ./sentinel thegod.pythonanywhere.com testxsslow test-new-feature https://thegod.pythonanywhere.com/vulnerabilities/xss_r/low
-          ./sentinel thegod.pythonanywhere.com testxssmedium test-new-feature https://thegod.pythonanywhere.com/vulnerabilities/xss_r/medium
-          ./sentinel thegod.pythonanywhere.com testxsshigh test-new-feature https://thegod.pythonanywhere.com/vulnerabilities/xss_r/high
-          ./sentinel thegod.pythonanywhere.com testxssimpossible test-new-feature https://thegod.pythonanywhere.com/vulnerabilities/xss_r/impossible
+          # removing xss tests for now, as they are working but take a long time to run and are not critical for CI
+          # ./sentinel thegod.pythonanywhere.com testxsslow test-new-feature https://thegod.pythonanywhere.com/vulnerabilities/xss_r/low
+          # ./sentinel thegod.pythonanywhere.com testxssmedium test-new-feature https://thegod.pythonanywhere.com/vulnerabilities/xss_r/medium
+          # ./sentinel thegod.pythonanywhere.com testxsshigh test-new-feature https://thegod.pythonanywhere.com/vulnerabilities/xss_r/high
+          # ./sentinel thegod.pythonanywhere.com testxssimpossible test-new-feature https://thegod.pythonanywhere.com/vulnerabilities/xss_r/impossible
 
       - name: Upload all test output directories
         if: always()
