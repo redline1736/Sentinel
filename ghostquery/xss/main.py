@@ -3,15 +3,17 @@
 JS route harvester + XSS scanner.
 
 Usage:
-    python3 js_route_scanner.py <target-url>
+    python3 ghostquery/xss/main.py <target-host> <output-dir>
 
 Pipeline:
-    1. gobuster dir brute force
+    1. read gobuster.txt produced upstream by the C pipeline (scan.c)
     2. headless-Chromium crawl (homepage + a bounded set of discovered pages) to collect JS
     3. extract candidate routes/parameters from JS
     4. run Dalfox + XSStrike on injectable URLs (those with query params)
 
-Requires: gobuster, dalfox, XSStrike, playwright (chromium), seclists wordlist.
+Requires: dalfox, XSStrike, playwright (chromium), seclists wordlist.
+Gobuster is NOT run here — the C pipeline runs it once and writes
+gobuster.txt into the same directory we read from.
 """
 
 import os
@@ -30,8 +32,9 @@ VISITED_JS = set()
 USER_AGENT = ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
               "(KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36")
 
-GOBUSTER_OUT = f"{sys.argv[2]}/gobuster.txt"
-GOBUSTER_WORDLIST = "/usr/share/wordlists/seclists/Discovery/Web-Content/directory-list-2.3-medium.txt"
+# Populated in main() once argv is validated.
+OUT_DIR = None
+GOBUSTER_OUT = None
 
 XSSTRIKE_PATHS = [
     "/opt/XSStrike/xsstrike.py",
@@ -116,29 +119,17 @@ def normalize_target(target):
 
 
 # --------------------------------------------------------------------------- #
-# Phase 1: gobuster
+# Phase 1: load gobuster output produced by the C pipeline
 # --------------------------------------------------------------------------- #
-def run_gobuster(domain):
-    if not shutil.which("gobuster"):
-        print("[!] gobuster not found in PATH - skipping directory enumeration")
-        return set()
-    if not os.path.exists(GOBUSTER_WORDLIST):
-        print(f"[!] Wordlist not found: {GOBUSTER_WORDLIST} - skipping gobuster")
-        return set()
+def load_gobuster(domain):
+    """Read the gobuster.txt the C pipeline wrote into OUT_DIR.
 
-    # remove stale results from previous runs
-    if os.path.exists(GOBUSTER_OUT):
-        os.remove(GOBUSTER_OUT)
-
-    print("[*] Running gobuster...")
-    try:
-        subprocess.run(
-            ["gobuster", "dir", "-u", domain, "-w", GOBUSTER_WORDLIST, "-x", "json,yaml,yml,html,php,js"
-             "-q", "-o", GOBUSTER_OUT],
-            check=False,
-        )
-    except Exception as e:  # noqa: BLE001
-        print(f"[!] gobuster failed: {e}")
+    No subprocess call here — gobuster runs once from scan.c so nuclei
+    and this crawler share a single discovery pass. Missing file just
+    means zero crawl seeds, not a fatal error.
+    """
+    if not os.path.exists(GOBUSTER_OUT):
+        print(f"[!] {GOBUSTER_OUT} not found — no gobuster results to load")
         return set()
 
     discovered = set()
@@ -155,10 +146,11 @@ def run_gobuster(domain):
                 url = normalize(domain, path)
                 if url:
                     discovered.add(url)
-    except FileNotFoundError:
-        pass
+    except OSError as e:
+        print(f"[!] Could not read {GOBUSTER_OUT}: {e}")
+        return set()
 
-    print(f"[*] Gobuster found: {len(discovered)}")
+    print(f"[*] Gobuster (pre-run) found: {len(discovered)}")
     return discovered
 
 
@@ -283,14 +275,14 @@ def extract(base_url, js):
 # Phase 4: filtering + scanning
 # --------------------------------------------------------------------------- #
 def save_routes():
-    with open(f"{sys.argv[2]}/routes.txt", "w", encoding="utf-8") as f:
+    with open(os.path.join(OUT_DIR, "routes.txt"), "w", encoding="utf-8") as f:
         for r in sorted(ROUTES):
             f.write(r + "\n")
 
 
 def build_injectable():
     injectable = sorted({u for u in ROUTES if is_injectable(u)})
-    with open(f"{sys.argv[2]}/urls.txt", "w", encoding="utf-8") as f:
+    with open(os.path.join(OUT_DIR, "urls.txt"), "w", encoding="utf-8") as f:
         for u in injectable:
             f.write(u + "\n")
     return injectable
@@ -300,18 +292,22 @@ def run_dalfox():
     if not shutil.which("dalfox"):
         print("[!] dalfox not found in PATH - skipping")
         return
-    if not (os.path.exists(f"{sys.argv[2]}/urls.txt") and os.path.getsize(f"{sys.argv[2]}/urls.txt") > 0):
+
+    urls_path = os.path.join(OUT_DIR, "urls.txt")
+    if not (os.path.exists(urls_path) and os.path.getsize(urls_path) > 0):
         print("[!] urls.txt empty - skipping dalfox")
         return
 
-    if os.path.exists(f"{sys.argv[2]}/dalfox.txt"):
-        os.remove(f"{sys.argv[2]}/dalfox.txt")
+    dalfox_out = os.path.join(OUT_DIR, "dalfox.txt")
+    if os.path.exists(dalfox_out):
+        os.remove(dalfox_out)
 
     print("[*] Running Dalfox...")
     try:
         subprocess.run(
-            ["dalfox", "file", f"{sys.argv[2]}/urls.txt", "--worker", "10", "--skip-bav",
-             "--silence", "-o", f"{sys.argv[2]}/dalfox.txt"],
+            ["dalfox", "file", urls_path,
+             "--worker", "10", "--skip-bav",
+             "--silence", "-o", dalfox_out],
             check=False,
         )
     except Exception as e:  # noqa: BLE001
@@ -330,41 +326,56 @@ def run_xsstrike():
     if not xsstrike:
         print(f"[!] XSStrike not found (tried: {', '.join(XSSTRIKE_PATHS)}) - skipping")
         return
-    if not (os.path.exists(f"{sys.argv[2]}/urls.txt") and os.path.getsize(f"{sys.argv[2]}/urls.txt") > 0):
+
+    urls_path = os.path.join(OUT_DIR, "urls.txt")
+    if not (os.path.exists(urls_path) and os.path.getsize(urls_path) > 0):
         print("[!] urls.txt empty - skipping XSStrike")
         return
 
-    with open(f"{sys.argv[2]}/urls.txt", encoding="utf-8") as f:
+    with open(urls_path, encoding="utf-8") as f:
         urls = [line.strip() for line in f if line.strip()]
 
+    out_file = os.path.join(OUT_DIR, "xsstrike.txt")
     print(f"[*] Running XSStrike on {len(urls)} URLs...")
-    for i, url in enumerate(urls, 1):
-        print(f"[XSStrike {i}/{len(urls)}] {url}")
-        try:
-            subprocess.run(
-                ["python3", xsstrike, "-u", url, "--skip" ">", f"{sys.argv[2]}/xsstrike"],
-                check=False,
-                timeout=300,
-            )
-        except subprocess.TimeoutExpired:
-            print(f"[!] Timeout after 300s: {url}")
-        except Exception as e:  # noqa: BLE001
-            print(f"[!] XSStrike error on {url}: {e}")
+
+    # Append each run's stdout+stderr to xsstrike.txt. subprocess.run with a
+    # list does NOT invoke a shell, so ">" has to be handled here, not in argv.
+    with open(out_file, "a", encoding="utf-8") as fh:
+        for i, url in enumerate(urls, 1):
+            print(f"[XSStrike {i}/{len(urls)}] {url}")
+            try:
+                subprocess.run(
+                    ["python3", xsstrike, "-u", url, "--skip-dom"],
+                    check=False,
+                    timeout=300,
+                    stdout=fh,
+                    stderr=subprocess.STDOUT,
+                )
+            except subprocess.TimeoutExpired:
+                print(f"[!] Timeout after 300s: {url}")
+            except Exception as e:  # noqa: BLE001
+                print(f"[!] XSStrike error on {url}: {e}")
 
 
 # --------------------------------------------------------------------------- #
 # Main
 # --------------------------------------------------------------------------- #
 def main():
+    global OUT_DIR, GOBUSTER_OUT
+
     if len(sys.argv) < 3:
         print(__doc__)
         sys.exit(1)
 
     target = normalize_target(sys.argv[1])
-    print(f"[*] Target: {target}")
+    OUT_DIR = sys.argv[2]
+    GOBUSTER_OUT = os.path.join(OUT_DIR, "gobuster.txt")
 
-    # 1. Directory brute force
-    gobuster_urls = run_gobuster(target)
+    print(f"[*] Target: {target}")
+    print(f"[*] Output: {OUT_DIR}")
+
+    # 1. Load the gobuster results the C pipeline already produced.
+    gobuster_urls = load_gobuster(target)
     ROUTES.update(gobuster_urls)
 
     # 2. Crawl for JS
@@ -386,8 +397,8 @@ def main():
     print("[*] Done")
     print("    - routes.txt   (all extracted routes)")
     print("    - urls.txt     (injectable URLs fed to scanners)")
-    print("    - gobuster.txt")
     print("    - dalfox.txt")
+    print("    - xsstrike.txt")
 
 
 if __name__ == "__main__":

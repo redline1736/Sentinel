@@ -801,7 +801,7 @@ static int run_tool_impl(char *const argv[], const char *out_path, bool append)
         uses_http  = tool_uses_http(tool_name);
     }
 
-    /* Snapshot current proxy under lock. */
+    /* Snapshot mode + current proxy URI under the lock (may rotate below). */
     int mode;
     const char *cur_uri = NULL;
     lock_acquire();
@@ -872,32 +872,40 @@ static int run_tool_impl(char *const argv[], const char *out_path, bool append)
         else
             pos += snprintf(cmd + pos, sizeof(cmd) - pos, "%s ", argv[i]);
     }
-    if (pos > 0) cmd[pos - 1] = '\0';   /* drop trailing space */
 
-    /* If out_path is set, redirect stdout+stderr into it from the shell.
-     * Otherwise the child inherits our stdout/stderr via popen. */
+    /* Trim the trailing space WITHOUT leaving pos past the terminator. */
+    if (pos > 0 && cmd[pos - 1] == ' ')
+        cmd[--pos] = '\0';
+    else if (pos < (int)sizeof(cmd))
+        cmd[pos] = '\0';
+
+    /* If out_path is set, redirect stdout+stderr into it from the shell. */
     if (out_path && out_path[0] != '\0') {
-        snprintf(cmd + pos, sizeof(cmd) - pos,
+        size_t used = strlen(cmd);
+        snprintf(cmd + used, sizeof(cmd) - used,
                  " %s %s 2>&1", append ? ">>" : ">", out_path);
     }
 
     printf("[DEBUG] popen: %s\n", cmd);
-    
+
+
     FILE *fp = popen(cmd, "r");
     if (!fp) {
         fprintf(stderr, "[-] popen failed: %s\n", strerror(errno));
         return -1;
     }
 
-    /* If stdout was redirected to a file, the pipe carries nothing —
-     * just drain it (should be empty) and wait. */
+    /* Drain the pipe. When redirected to a file the shell sends nothing
+     * here, so this loop is a no-op in that case. */
     char buf[4096];
     while (fgets(buf, sizeof(buf), fp) != NULL)
         fputs(buf, stdout);
 
     int status = pclose(fp);
-    if (WIFEXITED(status))  return WEXITSTATUS(status);
-    if (WIFSIGNALED(status)) return 128 + WTERMSIG(status);
+    if (WIFEXITED(status))
+        return WEXITSTATUS(status);
+    if (WIFSIGNALED(status))
+        return 128 + WTERMSIG(status);
     return 1;
 }
 

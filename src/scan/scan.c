@@ -281,6 +281,13 @@ void scanning() {
     char buffer[512];
     char hostdir[2048];
 
+    const char *sl = getenv("SECLISTS");
+    char wl[1024];
+    if (sl && sl[0])
+        snprintf(wl, sizeof(wl), "%s/Discovery/Web-Content/common.txt", sl);
+    else
+        snprintf(wl, sizeof(wl), "/usr/share/seclists/Discovery/Web-Content/common.txt");
+
     while (fgets(buffer, sizeof(buffer), fp)) {
         buffer[strcspn(buffer, "\n")] = 0;
         if (strlen(buffer) == 0) continue;
@@ -292,28 +299,73 @@ void scanning() {
         char url[1024];
         snprintf(url, sizeof(url), "https://%s", buffer);
 
-        /* nuclei – has -o, so we use run_tool (no redirection) */
+        /* ---- 1. gobuster dir (host-level discovery) ---- */
+        char gobuster_out[4096];
+        snprintf(gobuster_out, sizeof(gobuster_out), "%s/gobuster.txt", hostdir);
+
+        char *gb_args[] = {"gobuster", "dir",
+                           "-u", url,
+                           "-w", wl,
+                           "-x", "json,yaml,yml,html,php,js",
+                           "-q", "-o", gobuster_out,
+                           NULL};
+        int rc = run_tool(gb_args);
+        if (rc != 0)
+            printf("[!] gobuster failed on %s with code %d\n", buffer, rc);
+
+        /* ---- 2. build nuclei target list: homepage + every gobuster path ---- */
+        char targets[4096];
+        snprintf(targets, sizeof(targets), "%s/nuclei_targets.txt", hostdir);
+
+        FILE *nt = fopen(targets, "w");
+        if (nt) {
+            fprintf(nt, "%s\n", url);   /* always include the root */
+            FILE *gb = fopen(gobuster_out, "r");
+            if (gb) {
+                char line[1024];
+                while (fgets(line, sizeof(line), gb)) {
+                    char *p = line;
+                    while (*p == ' ' || *p == '\t') p++;
+                    if (*p != '/') continue;               /* skip banners/progress */
+                    char *end = p + strlen(p);
+                    while (end > p && (end[-1] == '\n' || end[-1] == '\r' || end[-1] == ' '))
+                        *--end = '\0';
+                    if (end == p) continue;
+                    fprintf(nt, "https://%s%s\n", buffer, p);
+                }
+                fclose(gb);
+            }
+            fclose(nt);
+        }
+
+        /* ---- 3. nuclei over the combined list ---- */
         char nuclei_out[4096];
         snprintf(nuclei_out, sizeof(nuclei_out), "%s/nuclei.txt", hostdir);
-        char *nuclei_args[] = {"nuclei", "-u", url, "-o", nuclei_out, "-silent", NULL};
-        int rc = run_tool(nuclei_args);
-        if (rc != 0) printf("[!] nuclei failed on %s with code %d\n", buffer, rc);
 
-        /* nikto – no built-in output; capture stdout */
+        char *nuclei_args[] = {"nuclei", "-l", targets,
+                               "-o", nuclei_out, "-silent", NULL};
+        rc = run_tool(nuclei_args);
+        if (rc != 0)
+            printf("[!] nuclei failed on %s with code %d\n", buffer, rc);
+
+        /* ---- 4. nikto (correct -ssl invocation) ---- */
         char nikto_out[4096];
         snprintf(nikto_out, sizeof(nikto_out), "%s/nikto.txt", hostdir);
-        char *nikto_args[] = {"nikto", "-host", url, NULL};
+        char *nikto_args[] = {"nikto", "-h", buffer, NULL};
         rc = run_tool_out(nikto_args, nikto_out, false);
-        if (rc != 0) printf("[!] nikto failed on %s with code %d\n", buffer, rc);
+        if (rc != 0)
+            printf("[!] nikto failed on %s with code %d\n", buffer, rc);
 
-        /* xss */
+        /* ---- 5. XSS pipeline (reads gobuster.txt, does NOT run gobuster) ---- */
         char xss_out[4096];
         snprintf(xss_out, sizeof(xss_out), "%s/xss.txt", hostdir);
 
-        char *xss_fallback[] = {"python3", "ghostquery/xss/main.py", buffer, hostdir, NULL};
-        rc = run_tool_out(xss_fallback, xss_out, true);
-        if (rc != 0) printf("[!] xss fallback failed on %s with code %d\n", buffer, rc);
-        // remove for now xss_run(buffer, hostdir);
+        char *xss_args[] = {"python3", "ghostquery/xss/main.py",
+                            buffer, hostdir, NULL};
+        rc = run_tool_out(xss_args, xss_out, true);
+        if (rc != 0)
+            printf("[!] xss pipeline failed on %s with code %d\n", buffer, rc);
+        // xss_run(buffer, hostdir, targets);
     }
     fclose(fp);
     printf("[+] Targeted scanning complete.\n");
