@@ -81,6 +81,12 @@ static void write_live(const char *host) {
 }
 
 int main(int argc, char *argv[]) {
+        /* Force line buffering so progress prints reach CI immediately, even
+     * when stdout is a pipe. Without this, glibc fully buffers stdout and
+     * a hang or timeout kills the process before anything is flushed. */
+    setvbuf(stdout, NULL, _IOLBF, 0);
+    setvbuf(stderr, NULL, _IONBF, 0);
+    
     if (argc < 4) {
         print_usage(argv[0]);
         return 1;
