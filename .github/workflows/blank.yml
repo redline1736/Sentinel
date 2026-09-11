@@ -160,9 +160,9 @@ jobs:
         continue-on-error: true
         run: |
           set -e
-          - export PATH="$(ruby -e 'puts Gem.user_dir')/bin:$PATH"
+          export PATH="$(ruby -e 'puts Gem.user_dir')/bin:$PATH"
           # Run tests for sentinel
-          - ./sentinel example.com test_sub -sub
+          ./sentinel example.com test_sub -sub
           ./sentinel thegod.pythonanywhere.com testscanurl --scan-url https://thegod.pythonanywhere.com/
           # removing xss tests for now, as they are working but take a long time to run and are not critical for CI
           # ./sentinel thegod.pythonanywhere.com testxsslow test-new-feature https://thegod.pythonanywhere.com/vulnerabilities/xss_r/low
