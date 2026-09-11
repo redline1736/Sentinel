@@ -788,21 +788,20 @@ static int proxy_preflight(const char *url) {
 }
 
 /* ---------------- tool execution using popen ---------------- */
-
 static int run_tool_impl(char *const argv[], const char *out_path, bool append)
 {
     char conf_path[512] = {0};
-    bool proxied = false;
+    bool proxied    = false;
     bool skip_proxy = false;
-    bool uses_http = false;
+    bool uses_http  = false;
 
     const char *tool_name = argv[0];
     if (tool_name) {
         skip_proxy = tool_skip_proxy(tool_name);
-        uses_http = tool_uses_http(tool_name);
+        uses_http  = tool_uses_http(tool_name);
     }
 
-    /* Snapshot mode + current proxy URI under the lock (may rotate below). */
+    /* Snapshot current proxy under lock. */
     int mode;
     const char *cur_uri = NULL;
     lock_acquire();
@@ -824,112 +823,81 @@ static int run_tool_impl(char *const argv[], const char *out_path, bool append)
         }
         proxied = true;
 
-        /* Pre-flight for HTTP tools with a URL argument */
+        /* Pre-flight any URL argument; burn+rotate on 429/503. */
         if (uses_http) {
             for (int i = 0; argv[i] != NULL; i++) {
-                if (strncmp(argv[i], "http://", 7) == 0 ||
-                    strncmp(argv[i], "https://", 8) == 0) {
-                    int r = proxy_preflight(argv[i]);
-                    if (r == -3) {
-                        fprintf(stderr, "[-] Proxy pool unavailable — aborting tool launch\n");
-                        return -2;
+                if (strncmp(argv[i], "http://",  7) != 0 &&
+                    strncmp(argv[i], "https://", 8) != 0)
+                    continue;
+
+                int r = proxy_preflight(argv[i]);
+                if (r == -3) {
+                    fprintf(stderr, "[-] Proxy pool unavailable — aborting tool launch\n");
+                    return -2;
+                }
+                if (r == -2) {
+                    lock_acquire();
+                    cur_uri = NULL;
+                    for (int j = 0; j < pool_count; j++) {
+                        if (pool[j].current && pool[j].ready && !pool[j].burned) {
+                            cur_uri = pool[j].uri;
+                            break;
+                        }
                     }
-                    /* If rotated, fetch the new current proxy */
-                    if (r == -2) {
-                        lock_acquire();
-                        cur_uri = NULL;
-                        for (int j = 0; j < pool_count; j++) {
-                            if (pool[j].current && pool[j].ready && !pool[j].burned) {
-                                cur_uri = pool[j].uri;
-                                break;
-                            }
-                        }
-                        lock_release();
-                        if (!cur_uri) {
-                            fprintf(stderr, "[-] Proxy pool unavailable after rotation\n");
-                            return -2;
-                        }
+                    lock_release();
+                    if (!cur_uri) {
+                        fprintf(stderr, "[-] Proxy pool unavailable after rotation\n");
+                        return -2;
                     }
                 }
             }
         }
 
-        /* Write proxychains config for the (possibly rotated) proxy */
         if (write_proxychains_conf(cur_uri, conf_path, sizeof(conf_path)) != 0)
             return -1;
     }
 
-    /* Build the command line as a single string for popen */
+    /* Build the shell command string. */
     char cmd[4096] = {0};
     int pos = 0;
 
-    if (proxied && !skip_proxy) {
+    if (proxied) {
         pos += snprintf(cmd + pos, sizeof(cmd) - pos,
                         "proxychains4 -f %s ", conf_path);
     }
 
     for (int i = 0; argv[i] != NULL && pos < (int)sizeof(cmd) - 1; i++) {
-        /* Simple quoting: if arg contains spaces, wrap in double quotes */
-        if (strchr(argv[i], ' ') != NULL) {
+        if (strchr(argv[i], ' '))
             pos += snprintf(cmd + pos, sizeof(cmd) - pos, "\"%s\" ", argv[i]);
-        } else {
+        else
             pos += snprintf(cmd + pos, sizeof(cmd) - pos, "%s ", argv[i]);
-        }
     }
-    if (pos > 0) cmd[pos - 1] = '\0';   /* remove trailing space */
+    if (pos > 0) cmd[pos - 1] = '\0';   /* drop trailing space */
 
-#ifdef DEBUG
-    printf("[DEBUG] popen command: %s\n", cmd);
-#endif
+    /* If out_path is set, redirect stdout+stderr into it from the shell.
+     * Otherwise the child inherits our stdout/stderr via popen. */
+    if (out_path && out_path[0] != '\0') {
+        snprintf(cmd + pos, sizeof(cmd) - pos,
+                 " %s %s 2>&1", append ? ">>" : ">", out_path);
+    }
 
-    /* Append redirection to capture stderr as well */
-    char full_cmd[sizeof(cmd) + 16];
-    snprintf(full_cmd, sizeof(full_cmd), "%s 2>&1", cmd);
-
-    FILE *fp = popen(full_cmd, "r");
+    printf("[DEBUG] popen: %s\n", cmd);
+    
+    FILE *fp = popen(cmd, "r");
     if (!fp) {
         fprintf(stderr, "[-] popen failed: %s\n", strerror(errno));
         return -1;
     }
 
-    /* Output handling: write to file only if out_path is non-NULL and non-empty */
-    FILE *out_fp = NULL;
-    if (out_path && out_path[0] != '\0') {
-        int flags = O_WRONLY | O_CREAT | (append ? O_APPEND : O_TRUNC);
-        int fd = open(out_path, flags, 0644);
-        if (fd >= 0) {
-            out_fp = fdopen(fd, append ? "a" : "w");
-            if (!out_fp) {
-                close(fd);
-                out_fp = NULL;
-            }
-        }
-        if (!out_fp) {
-            fprintf(stderr, "[-] Cannot open output file %s: %s\n",
-                    out_path, strerror(errno));
-            pclose(fp);
-            return -1;
-        }
-    }
-
-    /* Read output and write to out_fp or stdout */
+    /* If stdout was redirected to a file, the pipe carries nothing —
+     * just drain it (should be empty) and wait. */
     char buf[4096];
-    while (fgets(buf, sizeof(buf), fp) != NULL) {
-        if (out_fp) {
-            fputs(buf, out_fp);
-        } else {
-            fputs(buf, stdout);
-        }
-    }
+    while (fgets(buf, sizeof(buf), fp) != NULL)
+        fputs(buf, stdout);
 
     int status = pclose(fp);
-    if (out_fp) fclose(out_fp);
-
-    /* pclose returns exit status as if from waitpid */
-    if (WIFEXITED(status))
-        return WEXITSTATUS(status);
-    if (WIFSIGNALED(status))
-        return 128 + WTERMSIG(status);
+    if (WIFEXITED(status))  return WEXITSTATUS(status);
+    if (WIFSIGNALED(status)) return 128 + WTERMSIG(status);
     return 1;
 }
 

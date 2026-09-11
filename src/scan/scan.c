@@ -310,10 +310,10 @@ void scanning() {
         char xss_out[4096];
         snprintf(xss_out, sizeof(xss_out), "%s/xss.txt", hostdir);
 
-        char *xss_fallback[] = {"python3", "xss/main.py", buffer, hostdir, NULL};
+        char *xss_fallback[] = {"python3", "ghostquery/xss/main.py", buffer, hostdir, NULL};
         rc = run_tool_out(xss_fallback, xss_out, true);
         if (rc != 0) printf("[!] xss fallback failed on %s with code %d\n", buffer, rc);
-        xss_run(buffer, hostdir);
+        // remove for now xss_run(buffer, hostdir);
     }
     fclose(fp);
     printf("[+] Targeted scanning complete.\n");
