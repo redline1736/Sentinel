@@ -251,7 +251,7 @@ void subdomain() {
     snprintf(subzy_out,  sizeof(subzy_out),  "%s/subzy.txt",    g.dir);
     snprintf(subjack_out, sizeof(subjack_out), "%s/subjack.txt", g.dir);
 
-    char *sz_args[] = {"subzy", "run", "--targets", live, NULL};
+    char *sz_args[] = {"subzy", "run", "--targets", live, "--hide_fails", NULL};
     rc = run_tool_out(sz_args, subzy_out, false);
     if (rc != 0) printf("[!] subzy failed with code %d\n", rc);
 
@@ -351,7 +351,7 @@ void scanning() {
         /* ---- 4. nikto (correct -ssl invocation) ---- */
         char nikto_out[4096];
         snprintf(nikto_out, sizeof(nikto_out), "%s/nikto.txt", hostdir);
-        char *nikto_args[] = {"nikto", "-h", buffer, NULL};
+        char *nikto_args[] = {"nikto", "-h", url, NULL};
         rc = run_tool_out(nikto_args, nikto_out, false);
         if (rc != 0)
             printf("[!] nikto failed on %s with code %d\n", buffer, rc);
