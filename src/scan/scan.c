@@ -223,20 +223,6 @@ void subdomain() {
 
     dedupe_file(subfile);
 
-    /* Active: gobuster DNS – no built-in output; capture stdout */
-    const char *sl = getenv("SECLISTS");
-    char wl[1024];
-    if (sl && sl[0])
-        snprintf(wl, sizeof(wl), "%s/Discovery/DNS/subdomains-top1million-5000.txt", sl);
-    else
-        snprintf(wl, sizeof(wl), "/usr/share/seclists/Discovery/DNS/subdomains-top1million-5000.txt");
-    
-    char *gb_args[] = {"gobuster", "dns", "-d", g.domain, "-w", wl, "-q", NULL};
-    rc = run_tool_out(gb_args, subfile, true);
-    if (rc != 0) printf("[!] gobuster failed with code %d\n", rc);
-    
-    dedupe_file(subfile);
-
     /* Health check: httpx – no built-in output; capture stdout */
     char live[2048];
     snprintf(live, sizeof(live), "%s/live.txt", g.dir);

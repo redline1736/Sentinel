@@ -789,83 +789,88 @@ static int proxy_preflight(const char *url) {
 
 /* ---------------- tool execution using popen ---------------- */
 static int run_tool_impl(char *const argv[], const char *out_path, bool append)
-{
-    char conf_path[512] = {0};
-    bool proxied    = false;
-    bool skip_proxy = false;
-    bool uses_http  = false;
-
-    const char *tool_name = argv[0];
-    if (tool_name) {
-        skip_proxy = tool_skip_proxy(tool_name);
-        uses_http  = tool_uses_http(tool_name);
-    }
-
-    /* Snapshot mode + current proxy URI under the lock (may rotate below). */
-    int mode;
-    const char *cur_uri = NULL;
-    lock_acquire();
-    mode = pool_mode;
-    if (mode != PROXY_NONE && pool_count > 0 && !skip_proxy) {
-        for (int i = 0; i < pool_count; i++) {
-            if (pool[i].current && pool[i].ready && !pool[i].burned) {
-                cur_uri = pool[i].uri;
-                break;
-            }
-        }
-    }
-    lock_release();
-
-    if (mode != PROXY_NONE && !skip_proxy) {
-        if (!cur_uri) {
-            fprintf(stderr, "[-] No healthy proxy — aborting tool launch\n");
-            return -2;
-        }
-        proxied = true;
-
-        /* Pre-flight any URL argument; burn+rotate on 429/503. */
-        if (uses_http) {
-            for (int i = 0; argv[i] != NULL; i++) {
-                if (strncmp(argv[i], "http://",  7) != 0 &&
-                    strncmp(argv[i], "https://", 8) != 0)
-                    continue;
-
-                int r = proxy_preflight(argv[i]);
-                if (r == -3) {
-                    fprintf(stderr, "[-] Proxy pool unavailable — aborting tool launch\n");
-                    return -2;
-                }
-                if (r == -2) {
-                    lock_acquire();
-                    cur_uri = NULL;
-                    for (int j = 0; j < pool_count; j++) {
-                        if (pool[j].current && pool[j].ready && !pool[j].burned) {
-                            cur_uri = pool[j].uri;
-                            break;
-                        }
-                    }
-                    lock_release();
-                    if (!cur_uri) {
-                        fprintf(stderr, "[-] Proxy pool unavailable after rotation\n");
-                        return -2;
-                    }
-                }
-            }
-        }
-
-        if (write_proxychains_conf(cur_uri, conf_path, sizeof(conf_path)) != 0)
-            return -1;
-    }
-
-    /* Build the shell command string. */
+{ 
     char cmd[4096] = {0};
     int pos = 0;
+    
+    if (g.proxy){
+        char conf_path[512] = {0};
+        bool proxied    = false;
+        bool skip_proxy = false;
+        bool uses_http  = false;
 
-    if (proxied) {
-        pos += snprintf(cmd + pos, sizeof(cmd) - pos,
-                        "proxychains4 -f %s ", conf_path);
+        const char *tool_name = argv[0];
+        if (tool_name) {
+            skip_proxy = tool_skip_proxy(tool_name);
+            uses_http  = tool_uses_http(tool_name);
+        }
+
+        /* Snapshot mode + current proxy URI under the lock (may rotate below). */
+        int mode;
+        const char *cur_uri = NULL;
+        lock_acquire();
+        mode = pool_mode;
+        if (mode != PROXY_NONE && pool_count > 0 && !skip_proxy) {
+            for (int i = 0; i < pool_count; i++) {
+                if (pool[i].current && pool[i].ready && !pool[i].burned) {
+                    cur_uri = pool[i].uri;
+                    break;
+                }
+            }
+        }
+        lock_release();
+
+        if (mode != PROXY_NONE && !skip_proxy) {
+            if (!cur_uri) {
+                fprintf(stderr, "[-] No healthy proxy — aborting tool launch\n");
+                return -2;
+            }
+            proxied = true;
+
+            /* Pre-flight any URL argument; burn+rotate on 429/503. */
+            if (uses_http) {
+                for (int i = 0; argv[i] != NULL; i++) {
+                    if (strncmp(argv[i], "http://",  7) != 0 &&
+                        strncmp(argv[i], "https://", 8) != 0)
+                        continue;
+
+                    int r = proxy_preflight(argv[i]);
+                    if (r == -3) {
+                        fprintf(stderr, "[-] Proxy pool unavailable — aborting tool launch\n");
+                        return -2;
+                    }
+                    if (r == -2) {
+                        lock_acquire();
+                        cur_uri = NULL;
+                        for (int j = 0; j < pool_count; j++) {
+                            if (pool[j].current && pool[j].ready && !pool[j].burned) {
+                                cur_uri = pool[j].uri;
+                                break;
+                        }
+                        }
+                        lock_release();
+                        if (!cur_uri) {
+                            fprintf(stderr, "[-] Proxy pool unavailable after rotation\n");
+                            return -2;
+                        }
+                    }
+                }
+            }
+
+            if (write_proxychains_conf(cur_uri, conf_path, sizeof(conf_path)) != 0)
+                return -1;
+        }
+
+    /* Build the shell command string. */
+
+
+        if (proxied) {
+            pos += snprintf(cmd + pos, sizeof(cmd) - pos,
+                            "proxychains4 -f %s ", conf_path);
+        }
     }
-
+    
+    
     for (int i = 0; argv[i] != NULL && pos < (int)sizeof(cmd) - 1; i++) {
         if (strchr(argv[i], ' '))
             pos += snprintf(cmd + pos, sizeof(cmd) - pos, "\"%s\" ", argv[i]);

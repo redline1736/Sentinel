@@ -163,7 +163,7 @@ jobs:
           set -e
           export PATH="$(ruby -e 'puts Gem.user_dir')/bin:$PATH"
           # Run tests for sentinel
-          ./sentinel example.com test_sub -sub
+          ./sentinel rapyd.org test_sub -sub
       - name: Run Scan URL test
         continue-on-error: true
         run: |
