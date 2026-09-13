@@ -242,8 +242,7 @@ void subdomain() {
     if (rc != 0) printf("[!] subzy failed with code %d\n", rc);
 
     /* subjack has its own -o flag – we should NOT capture stdout to the same file */
-    char *sj_args[] = {"subjack", "-w", live, "-t", "100", "-timeout", "30",
-                       "-o", subjack_out, NULL};
+    char *sj_args[] = {"subjack", "-w", live, "-t", "100", "-o", subjack_out, NULL};
     rc = run_tool(sj_args);   /* use run_tool (no redirection) */
     if (rc != 0) printf("[!] subjack failed with code %d\n", rc);
 
@@ -267,12 +266,8 @@ void scanning() {
     char buffer[512];
     char hostdir[2048];
 
-    const char *sl = getenv("SECLISTS");
     char wl[1024];
-    if (sl && sl[0])
-        snprintf(wl, sizeof(wl), "%s/Discovery/Web-Content/common.txt", sl);
-    else
-        snprintf(wl, sizeof(wl), "/usr/share/seclists/Discovery/Web-Content/common.txt");
+    snprintf(wl, sizeof(wl), "/usr/share/seclists/Discovery/Web-Content/common.txt");
 
     while (fgets(buffer, sizeof(buffer), fp)) {
         buffer[strcspn(buffer, "\n")] = 0;
@@ -284,65 +279,87 @@ void scanning() {
 
         char url[1024];
         snprintf(url, sizeof(url), "https://%s", buffer);
+        int rc;
 
-        /* ---- 1. gobuster dir (host-level discovery) ---- */
-        char gobuster_out[4096];
-        snprintf(gobuster_out, sizeof(gobuster_out), "%s/gobuster.txt", hostdir);
+        if (g.sitescan) {
+            /* ---- 1. gobuster dir (host-level discovery) ---- */
+            char gobuster_out[4096];
+            snprintf(gobuster_out, sizeof(gobuster_out), "%s/gobuster.txt", hostdir);
 
-        char *gb_args[] = {"gobuster", "dir",
+            char *gb_args[] = {"gobuster", "dir",
                            "-u", url,
                            "-w", wl,
-                           "-x", "json,yaml,yml,html,php,js",
-                           "-q", "-o", gobuster_out,
+                           "-q", 
+                           "-o", gobuster_out,
                            NULL};
-        int rc = run_tool(gb_args);
-        if (rc != 0)
-            printf("[!] gobuster failed on %s with code %d\n", buffer, rc);
+            rc = run_tool(gb_args);
+            if (rc != 0)
+                printf("[!] gobuster failed on %s with code %d\n", buffer, rc);
 
-        /* ---- 2. build nuclei target list: homepage + every gobuster path ---- */
-        char targets[4096];
-        snprintf(targets, sizeof(targets), "%s/nuclei_targets.txt", hostdir);
+            /* ---- 2. build nuclei target list: homepage + every gobuster path ---- */
+            char targets[4096];
+            snprintf(targets, sizeof(targets), "%s/nuclei_targets.txt", hostdir);
 
-        FILE *nt = fopen(targets, "w");
-        if (nt) {
-            fprintf(nt, "%s\n", url);   /* always include the root */
-            FILE *gb = fopen(gobuster_out, "r");
-            if (gb) {
-                char line[1024];
-                while (fgets(line, sizeof(line), gb)) {
-                    char *p = line;
-                    while (*p == ' ' || *p == '\t') p++;
-                    if (*p != '/') continue;               /* skip banners/progress */
-                    char *end = p + strlen(p);
-                    while (end > p && (end[-1] == '\n' || end[-1] == '\r' || end[-1] == ' '))
-                        *--end = '\0';
-                    if (end == p) continue;
-                    fprintf(nt, "https://%s%s\n", buffer, p);
+            FILE *nt = fopen(targets, "w");
+            if (nt) {
+                fprintf(nt, "%s\n", url);   /* always include the root */
+                FILE *gb = fopen(gobuster_out, "r");
+                if (gb) {
+                    char line[1024];
+                    while (fgets(line, sizeof(line), gb)) {
+                        char *p = line;
+                        while (*p == ' ' || *p == '\t') p++;
+                        if (*p != '/') continue;               /* skip banners/progress */
+                        char *end = p + strlen(p);
+                        while (end > p && (end[-1] == '\n' || end[-1] == '\r' || end[-1] == ' '))
+                            *--end = '\0';
+                        if (end == p) continue;
+                        fprintf(nt, "https://%s%s\n", buffer, p);
+                    }
+                    fclose(gb);
                 }
-                fclose(gb);
+                fclose(nt);
             }
-            fclose(nt);
         }
-
         /* ---- 3. nuclei over the combined list ---- */
         char nuclei_out[4096];
         snprintf(nuclei_out, sizeof(nuclei_out), "%s/nuclei.txt", hostdir);
+        if (g.sitescan) {
+            char *nuclei_args[] = {
+                "nuclei",
+                "-l", targets,
+                "-o", nuclei_out,
+                "-silent",
+                "-tags", "xss,sqli,ssrf,lfi,rce,redirect,exposure,misconfig,auth-bypass,default-login",
+                "-severity", "critical,high,medium",
+                "-type", "http",
+                "-etags", "dos,fuzz,intrusive",
+                "-c", "50",              // concurrency
+                "-timeout", "5",         // per-request timeout in seconds
+                "-retries", "1",         // default is 3
+                NULL
+            };
+        } else {
+            char *nuclei_args[] = {
+                "nuclei",
+                "-u", url,               // just the root, not the whole target list
+                "-o", nuclei_out,
+                "-silent",
+                "-tags", "xss,sqli,ssrf,lfi,rce,redirect,exposure,misconfig",
+                "-severity", "critical,high,medium",
+                "-type", "http",
+                "-etags", "dos,fuzz,intrusive",
+                "-timeout", "5",
+                "-retries", "1",
+                NULL
+            };
+        }
 
-        char *nuclei_args[] = {"nuclei", "-l", targets,
-                               "-o", nuclei_out, "-silent", NULL};
         rc = run_tool(nuclei_args);
         if (rc != 0)
             printf("[!] nuclei failed on %s with code %d\n", buffer, rc);
 
-        /* ---- 4. nikto (correct -ssl invocation) ---- */
-        char nikto_out[4096];
-        snprintf(nikto_out, sizeof(nikto_out), "%s/nikto.txt", hostdir);
-        char *nikto_args[] = {"nikto", "-h", url, NULL};
-        rc = run_tool_out(nikto_args, nikto_out, false);
-        if (rc != 0)
-            printf("[!] nikto failed on %s with code %d\n", buffer, rc);
-
-        /* ---- 5. XSS pipeline (reads gobuster.txt, does NOT run gobuster) ---- */
+        /* ---- 4. XSS pipeline (reads gobuster.txt, does NOT run gobuster) ---- */
         char xss_out[4096];
         snprintf(xss_out, sizeof(xss_out), "%s/xss.txt", hostdir);
 

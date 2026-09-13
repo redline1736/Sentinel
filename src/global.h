@@ -14,6 +14,7 @@ struct global {
     bool xss;
     bool deepblue;
     bool urlscan;      /* true: --scan-url mode (skip subdomain, live.txt pre-seeded) */
+    bool sitescan;
     bool proxy;        /* true when any proxy path is active */
     bool tor;          /* true specifically for the Tor pool */
     int  proxy_mode;   /* PROXY_NONE / PROXY_TOR / PROXY_CUSTOM / PROXY_ELITE */

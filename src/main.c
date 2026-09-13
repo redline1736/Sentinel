@@ -101,6 +101,7 @@ int main(int argc, char *argv[]) {
     g.urlscan = false;
     g.proxy = false;
     g.tor = false;
+    g.sitescan = false;
     g.proxy_mode = PROXY_NONE;
     g.proxy_list[0] = '\0';
 
@@ -192,6 +193,22 @@ int main(int argc, char *argv[]) {
         xss_run(argv[4], argv[2]);
     }
     else if (strcmp(argv[3], "--scan-url") == 0) {
+        g.urlscan = true;
+        g.full = true;
+
+        char host[G_DOMAIN_MAX];
+        host_of_url(argv[4], host, sizeof(host));
+
+        /* pipeline + per-host output dirs key off g.domain / live.txt */
+        strncpy(g.domain, host, sizeof(g.domain) - 1);
+        g.domain[sizeof(g.domain) - 1] = '\0';
+  
+        write_live(host);
+
+        run();                      /* same pipeline as --full-scan, minus subdomain */
+    }
+    else if (strcmp(argv[3], "--scan-site") == 0) {
+        g.sitescan = true;
         g.urlscan = true;
         g.full = true;
 

@@ -3,7 +3,7 @@
 #include <stdbool.h>
 
 #include "graphql/graphql.h"
-
+#include "sock/sock.h"
 
 int run_graphql_scanning(char *path) {
     // Placeholder for the actual scanning logic

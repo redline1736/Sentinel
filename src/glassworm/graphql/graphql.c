@@ -5,7 +5,8 @@
 #include <cjson/cJSON.h>
 
 #include "../http/http.h"
-
+#include "../sock/sock.h"
+#define SOCK_PATH "/tmp/myapp.sock"
 // ------------------------------------------------------------------
 // Data structures
 // ------------------------------------------------------------------
@@ -924,6 +925,13 @@ int detect_graphql(char *api_path, char *graphql_path) {
 // Main orchestration function
 // ------------------------------------------------------------------
 int graphql_scanning(char *path) {
+    // socket communication
+    int fd = init_socket(SOCK_PATH);
+    int client = accept_connection(fd);
+    char input_buffer[4096];
+
+
+
     char gobuster_path[512];
     snprintf(gobuster_path, sizeof(gobuster_path), "%s/gobuster.txt", path);
 
@@ -999,11 +1007,23 @@ int graphql_scanning(char *path) {
         if (http_send_post(&r, graphql_url, false, NULL, true, json)) {
             printf("[+] Sent introspection to %s, response saved to %s\n",
                    graphql_url, r.filename);
+
             sent_count++;
 
             // Analyze the response immediately
             printf("\n--- Analysis for %s ---\n", graphql_url);
             introspection_check(r.filename);
+            send_message(client, introspection_check(r.filename));
+            
+            receive_message(client, input_buffer, sizeof(input_buffer));
+
+            if (!http_send_post(&r, api_url, false, NULL, true, input_buffer)) {
+                fprintf(stderr, "HTTP POST failed for %s\n", api_url);
+            }
+
+            continue;
+        }
+
             printf("------------------------\n");
         } else {
             fprintf(stderr, "[-] Failed to send introspection to %s\n", graphql_url);
@@ -1013,5 +1033,6 @@ int graphql_scanning(char *path) {
     fclose(graphql_file);
     free(json);
     printf("\n[+] Done. %d introspection responses analyzed.\n", sent_count);
+    close_socket(fd, client);
     return 0;
 }
