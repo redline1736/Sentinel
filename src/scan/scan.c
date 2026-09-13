@@ -280,6 +280,8 @@ void scanning() {
         char url[1024];
         snprintf(url, sizeof(url), "https://%s", buffer);
         int rc;
+        char nuclei_out[4096];
+        snprintf(nuclei_out, sizeof(nuclei_out), "%s/nuclei.txt", hostdir);
 
         if (g.sitescan) {
             /* ---- 1. gobuster dir (host-level discovery) ---- */
@@ -320,11 +322,6 @@ void scanning() {
                 }
                 fclose(nt);
             }
-        }
-        /* ---- 3. nuclei over the combined list ---- */
-        char nuclei_out[4096];
-        snprintf(nuclei_out, sizeof(nuclei_out), "%s/nuclei.txt", hostdir);
-        if (g.sitescan) {
             char *nuclei_args[] = {
                 "nuclei",
                 "-l", targets,
@@ -339,7 +336,9 @@ void scanning() {
                 "-retries", "1",         // default is 3
                 NULL
             };
-        } else {
+        }
+        /* ---- 3. nuclei over the combined list ---- */
+        if (!g.sitescan) {
             char *nuclei_args[] = {
                 "nuclei",
                 "-u", url,               // just the root, not the whole target list
