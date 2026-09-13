@@ -113,7 +113,15 @@ int main(int argc, char *argv[]) {
             return 1;
         }
         flag_start = 5;
-    } else if (strcmp(argv[3], "test-new-feature") == 0) {
+    }
+    else if (strcmp(argv[3], "--scan-site") == 0) {
+        if (argc < 5) {
+            fprintf(stderr, "[-] --scan-url requires a URL argument\n");
+            return 1;
+        }
+        flag_start = 5;
+    }
+    else if (strcmp(argv[3], "test-new-feature") == 0) {
         if (argc < 5) {
             fprintf(stderr, "[-] --scan-url requires a URL argument\n");
             return 1;
@@ -221,7 +229,7 @@ int main(int argc, char *argv[]) {
   
         write_live(host);
 
-        run();                      /* same pipeline as --full-scan, minus subdomain */
+        run(argv[4]);                      /* same pipeline as --full-scan, minus subdomain */
     }
     else {
         fprintf(stderr, "[-] Unknown mode: %s\n", argv[3]);

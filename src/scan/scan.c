@@ -251,7 +251,7 @@ void subdomain() {
 
 /* ---------- targeted scanning on live hosts ---------- */
 
-void scanning() {
+void scanning(char *target_url) {
     printf("[+] Starting targeted scanning...\n");
 
     char path[2048];
@@ -279,6 +279,7 @@ void scanning() {
 
         char url[1024];
         snprintf(url, sizeof(url), "https://%s", buffer);
+
         int rc;
         char nuclei_out[4096];
         snprintf(nuclei_out, sizeof(nuclei_out), "%s/nuclei.txt", hostdir);
@@ -345,7 +346,7 @@ void scanning() {
         if (!g.sitescan) {
             char *nuclei_args[] = {
                 "nuclei",
-                "-u", url,               // just the root, not the whole target list
+                "-u", target_url,               // just the root, not the whole target list
                 "-o", nuclei_out,
                 "-silent",
                 "-tags", "xss,sqli,ssrf,lfi,rce,redirect,exposure,misconfig",
@@ -515,7 +516,7 @@ void analyze(){
     printf("[+] Analysis complete.\n");
 }
 
-void run() {
+void run(char *url) {
     printf("\n========================================\n");
     printf("  VectorOps — Automated Pentest Pipeline\n");
     printf("  Target : %s\n", g.domain);
@@ -527,7 +528,7 @@ void run() {
     if (!g.urlscan)          /* --scan-url: main pre-seeds live.txt */
         subdomain();
 
-    scanning();
+    scanning(url);
 
     pthread_t threads[256];
     int thread_count = 0;

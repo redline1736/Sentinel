@@ -13,9 +13,9 @@ void enumerate_rate(const char *url, const char *method, const char *file);
 
 /* Recon functions */
 void subdomain();
-void scanning();
+void scanning(char *target_url);
 void *wpscan(void *arg);  /* thread worker */
 void analyze();
-void run();
+void run(char *url);  /* main pipeline (subdomain + scanning + analysis) */
 
 #endif
