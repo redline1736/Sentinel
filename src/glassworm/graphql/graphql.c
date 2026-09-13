@@ -2,11 +2,13 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdbool.h>
+#include <unistd.h>
 #include <cjson/cJSON.h>
 
 #include "../http/http.h"
 #include "../sock/sock.h"
 #define SOCK_PATH "/tmp/myapp.sock"
+
 // ------------------------------------------------------------------
 // Data structures
 // ------------------------------------------------------------------
@@ -73,6 +75,10 @@ static void print_schema_data(SchemaData *schema);
 static void free_schema_data(SchemaData *schema);
 static void perform_security_analysis(SchemaData *schema);
 static char* read_json_from_file(const char *filename, long *out_len);
+static char* capture_introspection_check(const char *filename, size_t *out_len);
+int introspection_check(char *intro_json);
+int detect_graphql(char *api_path, char *graphql_path);
+int graphql_scanning(char *path);
 
 // ------------------------------------------------------------------
 // Helper: unwrap a GraphQL type (LIST, NON_NULL) into a string
@@ -689,14 +695,12 @@ static void perform_security_analysis(SchemaData *schema) {
     printf("=========================================\n\n");
 }
 
-
 // ------------------------------------------------------------------
 // Free SchemaData
 // ------------------------------------------------------------------
 static void free_schema_data(SchemaData *schema) {
     if (!schema) return;
 
-    // Helper to free a FieldInfo
     void free_field_info(FieldInfo *f) {
         if (!f) return;
         free(f->name);
@@ -709,71 +713,50 @@ static void free_schema_data(SchemaData *schema) {
         free(f->args);
     }
 
-    // Helper to free a TypeInfo
     void free_type_info(TypeInfo *t) {
         if (!t) return;
         free(t->name);
         free(t->kind);
         free(t->description);
-        
-        // Free fields
+
         for (int i = 0; i < t->num_fields; i++) {
             free_field_info(&t->fields[i]);
         }
         free(t->fields);
-        
-        // Free interfaces
+
         for (int i = 0; i < t->num_interfaces; i++) {
             free(t->interfaces[i]);
         }
         free(t->interfaces);
-        
-        // Free enum values
+
         for (int i = 0; i < t->num_enum_values; i++) {
             free(t->enum_values[i].name);
         }
         free(t->enum_values);
-        
-        // Free input fields
+
         for (int i = 0; i < t->num_input_fields; i++) {
             free_field_info(&t->input_fields[i]);
         }
         free(t->input_fields);
-        
-        // Free possible types
+
         for (int i = 0; i < t->num_possible_types; i++) {
             free(t->possible_types[i]);
         }
         free(t->possible_types);
-        
+
         free(t->specified_by_url);
         free(t);
     }
 
-    // Free query_type
-    if (schema->query_type) {
-        free_type_info(schema->query_type);
-    }
+    if (schema->query_type)        free_type_info(schema->query_type);
+    if (schema->mutation_type)     free_type_info(schema->mutation_type);
+    if (schema->subscription_type) free_type_info(schema->subscription_type);
 
-    // Free mutation_type
-    if (schema->mutation_type) {
-        free_type_info(schema->mutation_type);
-    }
-
-    // Free subscription_type
-    if (schema->subscription_type) {
-        free_type_info(schema->subscription_type);
-    }
-
-    // Free all types
     for (int i = 0; i < schema->num_types; i++) {
-        if (schema->types[i]) {
-            free_type_info(schema->types[i]);
-        }
+        if (schema->types[i]) free_type_info(schema->types[i]);
     }
     free(schema->types);
 
-    // Free directives
     for (int i = 0; i < schema->num_directives; i++) {
         free(schema->directives[i].name);
         for (int j = 0; j < schema->directives[i].num_args; j++) {
@@ -822,6 +805,38 @@ static char* read_json_from_file(const char *filename, long *out_len) {
 
     if (out_len) *out_len = length;
     return data;
+}
+
+// ------------------------------------------------------------------
+// Helper: run introspection_check() and capture its stdout
+// ------------------------------------------------------------------
+static char* capture_introspection_check(const char *filename, size_t *out_len) {
+    char   *buf = NULL;
+    size_t  len = 0;
+
+    FILE *mem = open_memstream(&buf, &len);
+    if (!mem) return NULL;
+
+    int saved_stdout = dup(fileno(stdout));
+    if (saved_stdout < 0) {
+        fclose(mem);
+        free(buf);
+        return NULL;
+    }
+
+    fflush(stdout);
+    dup2(fileno(mem), fileno(stdout));
+
+    introspection_check((char *)filename);
+
+    fflush(stdout);
+    dup2(saved_stdout, fileno(stdout));
+    close(saved_stdout);
+
+    fclose(mem);   /* flushes; finalizes buf and len */
+
+    if (out_len) *out_len = len;
+    return buf;
 }
 
 // ------------------------------------------------------------------
@@ -923,37 +938,50 @@ int detect_graphql(char *api_path, char *graphql_path) {
 
 // ------------------------------------------------------------------
 // Main orchestration function
+//
+//   For each URL in graphql.txt:
+//     1. send introspection query over the socket
+//     2. receive the peer's JSON reply over the socket
+//     3. POST that JSON to the GraphQL endpoint
+//     4. analyze the HTTP response
+//     5. send the analysis result back over the socket
+//   Finish when all URLs are processed.
 // ------------------------------------------------------------------
 int graphql_scanning(char *path) {
-    // socket communication
-    int fd = init_socket(SOCK_PATH);
+    /* ---------------- socket setup ---------------- */
+    int fd     = init_socket(SOCK_PATH);
     int client = accept_connection(fd);
-    char input_buffer[4096];
+    if (client < 0) {
+        fprintf(stderr, "Failed to accept socket connection\n");
+        close_socket(fd, client);
+        return 1;
+    }
 
+    /* Buffer for whatever the peer sends back after the query. */
+    char recv_buffer[1024 * 256];
 
-
+    /* ---------------- paths ---------------- */
     char gobuster_path[512];
-    snprintf(gobuster_path, sizeof(gobuster_path), "%s/gobuster.txt", path);
-
     char api_path[512];
-    snprintf(api_path, sizeof(api_path), "%s/api.txt", path);
-
     char graphql_path[512];
-    snprintf(graphql_path, sizeof(graphql_path), "%s/graphql.txt", path);
 
-    // Filter gobuster.txt -> api.txt
+    snprintf(gobuster_path, sizeof(gobuster_path), "%s/gobuster.txt", path);
+    snprintf(api_path,      sizeof(api_path),      "%s/api.txt",      path);
+    snprintf(graphql_path,  sizeof(graphql_path),  "%s/graphql.txt",  path);
+
+    /* ---------------- filter gobuster -> api ---------------- */
     FILE *gobuster_file = fopen(gobuster_path, "r");
     if (!gobuster_file) {
         fprintf(stderr, "Failed to open gobuster.txt\n");
+        close_socket(fd, client);
         return 1;
     }
-
     FILE *api_file = fopen(api_path, "w");
     if (!api_file) {
         fclose(gobuster_file);
+        close_socket(fd, client);
         return 1;
     }
-
     char gobuster_url[512];
     while (fgets(gobuster_url, sizeof(gobuster_url), gobuster_file)) {
         gobuster_url[strcspn(gobuster_url, "\n")] = '\0';
@@ -964,17 +992,17 @@ int graphql_scanning(char *path) {
     fclose(gobuster_file);
     fclose(api_file);
 
-    // Detect GraphQL endpoints
-    int detect_ret = detect_graphql(api_path, graphql_path);
-    if (detect_ret == 0)
+    /* ---------------- detect GraphQL endpoints ---------------- */
+    if (detect_graphql(api_path, graphql_path) == 0)
         printf("[+] GraphQL detection completed.\n");
     else
         printf("[-] No GraphQL endpoints found.\n");
 
-    // Read full introspection query
+    /* ---------------- load introspection query ---------------- */
     FILE *graphql_file = fopen(graphql_path, "r");
     if (!graphql_file) {
         fprintf(stderr, "Failed to open graphql.txt\n");
+        close_socket(fd, client);
         return 1;
     }
 
@@ -982,57 +1010,85 @@ int graphql_scanning(char *path) {
     if (!f) {
         fprintf(stderr, "Failed to open introspection.json\n");
         fclose(graphql_file);
+        close_socket(fd, client);
         return 1;
     }
-
     fseek(f, 0, SEEK_END);
     long json_size = ftell(f);
     rewind(f);
 
-    char *json = malloc(json_size + 1);
-    if (!json) { fclose(f); fclose(graphql_file); return 1; }
-    if ((long)fread(json, 1, json_size, f) != json_size) {
-        free(json); fclose(f); fclose(graphql_file); return 1;
+    char *introspection_json = malloc(json_size + 1);
+    if (!introspection_json ||
+        (long)fread(introspection_json, 1, json_size, f) != json_size) {
+        free(introspection_json);
+        fclose(f);
+        fclose(graphql_file);
+        close_socket(fd, client);
+        return 1;
     }
-    json[json_size] = '\0';
+    introspection_json[json_size] = '\0';
     fclose(f);
 
+    /* ---------------- main loop ---------------- */
     request r = {0};
     char graphql_url[1028];
-    int sent_count = 0;
+    int  sent_count = 0;
 
     while (fgets(graphql_url, sizeof(graphql_url), graphql_file)) {
         graphql_url[strcspn(graphql_url, "\n")] = '\0';
 
-        if (http_send_post(&r, graphql_url, false, NULL, true, json)) {
-            printf("[+] Sent introspection to %s, response saved to %s\n",
-                   graphql_url, r.filename);
+        /* 1) Send the introspection query over the socket. */
+        if (send_message(client, introspection_json) < 0) {
+            fprintf(stderr, "[-] socket send failed for %s\n", graphql_url);
+            continue;
+        }
+        printf("[+] Sent introspection query over socket for %s\n", graphql_url);
 
-            sent_count++;
+        /* 2) Receive the peer's response over the socket. */
+        int n = receive_message(client, recv_buffer, sizeof(recv_buffer) - 1);
+        if (n <= 0) {
+            fprintf(stderr, "[-] no socket reply for %s\n", graphql_url);
+            continue;
+        }
+        recv_buffer[n] = '\0';
 
-            // Analyze the response immediately
-            printf("\n--- Analysis for %s ---\n", graphql_url);
-            introspection_check(r.filename);
-            send_message(client, introspection_check(r.filename));
-            
-            receive_message(client, input_buffer, sizeof(input_buffer));
+        /* 3) POST that response body to the GraphQL endpoint. */
+        if (!http_send_post(&r, graphql_url, false, NULL, true, recv_buffer)) {
+            fprintf(stderr, "[-] HTTP POST failed for %s\n", graphql_url);
+            continue;
+        }
+        if (r.code != 200) {
+            fprintf(stderr, "[-] Non-200 (%ld) from %s\n", r.code, graphql_url);
+            continue;
+        }
+        sent_count++;
+        printf("[+] Response from %s saved to %s\n", graphql_url, r.filename);
 
-            if (!http_send_post(&r, api_url, false, NULL, true, input_buffer)) {
-                fprintf(stderr, "HTTP POST failed for %s\n", api_url);
-            }
-
+        /* 4) Analyze the HTTP response, capturing stdout into a string. */
+        size_t analysis_len = 0;
+        char  *analysis = capture_introspection_check(r.filename, &analysis_len);
+        if (!analysis) {
+            fprintf(stderr, "[-] analysis failed for %s\n", graphql_url);
             continue;
         }
 
-            printf("------------------------\n");
-        } else {
-            fprintf(stderr, "[-] Failed to send introspection to %s\n", graphql_url);
+        /* 5) Send the analysis result back over the socket. */
+        if (send_message(client, analysis) < 0) {
+            fprintf(stderr, "[-] socket send (analysis) failed for %s\n",
+                    graphql_url);
+            free(analysis);
+            continue;
         }
+        printf("[+] Sent analysis (%zu bytes) for %s\n",
+               analysis_len, graphql_url);
+        free(analysis);
     }
 
+    /* 6) Done. */
     fclose(graphql_file);
-    free(json);
+    free(introspection_json);
     printf("\n[+] Done. %d introspection responses analyzed.\n", sent_count);
+
     close_socket(fd, client);
     return 0;
 }
