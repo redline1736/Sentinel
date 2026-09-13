@@ -336,6 +336,10 @@ void scanning() {
                 "-retries", "1",         // default is 3
                 NULL
             };
+            rc = run_tool(nuclei_args);
+            
+            if (rc != 0)
+                printf("[!] nuclei failed on %s with code %d\n", buffer, rc);
         }
         /* ---- 3. nuclei over the combined list ---- */
         if (!g.sitescan) {
@@ -352,11 +356,11 @@ void scanning() {
                 "-retries", "1",
                 NULL
             };
+            rc = run_tool(nuclei_args);
+            if (rc != 0)
+                printf("[!] nuclei failed on %s with code %d\n", buffer, rc);
         }
 
-        rc = run_tool(nuclei_args);
-        if (rc != 0)
-            printf("[!] nuclei failed on %s with code %d\n", buffer, rc);
 
         /* ---- 4. XSS pipeline (reads gobuster.txt, does NOT run gobuster) ---- */
         char xss_out[4096];

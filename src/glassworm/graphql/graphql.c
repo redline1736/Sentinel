@@ -1058,7 +1058,7 @@ int graphql_scanning(char *path) {
             continue;
         }
         if (r.code != 200) {
-            fprintf(stderr, "[-] Non-200 (%ld) from %s\n", r.code, graphql_url);
+            fprintf(stderr, "[-] Non-200 (%d) from %s\n", (int)r.code, graphql_url);
             continue;
         }
         sent_count++;
