@@ -7,6 +7,7 @@
 
 #include "../http/http.h"
 #include "../sock/sock.h"
+
 #define SOCK_PATH "/tmp/myapp.sock"
 
 // ------------------------------------------------------------------

@@ -43,39 +43,8 @@ jobs:
           echo "${{ env.GOPATH }}/bin" >> $GITHUB_PATH
           echo "/usr/local/go/bin" >> $GITHUB_PATH
 
-      - name: Fix Makefile and build
+      - name: Build
         run: |
-          cp Makefile Makefile.bak
-          
-          cat > Makefile << 'EOF'
-          CC      ?= gcc
-          CFLAGS  += -Wall -Wextra -O2 -D_GNU_SOURCE -pthread \
-                     -Wno-unused-result -Wno-unused-function \
-                     -Wno-format-truncation -Wno-sign-compare
-          LIBS    := -lcurl -lpthread -lcjson
-          
-          SRCS := src/main.c src/util/util.c src/prox/prox.c src/scan/scan.c \
-                  src/deepblue/deepblue.c src/ghostquery/gq.c src/glassworm/gw.c \
-                  src/glassworm/graphql/graphql.c src/glassworm/http/http.c \
-                  src/chrome/chrome.c
-          HDRS := $(wildcard src/*.h src/*/*.h)
-          BIN  := sentinel
-          
-          .PHONY: all clean sanitize
-          
-          all: $(BIN)
-          
-          $(BIN): $(SRCS) $(HDRS)
-          	$(CC) $(CFLAGS) -I. $(SRCS) -o $@ $(LIBS)
-          
-          sanitize: CFLAGS += -g -O1 -fsanitize=address,undefined -fno-omit-frame-pointer
-          sanitize: LIBS += -fsanitize=address,undefined
-          sanitize: $(BIN)
-          
-          clean:
-          	rm -f $(BIN)
-          EOF
-          
           make clean all
           test -x ./sentinel && echo "✅ binary OK"
 
@@ -173,12 +142,13 @@ jobs:
           set -e
           ./sentinel thegod.pythonanywhere.com testscanurl --scan-url https://thegod.pythonanywhere.com/greet
           ./sentinel thegod.pythonanywhere.com testscansite --scan-site https://thegod.pythonanywhere.com/
-
+          
           # removing xss tests for now, as they are working but take a long time to run and are not critical for CI
           # ./sentinel thegod.pythonanywhere.com testxsslow test-new-feature https://thegod.pythonanywhere.com/vulnerabilities/xss_r/low
           # ./sentinel thegod.pythonanywhere.com testxssmedium test-new-feature https://thegod.pythonanywhere.com/vulnerabilities/xss_r/medium
           # ./sentinel thegod.pythonanywhere.com testxsshigh test-new-feature https://thegod.pythonanywhere.com/vulnerabilities/xss_r/high
           # ./sentinel thegod.pythonanywhere.com testxssimpossible test-new-feature https://thegod.pythonanywhere.com/vulnerabilities/xss_r/impossible
+
 
       - name: Upload all test output directories
         if: always()
@@ -188,6 +158,7 @@ jobs:
           path: |
             test_sub/
             testscanurl/
+            testscansite/
             testxsslow/
             testxssmedium/
             testxsshigh/
