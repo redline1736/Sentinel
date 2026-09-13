@@ -20,7 +20,7 @@ int init_socket(const char *path) {
         perror("bind"); close(fd); return -1;
     }
     listen(fd, 1);
-    printf("Listening on %s\n", SOCK_PATH);
+    printf("Listening on %s\n", path);
     return fd;
 }
 
@@ -43,8 +43,8 @@ int receive_message(int client, char *buf, size_t buf_size){
    
     return n;
 }
-int close_socket(int sockfd, int client){
+int close_socket(int sockfd, int client, char *path) {
     if (close(sockfd) < 0 && close(client) < 0) { perror("close"); return -1; }
-    unlink(SOCK_PATH);
+    unlink(path);
     return 0;
 }

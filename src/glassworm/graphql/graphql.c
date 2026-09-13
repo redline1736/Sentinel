@@ -954,7 +954,7 @@ int graphql_scanning(char *path) {
     int client = accept_connection(fd);
     if (client < 0) {
         fprintf(stderr, "Failed to accept socket connection\n");
-        close_socket(fd, client);
+        close_socket(fd, client, SOCK_PATH);
         return 1;
     }
 
@@ -974,13 +974,13 @@ int graphql_scanning(char *path) {
     FILE *gobuster_file = fopen(gobuster_path, "r");
     if (!gobuster_file) {
         fprintf(stderr, "Failed to open gobuster.txt\n");
-        close_socket(fd, client);
+        close_socket(fd, client, SOCK_PATH);
         return 1;
     }
     FILE *api_file = fopen(api_path, "w");
     if (!api_file) {
         fclose(gobuster_file);
-        close_socket(fd, client);
+        close_socket(fd, client, SOCK_PATH);
         return 1;
     }
     char gobuster_url[512];
@@ -1003,7 +1003,7 @@ int graphql_scanning(char *path) {
     FILE *graphql_file = fopen(graphql_path, "r");
     if (!graphql_file) {
         fprintf(stderr, "Failed to open graphql.txt\n");
-        close_socket(fd, client);
+        close_socket(fd, client, SOCK_PATH);
         return 1;
     }
 
@@ -1011,7 +1011,7 @@ int graphql_scanning(char *path) {
     if (!f) {
         fprintf(stderr, "Failed to open introspection.json\n");
         fclose(graphql_file);
-        close_socket(fd, client);
+        close_socket(fd, client, SOCK_PATH);
         return 1;
     }
     fseek(f, 0, SEEK_END);
@@ -1024,7 +1024,7 @@ int graphql_scanning(char *path) {
         free(introspection_json);
         fclose(f);
         fclose(graphql_file);
-        close_socket(fd, client);
+        close_socket(fd, client, SOCK_PATH);
         return 1;
     }
     introspection_json[json_size] = '\0';
@@ -1090,6 +1090,6 @@ int graphql_scanning(char *path) {
     free(introspection_json);
     printf("\n[+] Done. %d introspection responses analyzed.\n", sent_count);
 
-    close_socket(fd, client);
+    close_socket(fd, client, SOCK_PATH);
     return 0;
 }
