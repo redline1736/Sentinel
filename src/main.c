@@ -190,12 +190,14 @@ int main(int argc, char *argv[]) {
         printf("[+] Subdomain enumeration complete. Results in %s/\n", g.dir);
     }
     else if (strcmp(argv[3], "--full-scan") == 0) {
+        g.sitescan = true;
         g.full = true;
-        run();
+        run(NULL);
     }
     else if (strcmp(argv[3], "--fast-scan") == 0) {
+        g.sitescan = true;
         g.full = false;
-        run();
+        run(NULL);
     }
     else if (strcmp(argv[3], "test-new-feature") == 0) {
         xss_run(argv[4], argv[2]);
@@ -213,7 +215,7 @@ int main(int argc, char *argv[]) {
   
         write_live(host);
 
-        run();                      /* same pipeline as --full-scan, minus subdomain */
+        run(NULL);                      /* same pipeline as --full-scan, minus subdomain */
     }
     else if (strcmp(argv[3], "--scan-site") == 0) {
         g.sitescan = true;
