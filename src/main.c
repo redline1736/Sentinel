@@ -215,7 +215,7 @@ int main(int argc, char *argv[]) {
   
         write_live(host);
 
-        run(NULL);                      /* same pipeline as --full-scan, minus subdomain */
+        run(argv[4]);                      /* same pipeline as --full-scan, minus subdomain */
     }
     else if (strcmp(argv[3], "--scan-site") == 0) {
         g.sitescan = true;
@@ -231,7 +231,7 @@ int main(int argc, char *argv[]) {
   
         write_live(host);
 
-        run(argv[4]);                      /* same pipeline as --full-scan, minus subdomain */
+        run(NULL);                      /* same pipeline as --full-scan, minus subdomain */
     }
     else {
         fprintf(stderr, "[-] Unknown mode: %s\n", argv[3]);

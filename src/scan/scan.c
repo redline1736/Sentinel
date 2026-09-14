@@ -255,7 +255,10 @@ void scanning(char *target_url) {
     printf("[+] Starting targeted scanning...\n");
 
     char path[2048];
-    snprintf(path, sizeof(path), "%s/live.txt", g.dir);
+    if (snprintf(path, sizeof(path), "%s/live.txt", g.dir) >= (int)sizeof(path)) {
+        fprintf(stderr, "[-] live.txt path too long\n");
+        return;
+    }
 
     FILE *fp = fopen(path, "r");
     if (!fp) {
@@ -266,63 +269,136 @@ void scanning(char *target_url) {
     char buffer[512];
     char hostdir[2048];
 
-    char wl[1024];
-    snprintf(wl, sizeof(wl), "/usr/share/seclists/Discovery/Web-Content/common.txt");
+    const char *wl = "/usr/share/seclists/Discovery/Web-Content/common.txt";
+
+    FILE *sg = NULL;
+    if (!g.full) {
+        sg = fopen("signatures.txt", "r");
+        if (!sg) {
+            fprintf(stderr, "[-] signatures.txt not found\n");
+            fclose(fp);
+            return;
+        }
+    }
 
     while (fgets(buffer, sizeof(buffer), fp)) {
-        buffer[strcspn(buffer, "\n")] = 0;
+        buffer[strcspn(buffer, "\r\n")] = 0;
         if (strlen(buffer) == 0) continue;
 
+        /* basic host validation: skip entries containing '/' */
+        if (strchr(buffer, '/') != NULL) {
+            printf("[!] Skipping invalid host entry: %s\n", buffer);
+            continue;
+        }
+
         printf("[*] Scanning: %s\n", buffer);
-        snprintf(hostdir, sizeof(hostdir), "%s/%s", g.dir, buffer);
-        mkdir(hostdir, 0755);
+
+        if (snprintf(hostdir, sizeof(hostdir), "%s/%s", g.dir, buffer) >= (int)sizeof(hostdir)) {
+            fprintf(stderr, "[-] hostdir path too long for %s\n", buffer);
+            continue;
+        }
+
+        if (mkdir(hostdir, 0755) != 0 && errno != EEXIST) {
+            perror("mkdir");
+            continue;
+        }
+
+        if (!g.full) {
+            int found = 0;
+            char sig[1024];
+
+            rewind(sg);
+            while (fgets(sig, sizeof(sig), sg)) {
+                sig[strcspn(sig, "\r\n")] = 0;
+                if (strlen(sig) == 0) continue;
+
+                if (strncmp(buffer, sig, strlen(sig)) == 0) {
+                    printf("[+] Signature match: %s\n", sig);
+                    found = 1;
+                    break;
+                }
+            }
+
+            if (!found) {
+                printf("[!] No signature match for %s, skipping scanning\n", buffer);
+                continue;
+            }
+        }
 
         char url[1024];
-        snprintf(url, sizeof(url), "https://%s", buffer);
+        if (snprintf(url, sizeof(url), "https://%s", buffer) >= (int)sizeof(url)) {
+            fprintf(stderr, "[-] URL too long for %s\n", buffer);
+            continue;
+        }
+
+        char nuclei_out[4096];
+        if (snprintf(nuclei_out, sizeof(nuclei_out), "%s/nuclei.txt", hostdir) >= (int)sizeof(nuclei_out)) {
+            fprintf(stderr, "[-] nuclei_out path too long\n");
+            continue;
+        }
 
         int rc;
-        char nuclei_out[4096];
-        snprintf(nuclei_out, sizeof(nuclei_out), "%s/nuclei.txt", hostdir);
 
         if (g.sitescan) {
             /* ---- 1. gobuster dir (host-level discovery) ---- */
             char gobuster_out[4096];
-            snprintf(gobuster_out, sizeof(gobuster_out), "%s/gobuster.txt", hostdir);
+            if (snprintf(gobuster_out, sizeof(gobuster_out), "%s/gobuster.txt", hostdir) >= (int)sizeof(gobuster_out)) {
+                fprintf(stderr, "[-] gobuster_out path too long\n");
+                continue;
+            }
 
-            char *gb_args[] = {"gobuster", "dir",
-                           "-u", url,
-                           "-w", wl,
-                           "-q", 
-                           "-o", gobuster_out,
-                           NULL};
+            char *gb_args[] = {
+                "gobuster", "dir",
+                "-u", url,
+                "-w", (char *)wl,
+                "-q",
+                "-o", gobuster_out,
+                NULL
+            };
+
             rc = run_tool(gb_args);
             if (rc != 0)
                 printf("[!] gobuster failed on %s with code %d\n", buffer, rc);
 
             /* ---- 2. build nuclei target list: homepage + every gobuster path ---- */
             char targets[4096];
-            snprintf(targets, sizeof(targets), "%s/nuclei_targets.txt", hostdir);
+            if (snprintf(targets, sizeof(targets), "%s/nuclei_targets.txt", hostdir) >= (int)sizeof(targets)) {
+                fprintf(stderr, "[-] targets path too long\n");
+                continue;
+            }
 
             FILE *nt = fopen(targets, "w");
             if (nt) {
-                fprintf(nt, "%s\n", url);   /* always include the root */
+                fprintf(nt, "%s\n", url); /* always include the root */
+
                 FILE *gb = fopen(gobuster_out, "r");
                 if (gb) {
                     char line[1024];
                     while (fgets(line, sizeof(line), gb)) {
                         char *p = line;
                         while (*p == ' ' || *p == '\t') p++;
-                        if (*p != '/') continue;               /* skip banners/progress */
+                        if (*p != '/') continue;
+
                         char *end = p + strlen(p);
-                        while (end > p && (end[-1] == '\n' || end[-1] == '\r' || end[-1] == ' '))
+                        while (end > p && (end[-1] == '\n' || end[-1] == '\r' || end[-1] == ' ' || end[-1] == '\t'))
                             *--end = '\0';
                         if (end == p) continue;
+
+                        /* remove gobuster status info after the path */
+                        char *space = strchr(p, ' ');
+                        if (space) *space = '\0';
+
                         fprintf(nt, "https://%s%s\n", buffer, p);
                     }
                     fclose(gb);
+                } else {
+                    printf("[!] Could not open gobuster output %s\n", gobuster_out);
                 }
                 fclose(nt);
+            } else {
+                printf("[!] Could not create nuclei targets file %s\n", targets);
             }
+
             char *nuclei_args[] = {
                 "nuclei",
                 "-l", targets,
@@ -332,21 +408,38 @@ void scanning(char *target_url) {
                 "-severity", "critical,high,medium",
                 "-type", "http",
                 "-etags", "dos,fuzz,intrusive",
-                "-c", "50",              // concurrency
-                "-timeout", "5",         // per-request timeout in seconds
-                "-retries", "1",         // default is 3
+                "-c", "50",
+                "-timeout", "5",
+                "-retries", "1",
                 NULL
             };
+
             rc = run_tool(nuclei_args);
-            
             if (rc != 0)
                 printf("[!] nuclei failed on %s with code %d\n", buffer, rc);
-        }
-        /* ---- 3. nuclei over the combined list ---- */
-        if (!g.sitescan) {
+
+            /* ---- 3. XSS pipeline: only when sitescan is true ---- */
+            char xss_out[4096];
+            if (snprintf(xss_out, sizeof(xss_out), "%s/xss.txt", hostdir) >= (int)sizeof(xss_out)) {
+                fprintf(stderr, "[-] xss_out path too long\n");
+                continue;
+            }
+
+            char *xss_args[] = {
+                "python3", "ghostquery/xss/main.py",
+                buffer, hostdir,
+                NULL
+            };
+
+            rc = run_tool_out(xss_args, xss_out, true);
+            if (rc != 0)
+                printf("[!] xss pipeline failed on %s with code %d\n", buffer, rc);
+
+        } else {
+            /* ---- non-sitescan: just nuclei on the current host ---- */
             char *nuclei_args[] = {
                 "nuclei",
-                "-u", target_url,               // just the root, not the whole target list
+                "-u", target_url, 
                 "-o", nuclei_out,
                 "-silent",
                 "-tags", "xss,sqli,ssrf,lfi,rce,redirect,exposure,misconfig",
@@ -357,23 +450,16 @@ void scanning(char *target_url) {
                 "-retries", "1",
                 NULL
             };
+
             rc = run_tool(nuclei_args);
             if (rc != 0)
                 printf("[!] nuclei failed on %s with code %d\n", buffer, rc);
+
+            // xss_run(buffer, hostdir);
         }
-
-
-        /* ---- 4. XSS pipeline (reads gobuster.txt, does NOT run gobuster) ---- */
-        char xss_out[4096];
-        snprintf(xss_out, sizeof(xss_out), "%s/xss.txt", hostdir);
-
-        char *xss_args[] = {"python3", "ghostquery/xss/main.py",
-                            buffer, hostdir, NULL};
-        rc = run_tool_out(xss_args, xss_out, true);
-        if (rc != 0)
-            printf("[!] xss pipeline failed on %s with code %d\n", buffer, rc);
-        // xss_run(buffer, hostdir, targets);
     }
+
+    if (sg) fclose(sg);
     fclose(fp);
     printf("[+] Targeted scanning complete.\n");
 }
