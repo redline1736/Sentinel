@@ -950,7 +950,7 @@ int detect_graphql(char *api_path, char *graphql_path) {
 // ------------------------------------------------------------------
 int graphql_scanning(char *path) {
     /* ---------------- socket setup ---------------- */
-    int fd     = init_socket(SOCK_PATH);
+    int fd = init_socket(SOCK_PATH);
     int client = accept_connection(fd);
     if (client < 0) {
         fprintf(stderr, "Failed to accept socket connection\n");
@@ -1093,3 +1093,4 @@ int graphql_scanning(char *path) {
     close_socket(fd, client, SOCK_PATH);
     return 0;
 }
+
