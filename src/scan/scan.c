@@ -415,7 +415,7 @@ void scanning(char *target_url) {
                 "-c", "50",
                 "-timeout", "5",
                 "-retries", "1",
-                "-dast"
+                "-dast",
                 NULL
             };
 
@@ -437,7 +437,7 @@ void scanning(char *target_url) {
                 NULL
             };
 
-            rc = run_tool_out(xss_args, xss_out, true);
+            rc = run_tool(xss_args);
             if (rc != 0)
                 printf("[!] xss pipeline failed on %s with code %d\n", buffer, rc);
 
@@ -454,7 +454,7 @@ void scanning(char *target_url) {
                 "-etags", "dos,intrusive",
                 "-timeout", "5",
                 "-retries", "1",
-                "-dast"
+                "-dast",
                 NULL
             };
 
