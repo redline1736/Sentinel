@@ -1,0 +1,189 @@
+# provider|cname_substring|body_fingerprint
+# CNAME column = substring matched against dig +short CNAME output
+# Fingerprint column = substring matched against HTTP response body
+#
+# Order matters only for readability — first match wins.
+# Lines starting with '#' are ignored by load_driver().
+
+AWS S3 Bucket|s3.amazonaws.com|NoSuchBucket
+AWS S3 Website|s3-website|NoSuchBucket
+AWS CloudFront|cloudfront.net|Bad request. We can't connect to the server for this app or website at this time
+AWS Elastic Beanstalk|elasticbeanstalk.com|404 Not Found
+AWS ELB|elb.amazonaws.com|404 Not Found
+
+GitHub Pages|github.io|There isn't a GitHub Pages site here.
+GitHub Pages (alt)|github.com|For root URLs (like http://example.com/) you must provide an index.html file
+GitLab Pages|gitlab.io|The page you're looking for could not be found
+
+Heroku|herokuapp.com|No such app
+Heroku (alt)|herokuapp.com|herokucdn.com/error-pages/no-such-app.html
+Heroku EU|herokussl.com|No such app
+
+Shopify|myshopify.com|Sorry, this shop is currently unavailable.
+Shopify (alt)|myshopify.com|Only one moment - please wait...
+
+Fastly|fastly.net|Fastly error: unknown domain
+Fastly (alt)|fastly.net|Fastly error: unknown domain:
+
+Azure Websites|azurewebsites.net|Error 404 - Web app not found.
+Azure CDN|azureedge.net|The specified resource does not exist
+Azure Traffic Manager|trafficmanager.net|Not Found
+Azure Blob|blob.core.windows.net|The specified resource does not exist
+Azure CloudApp|cloudapp.net|Error 404 - Web app not found
+Azure CloudApp (alt)|cloudapp.azure.com|Error 404 - Web app not found
+
+WordPress|wordpress.com|Do you want to register
+WordPress (alt)|wordpress.com|This site is no longer available
+
+Tumblr|domains.tumblr.com|Whatever you were looking for doesn't currently exist at this address
+Tumblr (alt)|tumblr.com|There's nothing here.
+
+Zendesk|zendesk.com|Help Center Closed
+Zendesk (alt)|zendesk.com|Oops, this help center no longer exists
+
+Surge.sh|surge.sh|project not found
+Surge.sh (alt)|surge.sh|404 - Project not found
+
+Bitbucket|bitbucket.io|Repository not found
+Bitbucket (alt)|bitbucket.io|The page you were looking for does not exist
+
+Pantheon|pantheonsite.io|The gods are wise, but do not know of the site which you seek.
+Pantheon (alt)|pantheonsite.io|404 - Site not found
+
+Cargo Collective|cargocollective.com|404 Not Found
+Cargo Collective (alt)|cargocollective.com|If you're the owner of this website
+
+Unbounce|unbouncepages.com|The requested URL was not found on this server
+Unbounce (alt)|unbouncepages.com|404 Not Found
+
+Ghost|ghost.io|Domain error
+Ghost (alt)|ghost.io|404 Not Found
+
+Read the Docs|readthedocs.io|unknown domain
+Read the Docs (alt)|readthedocs.io|404
+
+Netlify|netlify.app|Not Found - Request ID
+Netlify (alt)|netlify.com|Not Found - Request ID
+
+Fly.io|fly.dev|404 Not Found
+Fly.io (alt)|fly.io|404 Not Found
+
+Vercel|vercel.app|The deployment could not be found on Vercel.
+Vercel (alt)|now.sh|The deployment could not be found on Vercel.
+
+Render|onrender.com|Not Found
+Render (alt)|render.com|Not Found
+
+Railway|railway.app|Application not found
+Railway (alt)|up.railway.app|Application not found
+
+Ngrok|ngrok.io|Tunnel not found
+Ngrok (alt)|ngrok-free.app|Tunnel not found
+
+Sendgrid|sendgrid.net|Not Found
+Sendgrid (alt)|sendgrid.net|404 Not Found
+
+Mailchimp|mailchimp.com|404 Not Found
+Mailchimp (alt)|mailchimp.com|Page not found
+
+Statuspage|statuspage.io|You are being redirected
+Statuspage (alt)|statuspage.io|This page is not available
+
+Pingdom|pingdom.com|Sorry, couldn't find the status page
+Pingdom (alt)|pingdom.com|404
+
+Strikingly|strikingly.com|page not found
+Strikingly (alt)|strikingly.com|404
+
+Uberflip|uberflip.com|Non-hub domain, The URL you've accessed does not provide a hub
+Uberflip (alt)|uberflip.com|The URL you've accessed does not provide a hub
+
+UserVoice|uservoice.com|This UserVoice subdomain is currently available!
+UserVoice (alt)|uservoice.com|404
+
+Aftership|aftership.com|Oops.
+Aftership (alt)|aftership.com|404 Not Found
+
+Anima|anima.io|404 Not Found
+Anima (alt)|anima.io|Page not found
+
+Campaign Monitor|campaignmonitor.com|Trying to access your account?
+Campaign Monitor (alt)|createsend.com|Trying to access your account?
+
+Canny|canny.io|Company Not Found
+Canny (alt)|canny.io|404 Not Found
+
+Desk|desk.com|Sorry, We Couldn't Find That Page
+Desk (alt)|desk.com|404
+
+Feedpress|feedpress.me|The feed has not been found.
+Feedpress (alt)|feedpress.me|404
+
+Freshdesk|freshdesk.com|May be this is still fresh!
+Freshdesk (alt)|freshdesk.com|404
+
+Gemfury|gemfury.com|404: This page could not be found.
+Gemfury (alt)|gemfury.com|404
+
+Hatena|hatenablog.com|404 Not Found
+Hatena (alt)|hatenablog.com|Not Found
+
+Helpjuice|helpjuice.com|We could not find what you're looking for.
+Helpjuice (alt)|helpjuice.com|404
+
+Helpscout|helpscoutdocs.com|No settings were found for this company:
+Helpscout (alt)|helpscoutdocs.com|404
+
+Intercom|intercom.help|This page is reserved for artistic dogs.
+Intercom (alt)|custom.intercom.help|Uh oh. That page doesn't exist.
+
+JetBrains|jetbrains.space|404 Not Found
+JetBrains (alt)|jetbrains.space|Project not found
+
+Kajabi|kajabi.com|The page you were looking for doesn't exist
+Kajabi (alt)|kajabi.com|404
+
+Landingi|landingi.com|It looks like you're lost
+Landingi (alt)|landingi.com|404
+
+Launchrock|launchrock.com|The page you were looking for doesn't exist
+Launchrock (alt)|launchrock.com|404
+
+Mashery|mashery.com|Unrecognized domain
+Mashery (alt)|mashery.com|404
+
+Ngrok|ngrok.com|Tunnel not found
+Ngrok (alt)|ngrok.com|404
+
+Pixie|pixie.pub|Not found
+Pixie (alt)|pixie.pub|404
+
+Smartling|smartling.com|Domain is not configured
+Smartling (alt)|smartling.com|404
+
+Squarespace|squarespace.com|No site found for this domain
+Squarespace (alt)|squarespace.com|404
+
+Tave|tave.com|404 Not Found
+Tave (alt)|tave.com|Page not found
+
+Teamwork|teamwork.com|Oops - We didn't find your site.
+Teamwork (alt)|teamwork.com|404
+
+Tictail|tictail.com|Building a brand of your own?
+Tictail (alt)|tictail.com|404
+
+Tilda|tilda.ws|Please renew your subscription
+Tilda (alt)|tilda.ws|404
+
+Webflow|webflow.io|The page you are looking for doesn't exist or has been moved
+Webflow (alt)|webflow.io|404
+
+Wishpond|wishpond.com|https://www.wishpond.com/404
+Wishpond (alt)|wishpond.com|404
+
+Wix|wix.com|Error ConnectYourDomain occurred
+Wix (alt)|wix.com|404
+
+Zoho|zohosites.com|404 Not Found
+Zoho (alt)|zohosites.com|Page not found

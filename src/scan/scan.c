@@ -19,6 +19,7 @@
 #include "../deepblue/deepblue.h"
 #include "../ghostquery/gq.h"
 #include "../global.h"
+#include "../atlas/sub.c"
 
 /* ---------- rate-limit tunables (declared extern in scan.h) ---------- */
 
@@ -246,6 +247,9 @@ void subdomain() {
     rc = run_tool(sj_args);   /* use run_tool (no redirection) */
     if (rc != 0) printf("[!] subjack failed with code %d\n", rc);
 
+    // custom tooling
+    atlas(subfile, g.dir);
+
     printf("[+] Subdomain enumeration complete.\n");
 }
 
@@ -468,7 +472,7 @@ void scanning(char *target_url) {
             if (xrc != 0)
                 printf("[!] xss pipeline failed on %s with code %d\n", buffer, xrc);
 
-            // xss_run(buffer, hostdir);
+            xss_run(buffer, hostdir);
         }
     }
 
