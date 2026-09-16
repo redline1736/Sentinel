@@ -1,541 +1,498 @@
 #!/usr/bin/env python3
 """
-XSS Payload Generator v9 — Breakout-Aware, Exactly 1000 Payloads.
+ghostquery/xss/main.py — JS route harvester + XSS scanner.
 
-Adds first-class breakout sequences:
-  - Attribute breakouts  (close quote/tag, inject event handler or script)
-  - Script context       (close </script>, escape JS string, template literal)
-  - Comment breakouts    (close --> or */ to reopen parser)
-  - Style/title/textarea (close container tag)
-  - Polyglots            (fire in multiple unknown contexts)
+Usage:
+    python3 ghostquery/xss/main.py <target-url> <output-dir> [--gobuster <file>]
 
-Two-layer validation:
-  Layer 1 (trigger): will the event actually fire?
-  Layer 2 (syntax):  is the payload structurally well-formed?
+Arguments:
+    <target-url>     Full URL or bare hostname. Examples:
+                        https://example.com/greet
+                        https://example.com/search?q=test
+                        example.com
+    <output-dir>     Directory to write routes.txt / urls.txt / *.txt results.
 
-Output contract: strictly printable ASCII, one payload per line, exactly
-1000 payloads via per-context cap + random sampling.
+Options:
+    --gobuster PATH  Explicit path to a gobuster.txt file. If omitted, the
+                     script auto-detects <output-dir>/gobuster.txt.
+
+Pipeline:
+    1. Normalize the target into (base_url, seed_url).
+    2. Load gobuster.txt (explicit path or <output-dir>/gobuster.txt).
+       * gobuster paths are joined against base_url.
+    3. Crawl the seed URL + all gobuster URLs (same-origin, bounded) for JS.
+    4. Extract routes & query params from JS bundles.
+    5. Union of {seed_url, gobuster_urls, JS-extracted routes}.
+    6. Keep only URLs with query params → urls.txt.
+    7. Run Dalfox + XSStrike on those URLs.
+
+Requires: dalfox, XSStrike, playwright (chromium), requests.
+Gobuster is NOT run here — it must be produced upstream.
 """
-import json
-import base64
-import random
-import re
-import urllib.parse
-import sys
+
+import argparse
 import os
+import re
+import shutil
+import subprocess
+import sys
+from urllib.parse import urljoin, urlparse, parse_qs, urlsplit, urlunsplit
 
-# ===========================================================================
-# Constants
-# ===========================================================================
+import requests
+from playwright.sync_api import sync_playwright
 
-CONTROL_CHARS_RE = re.compile(r'[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]')
+# --------------------------------------------------------------------------- #
+# Globals (populated in main())
+# --------------------------------------------------------------------------- #
+ROUTES = set()
+VISITED_JS = set()
 
-# Tags that inherently fire an event on load/render
-AUTO_TRIGGER_EVENTS = {"onload", "onerror", "onfocus", "onbegin", "onend",
-                       "ontoggle", "onstart", "onfinish", "onpageshow",
-                       "onhashchange", "onpopstate", "onmessage"}
+OUT_DIR = None
+GOBUSTER_FILE = None
+BASE_URL = None
+SEED_URL = None
 
-# Events that require user interaction
-INTERACTION_EVENTS = {"onmouseover", "onmouseout", "onclick", "ondblclick",
-                      "onmousedown", "onmouseup", "onmousemove", "onmouseenter",
-                      "onmouseleave", "onkeydown", "onkeypress", "onkeyup",
-                      "onwheel", "onpointerdown", "onpointerup", "onpointermove",
-                      "onpointerenter", "onpointerleave", "onauxclick",
-                      "oncontextmenu", "ondrag", "ondrop", "onscroll"}
+USER_AGENT = ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+              "(KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36")
 
-# Tags whose event-attribute relation is well-known:
-EVENT_TAG_ALLOW = {
-    "onload":     {"img", "svg", "body", "input", "iframe", "video", "audio",
-                   "object", "embed", "link", "script", "style"},
-    "onerror":    {"img", "svg", "video", "audio", "object", "embed", "input",
-                   "link", "script"},
-    "onfocus":    {"input", "select", "textarea", "a", "button", "body",
-                   "details", "iframe"},
-    "onblur":     {"input", "select", "textarea", "a", "button"},
-    "onabort":    {"img", "video", "audio"},
-    "onscroll":   {"body", "div", "textarea"},
-    "onchange":   {"input", "select", "textarea"},
-    "onsubmit":   {"form"},
-    "onreset":    {"form"},
-    "onselect":   {"textarea", "input"},
-    "ontoggle":   {"details"},
-    # Media
-    "oncanplay": {"video", "audio"}, "onended": {"video", "audio"},
-    "onloadeddata": {"video", "audio"}, "onloadedmetadata": {"video", "audio"},
-    "onloadstart": {"video", "audio"}, "onpause": {"video", "audio"},
-    "onplay": {"video", "audio"}, "onplaying": {"video", "audio"},
-    "onprogress": {"video", "audio"}, "ontimeupdate": {"video", "audio"},
-    "onvolumechange": {"video", "audio"}, "onwaiting": {"video", "audio"},
-    # Document/body
-    "onafterprint": {"body"}, "onbeforeprint": {"body"},
-    "onbeforeunload": {"body"}, "onhashchange": {"body"},
-    "onmessage": {"body"}, "onoffline": {"body"}, "ononline": {"body"},
-    "onpagehide": {"body"}, "onpageshow": {"body"},
-    "onpopstate": {"body"}, "onstorage": {"body"}, "onunload": {"body"},
-    "onresize": {"body"},
-    # SVG animation
-    "onbegin": set(), "onend": set(), "onrepeat": set(),
-    # Everybody else
-    "onmouseover": {"img", "svg", "body", "a", "input", "select", "textarea",
-                    "details", "video", "audio", "object", "embed"},
-    "onclick":     {"img", "svg", "body", "a", "input", "select", "textarea",
-                    "details", "video", "audio", "object", "embed", "iframe"},
-    "ondblclick":  {"img", "svg", "body", "a", "input", "select", "textarea",
-                    "details", "video", "audio", "object", "embed"},
-    "onkeydown":   {"input", "textarea", "select", "body"},
-    "onkeypress":  {"input", "textarea", "select", "body"},
-    "onkeyup":     {"input", "textarea", "select", "body"},
-    "onmousedown": {"img", "svg", "body", "a", "input", "details"},
-    "onmouseup":   {"img", "svg", "body", "a", "input", "details"},
-    "onmousemove": {"img", "svg", "body", "a", "input", "details"},
-    "onmouseenter": {"img", "svg", "body", "a", "input", "details"},
-    "onmouseleave": {"img", "svg", "body", "a", "input", "details"},
-    "onwheel":      {"body", "input", "textarea", "details"},
-    "onpointerdown":  {"img", "svg", "body", "a", "input", "button"},
-    "onpointerup":    {"img", "svg", "body", "a", "input", "button"},
-    "onpointermove":  {"img", "svg", "body", "a", "input"},
-    "onpointerenter": {"img", "svg", "body", "a", "input"},
-    "onpointerleave": {"img", "svg", "body", "a", "input"},
-    "onauxclick":     {"img", "svg", "body", "a", "input"},
-    "oncontextmenu":  {"img", "svg", "body", "a", "input"},
-    "ondrag":         {"img", "svg", "body", "a", "input"},
-    "ondrop":         {"img", "svg", "body", "a", "input"},
-    "ongotpointercapture":  {"img", "svg"},
-    "onlostpointercapture": {"img", "svg"},
+XSSTRIKE_PATHS = [
+    "/opt/XSStrike/xsstrike.py",
+    "/usr/share/XSStrike/xsstrike.py",
+    os.path.join(os.getcwd(), "XSStrike", "xsstrike.py"),
+]
+
+NON_ROUTE_EXT = {
+    ".css", ".png", ".jpg", ".jpeg", ".gif", ".svg", ".webp", ".ico", ".bmp",
+    ".woff", ".woff2", ".ttf", ".eot", ".otf", ".mp4", ".mp3", ".webm", ".avi",
+    ".pdf", ".zip", ".gz", ".tar", ".7z", ".exe", ".msi", ".map", ".txt", ".xml",
+    ".json", ".webmanifest",
 }
 
-# Tags are always valid for all events in these groups — they're breakout
-# templates where the "tag" is a marker, not a real HTML element.
-BREAKOUT_GROUPS = {
-    "breakout_attr", "breakout_script_ctx", "breakout_template",
-    "breakout_comment", "breakout_style_ctx", "polyglot"
-}
+TRACKING_PARAMS = {"utm_source", "utm_medium", "utm_campaign", "utm_term",
+                   "utm_content", "_ga", "_gl", "fbclid", "gclid"}
 
-# ===========================================================================
-# Base64 helpers
-# ===========================================================================
-
-def b64_encode(s: str) -> str:
-    return base64.b64encode(s.encode()).decode()
-
-# ===========================================================================
-# Substitution
-# ===========================================================================
-
-def substitute(template: str, subs: dict) -> str:
-    """Simple key replacement — no format() to avoid brace conflicts."""
-    result = template
-    for key, val in subs.items():
-        result = result.replace(key, val)
-    return result
-
-def build_call_str(func: dict) -> str:
-    return f"{func['name']}({func['value']})"
-
-# ===========================================================================
-# Encoding application
-# ===========================================================================
-
-def apply_encoding(enc_config: dict, raw: str, call_str: str,
-                   tag: str, event: str):
-    """Yield one or more encoded variants of the payload."""
-    transform = enc_config.get("transform", "none")
-    apply_to = enc_config.get("apply_to", "raw")
-
-    if transform == "none":
-        yield raw
-        return
-
-    if apply_to == "full_payload":
-        if transform == "url_encoded":
-            yield urllib.parse.quote(raw, safe='')
-        elif transform == "double_url_encoded":
-            first = urllib.parse.quote(raw, safe='')
-            yield urllib.parse.quote(first, safe='')
-        elif transform == "html_entity_decimal":
-            yield "".join(f"&#{ord(c)};" for c in raw)
-        elif transform == "html_entity_hex":
-            yield "".join(f"&#x{ord(c):x};" for c in raw)
-        else:
-            yield raw
-        return
-
-    if apply_to == "function_call":
-        if transform == "base64_eval":
-            b64 = b64_encode(call_str)
-            yield raw.replace(call_str, f"eval(atob('{b64}'))")
-        else:
-            yield raw
-        return
-
-    if apply_to == "event_name":
-        if transform == "mixed_case":
-            mixed = "".join(c.upper() if random.random() < 0.5 else c
-                           for c in event)
-            yield raw.replace(event, mixed)
-        else:
-            yield raw
-        return
-
-    if apply_to == "tag_name":
-        if transform == "mixed_case":
-            mixed = "".join(c.upper() if random.random() < 0.5 else c
-                           for c in tag)
-            yield raw.replace(tag, mixed)
-        else:
-            yield raw
-        return
-
-    yield raw
-
-# ===========================================================================
-# Validation
-# ===========================================================================
-
-def validate_trigger(tag: str, event: str, payload: str,
-                     drop_interaction_events: bool = True,
-                     assume_media_src_valid: bool = False) -> tuple:
-    """
-    Returns (True, "") if the payload would plausibly fire in a browser,
-    or (False, "reason") if it won't.
-    """
-    # Breakout groups are exempt from tag-vs-event matching
-    if tag.startswith("break_") or tag == "poly":
-        return True, ""
-
-    if not event:
-        return True, ""
-
-    ev = event.lower()
-
-    # Interaction-only events when dropped
-    if drop_interaction_events and ev in INTERACTION_EVENTS:
-        return False, "interaction_event"
-
-    # SVG animation events need <animate>/<set>/<animateTransform>
-    if ev in ("onbegin", "onend", "onrepeat"):
-        if tag not in ("animate", "set", "animateTransform"):
-            return False, "svg_anim_on_wrong_tag"
-        return True, ""
-
-    # Media events need src or autoplay
-    if ev in ("oncanplay", "oncanplaythrough", "ondurationchange",
-              "onemptied", "onended", "onloadeddata", "onloadedmetadata",
-              "onloadstart", "onpause", "onplay", "onplaying",
-              "onprogress", "onratechange", "onseeked", "onseeking",
-              "onstalled", "onsuspend", "ontimeupdate", "onvolumechange",
-              "onwaiting"):
-        if tag not in ("video", "audio"):
-            return False, "media_event_on_nonmedia"
-        if not assume_media_src_valid:
-            if 'src=' not in payload and 'autoplay' not in payload:
-                return False, "media_no_src"
-        return True, ""
-
-    # Document/window events only on body
-    if ev in ("onafterprint", "onbeforeprint", "onbeforeunload",
-              "onhashchange", "onmessage", "onoffline", "ononline",
-              "onpagehide", "onpageshow", "onpopstate", "onstorage",
-              "onunload", "onresize"):
-        if tag != "body":
-            return False, f"{ev}_requires_body"
-        return True, ""
-
-    # Details-specific
-    if ev == "ontoggle" and tag != "details":
-        return False, "ontoggle_requires_details"
-
-    # Auto-trigger events on appropriate tags
-    allow_set = EVENT_TAG_ALLOW.get(ev)
-    if allow_set is not None and tag not in allow_set:
-        if allow_set:
-            return False, f"{ev}_not_on_{tag}"
-        # Empty set = no tags (pure JS context)
-        return False, f"{ev}_no_native_support"
-
-    return True, ""
+MAX_CRAWL_PAGES = 12   # seed + up to (N-1) gobuster paths
 
 
-def validate_syntax(payload: str, tag: str, event: str) -> tuple:
-    """
-    Returns (True, "") if the payload is structurally well-formed,
-    or (False, "reason") if it's malformed.
-    """
-    # Breakout groups get minimal syntax checking
-    if tag.startswith("break_") or tag == "poly":
-        return True, ""
+# --------------------------------------------------------------------------- #
+# URL helpers
+# --------------------------------------------------------------------------- #
+def normalize(base, path):
+    """Resolve a possibly-relative URL against base. Returns None for junk."""
+    if not path:
+        return None
+    path = path.strip().strip("\"'`")
+    if not path:
+        return None
 
-    # Check for balanced quotes in event-handler payloads
-    if event:
-        # Event attribute values must eventually close
-        quote_chars = {'"': 0, "'": 0}
-        in_val = False
-        in_tag = False
-        for c in payload:
-            if c == '<':
-                in_tag = True
-            elif c == '>':
-                in_tag = False
-            elif c in quote_chars:
-                if not in_tag:
-                    quote_chars[c] += 1
-
-        # Inside an HTML tag, odd number of quotes is usually fine
-        # (the attribute value hasn't been closed yet).
-        # We only flag if quotes are extremely mangled.
-        total = sum(quote_chars.values())
-        if total > 10:
-            return False, "excessive_quotes"
-
-    # No control characters
-    if CONTROL_CHARS_RE.search(payload):
-        return False, "control_chars"
-
-    return True, ""
-
-
-# ===========================================================================
-# Context generation
-# ===========================================================================
-
-def generate_context(context_name: str, param: dict,
-                     full_page_b64: str, options: dict):
-    """
-    Generate payloads for a single context.
-    Returns (list_of_payloads, stats_dict).
-    """
-    tags_cfg = param["tags"]
-    events_cfg = param.get("events", {})
-    functions = param.get("functions", [])
-    encodings = param.get("encodings", {})
-    allow_contextual = param.get("allow_contextual_encodings", False)
-    drop_interaction = not options.get("include_interaction_events", True)
-    include_media = options.get("include_media_events", False)
-    include_doc_body = options.get("include_document_body_events", False)
-    include_anim = options.get("include_animation_svg_events", False)
-
-    allowed_tag_groups = param["context_bindings"].get(context_name, [])
-
-    # Flatten events
-    all_events = []
-    for cat, ev_list in events_cfg.items():
-        if cat == "media" and not include_media:
-            continue
-        if cat == "document_body" and not include_doc_body:
-            continue
-        if cat == "animation_svg" and not include_anim:
-            continue
-        if cat == "extended" and drop_interaction:
-            all_events.extend(e for e in ev_list if e not in INTERACTION_EVENTS)
-        else:
-            all_events.extend(ev_list)
-
-    payloads = []
-    stats = {
-        "context": context_name,
-        "skipped_tag_groups": 0,
-        "trigger_invalid": 0,
-        "syntax_invalid": 0,
-        "syntax_reasons": {},
-    }
-
-    for tag_group_name, tag_group in tags_cfg.items():
-        if tag_group_name not in allowed_tag_groups:
-            stats["skipped_tag_groups"] += 1
-            continue
-
-        is_breakout = tag_group_name in BREAKOUT_GROUPS
-
-        for tag in tag_group["list"]:
-            for template in tag_group["templates"]:
-                has_event = "{event}" in template
-                event_iter = all_events if has_event else [""]
-
-                for event in event_iter:
-                    for func in functions:
-                        call_str = build_call_str(func)
-                        subs = {
-                            "{tag}": tag,
-                            "{event}": event if event else "",
-                            "{function}": func["name"],
-                            "{value}": func["value"],
-                            "{base64}": b64_encode(call_str),
-                            "{base64_full_page}": full_page_b64,
-                        }
-                        raw_payload = substitute(template, subs)
-
-                        for enc_name, enc_config in encodings.items():
-                            is_contextual = enc_config.get("apply_to") == "full_payload"
-                            
-                            # Skip contextual encodings if not allowed
-                            if is_contextual and not allow_contextual:
-                                continue
-
-                            for p in apply_encoding(enc_config, raw_payload,
-                                                     call_str, tag, event):
-                                # Breakout payloads skip trigger validation
-                                if not is_breakout:
-                                    ok, reason = validate_trigger(
-                                        tag, event, p,
-                                        drop_interaction_events=drop_interaction,
-                                        assume_media_src_valid=False)
-                                    if not ok:
-                                        stats["trigger_invalid"] += 1
-                                        continue
-
-                                ok, reason = validate_syntax(p, tag, event)
-                                if not ok:
-                                    stats["syntax_invalid"] += 1
-                                    stats["syntax_reasons"][reason] = \
-                                        stats["syntax_reasons"].get(reason, 0) + 1
-                                    continue
-
-                                payloads.append(p)
-
-    return payloads, stats
-
-
-# ===========================================================================
-# Main
-# ===========================================================================
-
-def main():
-    seed = os.environ.get("XSS_SEED")
-    if seed:
-        random.seed(int(seed))
+    if path.startswith(("http://", "https://")):
+        url = path
+    elif path.startswith("//"):
+        scheme = urlsplit(base).scheme or "http"
+        url = f"{scheme}:{path}"
+    elif path.startswith("/"):
+        p = urlsplit(base)
+        url = urlunsplit((p.scheme or "http", p.netloc, path, "", ""))
     else:
-        random.seed()  # Use system entropy
+        url = urljoin(base, path)
 
-    BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-    json_path = os.path.join(BASE_DIR, "xss.json")
+    parts = urlsplit(url)
+    if parts.scheme not in ("http", "https"):
+        return None
+    return urlunsplit((parts.scheme, parts.netloc, parts.path, parts.query, ""))
 
-    if not os.path.exists(json_path):
-        print(f"[!] Error: {json_path} not found")
-        sys.exit(1)
 
-    with open(json_path, "r", encoding="utf-8") as f:
-        param = json.load(f)
+def clean_template(s):
+    """Turn `/api/users/${id}` into `/api/users/` so it can be normalized."""
+    return re.sub(r"\$\{[^}]*\}", "", s).strip()
 
-    print(f"[*] Loaded {json_path}")
-    print("[*] Generating XSS payloads (breakout-aware, target: ~1000)...")
 
-    full_page_b64 = param.get("full_page_base64", "")
-    options = param.get("generation_options", {})
-    per_ctx_cap = options.get("max_payloads_per_context", 0)
-    sample_size = options.get("random_sample_size", 0)
+def is_asset(url):
+    path = urlsplit(url).path.lower()
+    if any(path.endswith(ext) for ext in NON_ROUTE_EXT):
+        return True
+    return "/static/" in path or "/assets/" in path
 
-    all_payloads = []       # (payload, context_name)
-    all_stats = []
 
-    ctx_order = list(param["context_bindings"].keys())
+def is_js_url(url):
+    return urlsplit(url).path.lower().endswith((".js", ".mjs"))
 
-    for ctx in ctx_order:
-        ctx_payloads, ctx_stats = generate_context(
-            ctx, param, full_page_b64, options)
-        print(f"[+] Context '{ctx}': {len(ctx_payloads)} raw payloads "
-              f"(dropped {ctx_stats['trigger_invalid']} trigger-invalid, "
-              f"{ctx_stats['syntax_invalid']} syntax-invalid, "
-              f"skipped {ctx_stats['skipped_tag_groups']} tag groups)")
-        all_payloads.extend((p, ctx) for p in ctx_payloads)
-        all_stats.append(ctx_stats)
 
-    # Apply per-context cap AFTER encoding
-    if per_ctx_cap > 0:
-        # Group by context
-        ctx_groups = {}
-        for p, ctx in all_payloads:
-            if ctx not in ctx_groups:
-                ctx_groups[ctx] = []
-            ctx_groups[ctx].append(p)
-        
-        # Cap each context group
-        capped = []
-        for ctx, payloads in ctx_groups.items():
-            if len(payloads) > per_ctx_cap:
-                # Randomly sample from each context
-                sampled = random.sample(payloads, per_ctx_cap)
-                capped.extend((p, ctx) for p in sampled)
-            else:
-                capped.extend((p, ctx) for p in payloads)
-        all_payloads = capped
-        print(f"[*] Per-context cap ({per_ctx_cap}): {len(all_payloads)} total")
-
-    # --- Deduplicate ---
-    seen = set()
-    unique_payloads = []
-    for p, ctx in all_payloads:
-        if p not in seen:
-            seen.add(p)
-            unique_payloads.append(p)
-
-    print(f"[*] After dedup: {len(unique_payloads)} unique payloads")
-
-    # --- Random sampling to exactly sample_size ---
-    if sample_size and len(unique_payloads) > sample_size:
-        unique_payloads = random.sample(unique_payloads, sample_size)
-        print(f"[*] Random sampled to {len(unique_payloads)}")
-    elif sample_size and len(unique_payloads) < sample_size:
-        print(f"[*] Warning: Only {len(unique_payloads)} payloads generated, less than target {sample_size}")
-
-    # --- Hard control-char filter ---
-    blocked = [p for p in unique_payloads if CONTROL_CHARS_RE.search(p)]
-    if blocked:
-        print(f"[!] Safety filter removed {len(blocked)} payloads "
-              f"containing control characters")
-        unique_payloads = [p for p in unique_payloads
-                          if not CONTROL_CHARS_RE.search(p)]
-
-    print(f"[*] FINAL payload count: {len(unique_payloads)}")
-
-    # Aggregate syntax drop reasons
-    reasons = {}
-    for s in all_stats:
-        for r, c in s["syntax_reasons"].items():
-            reasons[r] = reasons.get(r, 0) + c
-    if reasons:
-        print("[*] Syntax drop reasons (most common first):")
-        for r, c in sorted(reasons.items(), key=lambda x: -x[1]):
-            print(f"    {c:5d}x  {r}")
-
-    # --- Write output ---
-    output_file = os.path.join(BASE_DIR, "payloads.txt")
-    with open(output_file, "w", encoding="utf-8", newline='\n') as f:  # Force Unix line endings
-        for payload in unique_payloads:
-            f.write(payload + "\n")
-
-    print(f"[*] Written to {output_file}")
-
-    # --- Self-check ---
-    with open(output_file, "rb") as f:
-        raw = f.read()
-    
-    # Decode and check lines
+def is_injectable(url):
     try:
-        text = raw.decode('utf-8')
-        lines = text.splitlines()
-    except UnicodeDecodeError:
-        print("[!] Warning: File contains non-UTF-8 characters")
-        lines = []
-    
-    # Check for control characters (excluding newline \x0a and \r which is handled by newline='\n')
-    control_bytes = [b for b in raw if b < 0x09 or (b > 0x0a and b < 0x20) or b == 0x7f]
-    
-    # Check if we have the right number of lines
-    line_count_ok = len(lines) == len(unique_payloads)
-    no_extra_newlines = raw.count(b"\n") == len(unique_payloads)
-    no_cr = b'\r' not in raw  # Should be true with newline='\n'
-    
-    contract_ok = line_count_ok and no_extra_newlines and not control_bytes and no_cr
-    print(f"[*] Self-check: {len(lines)} lines vs {len(unique_payloads)} payloads, "
-          f"{len(control_bytes)} control bytes, {'CR present' if b'\\r' in raw else 'no CR'} -> "
-          f"{'PASS' if contract_ok else 'FAIL'}")
+        params = parse_qs(urlparse(url).query)
+        params = {k: v for k, v in params.items()
+                  if k.lower() not in TRACKING_PARAMS}
+        return len(params) > 0
+    except Exception:
+        return False
 
-    if unique_payloads:
-        print(f"[*] Sample payloads (first 10):")
-        for i, s in enumerate(unique_payloads[:10]):
-            display = s[:150] + '...' if len(s) > 150 else s
-            print(f"  {i+1}. {display}")
+
+def parse_target(raw):
+    """
+    Accept hostname OR full URL. Return (base_url, seed_url).
+        "example.com"                    -> ("https://example.com", "https://example.com")
+        "https://example.com/a/b"        -> ("https://example.com", "https://example.com/a/b")
+        "https://example.com/x?y=1"      -> ("https://example.com", "https://example.com/x?y=1")
+    """
+    raw = raw.strip()
+    if not re.match(r"^https?://", raw, re.I):
+        raw = "https://" + raw
+
+    p = urlsplit(raw)
+    scheme = p.scheme or "https"
+    netloc = p.netloc
+    path = p.path or "/"
+    query = p.query
+
+    base = urlunsplit((scheme, netloc, "", "", ""))
+    seed = urlunsplit((scheme, netloc, path, query, ""))
+    return base, seed
+
+
+# --------------------------------------------------------------------------- #
+# Phase 1: gobuster.txt loader
+# --------------------------------------------------------------------------- #
+def parse_gobuster_line(line):
+    """
+    Gobuster dir output looks like:
+        /admin                (Status: 301) [Size: 0]
+        /index.html           (Status: 200) [Size: 1234]
+    Return the leading path if valid, else None.
+    """
+    line = line.strip()
+    if not line or line.startswith("#"):
+        return None
+    # First whitespace-delimited token is the path.
+    token = line.split()[0]
+    if not token.startswith("/"):
+        return None
+    # strip trailing junk that isn't part of a URL path
+    token = token.rstrip(",;:")
+    return token or None
+
+
+def load_gobuster(base):
+    """
+    Read gobuster.txt. Returns a set of absolute URLs (paths joined to base).
+    Missing file is non-fatal.
+    """
+    if not GOBUSTER_FILE or not os.path.exists(GOBUSTER_FILE):
+        print(f"[!] gobuster file not found: {GOBUSTER_FILE}")
+        return set()
+
+    discovered = set()
+    try:
+        with open(GOBUSTER_FILE, encoding="utf-8", errors="ignore") as f:
+            for raw in f:
+                path = parse_gobuster_line(raw)
+                if not path:
+                    continue
+                url = normalize(base, path)
+                if url and not is_asset(url):
+                    discovered.add(url)
+    except OSError as e:
+        print(f"[!] Could not read {GOBUSTER_FILE}: {e}")
+        return set()
+
+    print(f"[*] Loaded {len(discovered)} paths from {GOBUSTER_FILE}")
+    return discovered
+
+
+# --------------------------------------------------------------------------- #
+# Phase 2: JS crawl
+# --------------------------------------------------------------------------- #
+def download_js(base_url, js_url):
+    try:
+        r = requests.get(js_url, timeout=15,
+                         headers={"User-Agent": USER_AGENT},
+                         allow_redirects=True)
+        if r.status_code != 200:
+            return
+        ctype = r.headers.get("Content-Type", "").lower()
+        if "javascript" in ctype or urlsplit(r.url).path.lower().endswith((".js", ".mjs")):
+            extract(base_url, r.text)
+    except requests.RequestException:
+        pass
+
+
+def crawl(seed, extra_urls):
+    """
+    Crawl the seed URL first, then up to MAX_CRAWL_PAGES-1 same-origin
+    URLs from extra_urls. Collect JS bundle URLs and parse them.
+    """
+    js_files = set()
+
+    seed_origin = urlsplit(seed).netloc
+
+    # Deduplicate + same-origin filter for extras
+    seen_extras = set()
+    same_origin = []
+    for u in extra_urls:
+        if u in seen_extras or u == seed:
+            continue
+        seen_extras.add(u)
+        if urlsplit(u).netloc == seed_origin and not is_asset(u):
+            same_origin.append(u)
+
+    queue = [seed] + same_origin[: MAX_CRAWL_PAGES - 1]
+    visited = set()
+
+    try:
+        with sync_playwright() as p:
+            browser = p.chromium.launch(headless=True)
+            context = browser.new_context(user_agent=USER_AGENT)
+            page = context.new_page()
+
+            def handler(response):
+                if is_js_url(response.url):
+                    js_files.add(response.url)
+
+            page.on("response", handler)
+
+            for u in queue:
+                if u in visited:
+                    continue
+                visited.add(u)
+                print(f"[*] Crawling {u}")
+                try:
+                    page.goto(u, timeout=30000, wait_until="domcontentloaded")
+                    page.wait_for_timeout(4000)
+                except Exception as e:  # noqa: BLE001
+                    print(f"[!] Failed to load {u}: {e}")
+                    continue
+
+            context.close()
+            browser.close()
+    except Exception as e:  # noqa: BLE001
+        print(f"[!] Playwright error: {e}")
+        return js_files
+
+    for js in sorted(js_files):
+        if js in VISITED_JS:
+            continue
+        VISITED_JS.add(js)
+        print(f"[JS] {js}")
+        download_js(seed, js)
+
+    return js_files
+
+
+# --------------------------------------------------------------------------- #
+# Phase 3: JS route extraction
+# --------------------------------------------------------------------------- #
+def add_route(base, raw):
+    url = normalize(base, clean_template(raw))
+    if url and not is_asset(url):
+        ROUTES.add(url)
+
+
+def extract(base_url, js):
+    # fetch("...")
+    for m in re.finditer(r'fetch\s*\(\s*["\'`]([^"\'`]+)["\'`]', js):
+        add_route(base_url, m.group(1))
+
+    # axios.get/post/put/delete/patch("...")
+    for m in re.finditer(
+        r'axios\.(?:get|post|put|delete|patch)\s*\(\s*["\'`]([^"\'`]+)["\'`]', js
+    ):
+        add_route(base_url, m.group(1))
+
+    # router.push("/x") | router.replace("/x") | router.push({ path: "/x" })
+    for m in re.finditer(
+        r'router\.(?:push|replace)\s*\(\s*(?:\{\s*path\s*:\s*)?["\'`]([^"\'`]+)["\'`]', js
+    ):
+        add_route(base_url, m.group(1))
+
+    # history.pushState(state, title, "/x")
+    for m in re.finditer(
+        r'pushState\s*\([^)]*?,\s*["\'`][^"\'`]*["\'`]\s*,\s*["\'`]([^"\'`]+)["\'`]', js
+    ):
+        add_route(base_url, m.group(1))
+
+    # location.href = "/x" | window.open("/x") | navigate("/x")
+    for m in re.finditer(
+        r'(?:location\.href\s*=|window\.open\s*\(|navigate\s*\()\s*["\'`]([^"\'`]+)["\'`]', js
+    ):
+        add_route(base_url, m.group(1))
+
+    # quoted path-like strings
+    for m in re.finditer(r'["\'`](/[A-Za-z0-9_./?=&%:@#+${}-]{2,120})["\'`]', js):
+        add_route(base_url, m.group(1))
+
+    # new URLSearchParams().set("q", ...)
+    for m in re.finditer(r'\.set\s*\(\s*["\'`]([A-Za-z0-9_\-\[\]]+)["\'`]\s*,', js):
+        ROUTES.add(urljoin(base_url, f"/?{m.group(1)}="))
+
+    # new URLSearchParams({ q: ..., r: ... })
+    for m in re.finditer(r'URLSearchParams\s*\(\s*\{(.*?)\}\s*\)', js, re.S):
+        for k in re.finditer(r'([A-Za-z0-9_\-\[\]]+)\s*:', m.group(1)):
+            ROUTES.add(urljoin(base_url, f"/?{k.group(1)}="))
+
+
+# --------------------------------------------------------------------------- #
+# Phase 4: filter + scan
+# --------------------------------------------------------------------------- #
+def save_routes():
+    path = os.path.join(OUT_DIR, "routes.txt")
+    with open(path, "w", encoding="utf-8") as f:
+        for r in sorted(ROUTES):
+            f.write(r + "\n")
+    print(f"[*] Wrote {len(ROUTES)} routes -> {path}")
+
+
+def build_injectable():
+    injectable = sorted({u for u in ROUTES if is_injectable(u)})
+    path = os.path.join(OUT_DIR, "urls.txt")
+    with open(path, "w", encoding="utf-8") as f:
+        for u in injectable:
+            f.write(u + "\n")
+    print(f"[*] Wrote {len(injectable)} injectable URLs -> {path}")
+    return injectable
+
+
+def run_dalfox():
+    if not shutil.which("dalfox"):
+        print("[!] dalfox not found in PATH - skipping")
+        return
+
+    urls_path = os.path.join(OUT_DIR, "urls.txt")
+    if not (os.path.exists(urls_path) and os.path.getsize(urls_path) > 0):
+        print("[!] urls.txt empty - skipping dalfox")
+        return
+
+    dalfox_out = os.path.join(OUT_DIR, "dalfox.txt")
+    if os.path.exists(dalfox_out):
+        os.remove(dalfox_out)
+
+    print("[*] Running Dalfox...")
+    try:
+        subprocess.run(
+            ["dalfox", "file", urls_path,
+             "--worker", "10", "--skip-bav",
+             "--silence", "-o", dalfox_out],
+            check=False,
+        )
+    except Exception as e:  # noqa: BLE001
+        print(f"[!] dalfox failed: {e}")
+
+
+def find_xsstrike():
+    for p in XSSTRIKE_PATHS:
+        if os.path.isfile(p):
+            return p
+    return None
+
+
+def run_xsstrike():
+    xsstrike = find_xsstrike()
+    if not xsstrike:
+        print(f"[!] XSStrike not found (tried: {', '.join(XSSTRIKE_PATHS)}) - skipping")
+        return
+
+    urls_path = os.path.join(OUT_DIR, "urls.txt")
+    if not (os.path.exists(urls_path) and os.path.getsize(urls_path) > 0):
+        print("[!] urls.txt empty - skipping XSStrike")
+        return
+
+    with open(urls_path, encoding="utf-8") as f:
+        urls = [line.strip() for line in f if line.strip()]
+
+    out_file = os.path.join(OUT_DIR, "xsstrike.txt")
+    print(f"[*] Running XSStrike on {len(urls)} URLs...")
+
+    with open(out_file, "a", encoding="utf-8") as fh:
+        for i, url in enumerate(urls, 1):
+            print(f"[XSStrike {i}/{len(urls)}] {url}")
+            try:
+                subprocess.run(
+                    ["python3", xsstrike, "-u", url, "--skip-dom"],
+                    check=False,
+                    timeout=300,
+                    stdout=fh,
+                    stderr=subprocess.STDOUT,
+                )
+            except subprocess.TimeoutExpired:
+                print(f"[!] Timeout after 300s: {url}")
+            except Exception as e:  # noqa: BLE001
+                print(f"[!] XSStrike error on {url}: {e}")
+
+
+# --------------------------------------------------------------------------- #
+# CLI
+# --------------------------------------------------------------------------- #
+def parse_args(argv):
+    p = argparse.ArgumentParser(
+        description="JS route harvester + XSS scanner (target URL + gobuster.txt).",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    p.add_argument("target",
+                   help="Target hostname or full URL (e.g. https://host/greet?x=1)")
+    p.add_argument("output_dir",
+                   help="Output directory for routes.txt / urls.txt / results")
+    p.add_argument("--gobuster", dest="gobuster_file", default=None,
+                   help="Explicit path to gobuster.txt. If omitted, "
+                        "auto-detects <output_dir>/gobuster.txt")
+    return p.parse_args(argv)
+
+
+# --------------------------------------------------------------------------- #
+# Main
+# --------------------------------------------------------------------------- #
+def main():
+    global OUT_DIR, GOBUSTER_FILE, BASE_URL, SEED_URL
+
+    args = parse_args(sys.argv[1:])
+
+    OUT_DIR = args.output_dir
+    os.makedirs(OUT_DIR, exist_ok=True)
+
+    # Resolve gobuster path: explicit wins, else <OUT_DIR>/gobuster.txt
+    if args.gobuster_file:
+        GOBUSTER_FILE = args.gobuster_file
+    else:
+        GOBUSTER_FILE = os.path.join(OUT_DIR, "gobuster.txt")
+
+    BASE_URL, SEED_URL = parse_target(args.target)
+
+    print(f"[*] Target (raw) : {args.target}")
+    print(f"[*] Base URL     : {BASE_URL}")
+    print(f"[*] Seed URL     : {SEED_URL}")
+    print(f"[*] Output dir   : {OUT_DIR}")
+    print(f"[*] Gobuster     : {GOBUSTER_FILE} "
+          f"({'present' if os.path.exists(GOBUSTER_FILE) else 'missing'})")
+
+    # Seed the route set with the exact URL the user asked about.
+    ROUTES.add(SEED_URL)
+
+    # 1. Load gobuster URLs (paths joined against BASE_URL).
+    gobuster_urls = load_gobuster(BASE_URL)
+    ROUTES.update(gobuster_urls)
+
+    # 2. Crawl seed + a bounded slice of gobuster URLs for JS.
+    print("[*] Crawling JS...")
+    crawl(SEED_URL, extra_urls=sorted(gobuster_urls))
+
+    # 3. Persist everything we've found.
+    save_routes()
+
+    # 4. Filter to injectable URLs.
+    injectable = build_injectable()
+
+    # 5. Scan.
+    run_dalfox()
+    run_xsstrike()
+
+    print("[*] Done")
+    print("    - routes.txt   (seed + gobuster + JS-extracted routes)")
+    print("    - urls.txt     (injectable URLs fed to scanners)")
+    print("    - dalfox.txt")
+    print("    - xsstrike.txt")
 
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except KeyboardInterrupt:
+        print("\n[!] Interrupted by user")
+        sys.exit(130)

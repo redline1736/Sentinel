@@ -404,13 +404,14 @@ void scanning(char *target_url) {
                 "-l", targets,
                 "-o", nuclei_out,
                 "-silent",
-                "-tags", "xss,sqli,ssrf,lfi,rce,redirect,exposure,misconfig,auth-bypass,default-login",
+                "-tags", "xss,sqli,ssrf,lfi,rce,redirect,exposure,misconfig,auth-bypass,default-login,fuzz",
                 "-severity", "critical,high,medium,low",
                 "-type", "http",
                 "-etags", "dos,intrusive",
                 "-c", "50",
                 "-timeout", "5",
                 "-retries", "1",
+                "-dast"
                 NULL
             };
 
@@ -428,6 +429,7 @@ void scanning(char *target_url) {
             char *xss_args[] = {
                 "python3", "ghostquery/xss/main.py",
                 buffer, hostdir,
+                "--gobuster",  gobuster_out,
                 NULL
             };
 
@@ -442,18 +444,29 @@ void scanning(char *target_url) {
                 "-u", target_url, 
                 "-o", nuclei_out,
                 "-silent",
-                "-tags", "xss,sqli,ssrf,lfi,rce,redirect,exposure,misconfig",
+                "-tags", "xss,sqli,ssrf,lfi,rce,redirect,exposure,misconfig,fuzz",
                 "-severity", "critical,high,medium,low",
                 "-type", "http",
                 "-etags", "dos,intrusive",
                 "-timeout", "5",
                 "-retries", "1",
+                "-dast"
                 NULL
             };
 
             rc = run_tool(nuclei_args);
             if (rc != 0)
                 printf("[!] nuclei failed on %s with code %d\n", buffer, rc);
+            
+             char *xss_args[] = {
+                "python3", "ghostquery/xss/main.py",
+                target_url,          /* the URL user passed (with path + query) */
+                hostdir,             /* output dir; gobuster.txt auto-detected inside */
+                NULL
+            };
+            int xrc = run_tool_out(xss_args, xss_out, true);
+            if (xrc != 0)
+                printf("[!] xss pipeline failed on %s with code %d\n", buffer, xrc);
 
             // xss_run(buffer, hostdir);
         }
