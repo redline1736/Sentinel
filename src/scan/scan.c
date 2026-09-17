@@ -19,7 +19,7 @@
 #include "../deepblue/deepblue.h"
 #include "../ghostquery/gq.h"
 #include "../global.h"
-#include "../atlas/sub.c"
+#include "../atlas/sub.h"
 
 /* ---------- rate-limit tunables (declared extern in scan.h) ---------- */
 
