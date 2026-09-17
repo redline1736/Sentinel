@@ -273,9 +273,9 @@ static int check_host(const char *host,
 /* ------------------------------------------------------------------ */
 /* main                                                                */
 /* ------------------------------------------------------------------ */
-int atlas(char *host_file, char *hostdir) {
+int atlas(char *hosts_file, char *hostdir) {
     char out_file[512];
-    snprintf(hos, "%s/atlas.txt", hostdir);
+    snprintf(out_file, "%s/atlas.txt", hostdir);
  
     const char driver_file[] = "atlas/sig.txt";
 
