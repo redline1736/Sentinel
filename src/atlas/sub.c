@@ -1,4 +1,3 @@
-#define _GNU_SOURCE
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -275,7 +274,7 @@ static int check_host(const char *host,
 /* ------------------------------------------------------------------ */
 int atlas(char *hosts_file, char *hostdir) {
     char out_file[512];
-    snprintf(out_file, "%s/atlas.txt", hostdir);
+    snprintf(out_file, sizeof(out_file), "%s/atlas.txt", hostdir);
  
     const char driver_file[] = "atlas/sig.txt";
 

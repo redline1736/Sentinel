@@ -468,7 +468,7 @@ void scanning(char *target_url) {
                 hostdir,             /* output dir; gobuster.txt auto-detected inside */
                 NULL
             };
-            int xrc = run_tool_out(xss_args, xss_out, true);
+            int xrc = run_tool(xss_args);
             if (xrc != 0)
                 printf("[!] xss pipeline failed on %s with code %d\n", buffer, xrc);
 
