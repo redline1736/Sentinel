@@ -683,6 +683,101 @@ int xss_run(char *url, char *path) {
     return 0;
 }
 
+int nuclei_run(char *url, char *path) {
+    if (!url || !path) {
+        fprintf(stderr, "[nuclei_run] invalid arguments\n");
+        return 1;
+    }
+
+    char param_file[4096];
+    char targets_path[4096];
+    char nuclei_out[4096];
+    char nuclei_merged[4096];
+
+    if (snprintf(param_file, sizeof(param_file),
+                 "%s/valid_params.txt", path) >= (int)sizeof(param_file) ||
+        snprintf(targets_path, sizeof(targets_path),
+                 "%s/nuclei_param_targets.txt", path) >= (int)sizeof(targets_path) ||
+        snprintf(nuclei_out, sizeof(nuclei_out),
+                 "%s/nuclei_params.txt", path) >= (int)sizeof(nuclei_out) ||
+        snprintf(nuclei_merged, sizeof(nuclei_merged),
+                 "%s/nuclei.txt", path) >= (int)sizeof(nuclei_merged)) {
+        fprintf(stderr, "[nuclei_run] path too long\n");
+        return 1;
+    }
+
+    FILE *fp = fopen(param_file, "r");
+    if (!fp) {
+        printf("[nuclei_run] %s not found — skipping\n", param_file);
+        return 1;
+    }
+
+    /* Build a target list: one line per reflecting param, with a real value */
+    FILE *tl = fopen(targets_path, "w");
+    if (!tl) {
+        fprintf(stderr, "[nuclei_run] cannot write %s\n", targets_path);
+        fclose(fp);
+        return 1;
+    }
+
+    char param[MAX_PARAM_LEN];
+    int ntargets = 0;
+    while (fgets(param, sizeof(param), fp)) {
+        size_t l = strlen(param);
+        while (l && (param[l-1] == '\n' || param[l-1] == '\r'))
+            param[--l] = '\0';
+        if (l == 0 || param[0] == '#')
+            continue;
+
+        /* Proper "?param=test" shape so DAST and standard templates work */
+        fprintf(tl, "%s%c%s=test\n",
+                url, strchr(url, '?') ? '&' : '?', param);
+        ntargets++;
+    }
+    fclose(fp);
+    fclose(tl);
+
+    if (ntargets == 0) {
+        printf("[nuclei_run] no reflecting params — nothing to test\n");
+        return 0;
+    }
+
+    printf("[nuclei_run] running nuclei on %d param URLs\n", ntargets);
+
+    char *nuclei_args[] = {
+        "nuclei",
+        "-l", targets_path,
+        "-o", nuclei_out,
+        "-silent",
+        "-tags", "xss,sqli,ssrf,lfi,rce,redirect,injection,open-redirect",
+        "-severity", "critical,high,medium,low",
+        "-type", "http",
+        "-etags", "dos,intrusive",
+        "-c", "50",
+        "-timeout", "5",
+        "-retries", "1",
+        "-dast",
+        NULL
+    };
+
+    int rc = run_tool(nuclei_args);
+    if (rc != 0)
+        printf("[!] nuclei failed on %s with code %d\n", url, rc);
+
+    /* Merge into nuclei.txt so analyze() sees the findings */
+    FILE *in  = fopen(nuclei_out, "r");
+    FILE *out = fopen(nuclei_merged, "a");   /* append, don't clobber general phase */
+    if (in && out) {
+        char line[4096];
+        while (fgets(line, sizeof(line), in))
+            fputs(line, out);
+    }
+    if (in)  fclose(in);
+    if (out) fclose(out);
+
+    return 0;
+}
+
 /* ============================================================================
  * SQL Injection Run (Placeholder)
  * ============================================================================ */

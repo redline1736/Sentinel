@@ -254,6 +254,35 @@ void subdomain() {
 }
 
 /* ---------- targeted scanning on live hosts ---------- */
+/* Turn "https://host/path?x=y" into a filesystem-safe dir name.
+ *   https://host/          -> "root"
+ *   https://host/admin     -> "admin"
+ *   https://host/a/b?c=d   -> "a_b"
+ */
+static void url_to_dirname(const char *url, char *out, size_t outsz) {
+    if (!url || !out || outsz == 0) return;
+
+    const char *p = strstr(url, "://");
+    p = p ? p + 3 : url;
+
+    const char *slash = strchr(p, '/');
+    if (!slash || slash[1] == '\0') {
+        snprintf(out, outsz, "root");
+        return;
+    }
+
+    size_t i = 0;
+    for (const char *q = slash + 1; *q && i + 1 < outsz; q++) {
+        char c = *q;
+        if (c == '/' || c == '?' || c == '&' || c == '=' ||
+            c == ':' || c == '*' || c == '\\' || c == '"' ||
+            c == '<' || c == '>' || c == '|')
+            c = '_';
+        out[i++] = c;
+    }
+    out[i] = '\0';
+    if (i == 0) snprintf(out, outsz, "root");
+}
 
 void scanning(char *target_url) {
     printf("[+] Starting targeted scanning...\n");
@@ -289,7 +318,6 @@ void scanning(char *target_url) {
         buffer[strcspn(buffer, "\r\n")] = 0;
         if (strlen(buffer) == 0) continue;
 
-        /* basic host validation: skip entries containing '/' */
         if (strchr(buffer, '/') != NULL) {
             printf("[!] Skipping invalid host entry: %s\n", buffer);
             continue;
@@ -297,7 +325,8 @@ void scanning(char *target_url) {
 
         printf("[*] Scanning: %s\n", buffer);
 
-        if (snprintf(hostdir, sizeof(hostdir), "%s/%s", g.dir, buffer) >= (int)sizeof(hostdir)) {
+        if (snprintf(hostdir, sizeof(hostdir), "%s/%s", g.dir, buffer)
+            >= (int)sizeof(hostdir)) {
             fprintf(stderr, "[-] hostdir path too long for %s\n", buffer);
             continue;
         }
@@ -310,19 +339,16 @@ void scanning(char *target_url) {
         if (!g.full) {
             int found = 0;
             char sig[1024];
-
             rewind(sg);
             while (fgets(sig, sizeof(sig), sg)) {
                 sig[strcspn(sig, "\r\n")] = 0;
                 if (strlen(sig) == 0) continue;
-
                 if (strncmp(buffer, sig, strlen(sig)) == 0) {
                     printf("[+] Signature match: %s\n", sig);
                     found = 1;
                     break;
                 }
             }
-
             if (!found) {
                 printf("[!] No signature match for %s, skipping scanning\n", buffer);
                 continue;
@@ -330,13 +356,15 @@ void scanning(char *target_url) {
         }
 
         char url[1024];
-        if (snprintf(url, sizeof(url), "https://%s", buffer) >= (int)sizeof(url)) {
+        if (snprintf(url, sizeof(url), "https://%s", buffer)
+            >= (int)sizeof(url)) {
             fprintf(stderr, "[-] URL too long for %s\n", buffer);
             continue;
         }
 
         char nuclei_out[4096];
-        if (snprintf(nuclei_out, sizeof(nuclei_out), "%s/nuclei.txt", hostdir) >= (int)sizeof(nuclei_out)) {
+        if (snprintf(nuclei_out, sizeof(nuclei_out), "%s/nuclei.txt", hostdir)
+            >= (int)sizeof(nuclei_out)) {
             fprintf(stderr, "[-] nuclei_out path too long\n");
             continue;
         }
@@ -344,9 +372,10 @@ void scanning(char *target_url) {
         int rc;
 
         if (g.sitescan) {
-            /* ---- 1. gobuster dir (host-level discovery) ---- */
+            /* ---- 1. gobuster dir ---- */
             char gobuster_out[4096];
-            if (snprintf(gobuster_out, sizeof(gobuster_out), "%s/gobuster.txt", hostdir) >= (int)sizeof(gobuster_out)) {
+            if (snprintf(gobuster_out, sizeof(gobuster_out),
+                         "%s/gobuster.txt", hostdir) >= (int)sizeof(gobuster_out)) {
                 fprintf(stderr, "[-] gobuster_out path too long\n");
                 continue;
             }
@@ -359,21 +388,22 @@ void scanning(char *target_url) {
                 "-o", gobuster_out,
                 NULL
             };
-
             rc = run_tool(gb_args);
             if (rc != 0)
                 printf("[!] gobuster failed on %s with code %d\n", buffer, rc);
 
-            /* ---- 2. build nuclei target list: homepage + every gobuster path ---- */
+            /* ---- 2. build general nuclei target list ---- */
             char targets[4096];
-            if (snprintf(targets, sizeof(targets), "%s/nuclei_targets.txt", hostdir) >= (int)sizeof(targets)) {
+            if (snprintf(targets, sizeof(targets),
+                         "%s/nuclei_targets.txt", hostdir)
+                >= (int)sizeof(targets)) {
                 fprintf(stderr, "[-] targets path too long\n");
                 continue;
             }
 
             FILE *nt = fopen(targets, "w");
             if (nt) {
-                fprintf(nt, "%s\n", url); /* always include the root */
+                fprintf(nt, "%s\n", url);
 
                 FILE *gb = fopen(gobuster_out, "r");
                 if (gb) {
@@ -384,11 +414,11 @@ void scanning(char *target_url) {
                         if (*p != '/') continue;
 
                         char *end = p + strlen(p);
-                        while (end > p && (end[-1] == '\n' || end[-1] == '\r' || end[-1] == ' ' || end[-1] == '\t'))
+                        while (end > p && (end[-1] == '\n' || end[-1] == '\r' ||
+                                           end[-1] == ' '  || end[-1] == '\t'))
                             *--end = '\0';
                         if (end == p) continue;
 
-                        /* remove gobuster status info after the path */
                         char *space = strchr(p, ' ');
                         if (space) *space = '\0';
 
@@ -403,76 +433,125 @@ void scanning(char *target_url) {
                 printf("[!] Could not create nuclei targets file %s\n", targets);
             }
 
+            /* ---- 3. General nuclei across ALL targets (no -dast) ---- */
             char *nuclei_args[] = {
                 "nuclei",
                 "-l", targets,
                 "-o", nuclei_out,
                 "-silent",
-                "-tags", "xss,sqli,ssrf,lfi,rce,redirect,exposure,misconfig,auth-bypass,default-login,fuzz",
+                "-tags", "xss,sqli,ssrf,lfi,rce,redirect,exposure,"
+                         "misconfig,auth-bypass,default-login",
                 "-severity", "critical,high,medium,low",
                 "-type", "http",
                 "-etags", "dos,intrusive",
                 "-c", "50",
                 "-timeout", "5",
                 "-retries", "1",
-                "-dast",
                 NULL
             };
-
             rc = run_tool(nuclei_args);
             if (rc != 0)
-                printf("[!] nuclei failed on %s with code %d\n", buffer, rc);
+                printf("[!] general nuclei failed on %s with code %d\n", buffer, rc);
 
-            /* ---- 3. XSS pipeline: only when sitescan is true ---- */
-            char xss_out[4096];
-            if (snprintf(xss_out, sizeof(xss_out), "%s/xss.txt", hostdir) >= (int)sizeof(xss_out)) {
-                fprintf(stderr, "[-] xss_out path too long\n");
-                continue;
+            /* ---- 4. Per-URL deep pass: XSS scan + param nuclei ---- */
+            FILE *tf = fopen(targets, "r");
+            if (!tf) {
+                printf("[!] Cannot reopen %s for per-target loop\n", targets);
+            } else {
+                char tline[1024];
+                while (fgets(tline, sizeof(tline), tf)) {
+                    tline[strcspn(tline, "\r\n")] = 0;
+                    if (strlen(tline) == 0) continue;
+
+                    char subname[256];
+                    url_to_dirname(tline, subname, sizeof(subname));
+
+                    char subdir[4096];
+                    if (snprintf(subdir, sizeof(subdir), "%s/%s", hostdir, subname)
+                        >= (int)sizeof(subdir)) {
+                        fprintf(stderr, "[-] subdir path too long for %s\n", tline);
+                        continue;
+                    }
+
+                    if (mkdir(subdir, 0755) != 0 && errno != EEXIST) {
+                        perror("mkdir subdir");
+                        continue;
+                    }
+
+                    printf("[*] Deep scan: %s -> %s\n", tline, subdir);
+
+                    /* 4a. per-URL general nuclei (quick single-target run) */
+                    char sub_nuclei[4096];
+                    if (snprintf(sub_nuclei, sizeof(sub_nuclei),
+                                 "%s/nuclei.txt", subdir) >= (int)sizeof(sub_nuclei)) {
+                        fprintf(stderr, "[-] sub_nuclei path too long\n");
+                        continue;
+                    }
+
+                    char *sub_args[] = {
+                        "nuclei",
+                        "-u", tline,
+                        "-o", sub_nuclei,
+                        "-silent",
+                        "-tags", "xss,sqli,ssrf,lfi,rce,redirect,exposure,"
+                                 "misconfig,auth-bypass,default-login",
+                        "-severity", "critical,high,medium,low",
+                        "-type", "http",
+                        "-etags", "dos,intrusive",
+                        "-timeout", "5",
+                        "-retries", "1",
+                        NULL
+                    };
+                    rc = run_tool(sub_args);
+                    if (rc != 0)
+                        printf("[!] per-URL nuclei failed on %s with code %d\n",
+                               tline, rc);
+
+                    /* 4b. XSS scanner finds reflecting params for this URL */
+                    xss_run(tline, subdir);
+
+                    /* 4c. Param-driven nuclei (uses valid_params.txt) */
+                    nuclei_run(tline, subdir);
+                }
+                fclose(tf);
             }
 
-            char *xss_args[] = {
-                "python3", "ghostquery/xss/main.py",
-                buffer, hostdir,
-                "--gobuster",  gobuster_out,
-                NULL
-            };
-
-            rc = run_tool(xss_args);
-            if (rc != 0)
-                printf("[!] xss pipeline failed on %s with code %d\n", buffer, rc);
-
         } else {
-            /* ---- non-sitescan: just nuclei on the current host ---- */
+            /* ---- non-sitescan: single target_url, no gobuster ---- */
+
+            /* General nuclei on the bare URL (no -dast) */
             char *nuclei_args[] = {
                 "nuclei",
-                "-u", target_url, 
+                "-u", target_url,
                 "-o", nuclei_out,
                 "-silent",
-                "-tags", "xss,sqli,ssrf,lfi,rce,redirect,exposure,misconfig,fuzz",
+                "-tags", "xss,sqli,ssrf,lfi,rce,redirect,exposure,"
+                         "misconfig,auth-bypass,default-login",
                 "-severity", "critical,high,medium,low",
                 "-type", "http",
                 "-etags", "dos,intrusive",
                 "-timeout", "5",
                 "-retries", "1",
-                "-dast",
                 NULL
             };
-
             rc = run_tool(nuclei_args);
             if (rc != 0)
                 printf("[!] nuclei failed on %s with code %d\n", buffer, rc);
-            
-             char *xss_args[] = {
+
+            /* XSS scanner finds params on target_url */
+            char *xss_args[] = {
                 "python3", "ghostquery/xss/main.py",
-                target_url,          /* the URL user passed (with path + query) */
-                hostdir,             /* output dir; gobuster.txt auto-detected inside */
+                target_url,
+                hostdir,
                 NULL
             };
             int xrc = run_tool(xss_args);
             if (xrc != 0)
                 printf("[!] xss pipeline failed on %s with code %d\n", buffer, xrc);
 
-            xss_run(buffer, hostdir);
+            /* FIX: was buffer, must be target_url */
+            xss_run(target_url, hostdir);
+            nuclei_run(target_url, hostdir);
         }
     }
 

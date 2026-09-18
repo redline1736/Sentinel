@@ -75,7 +75,7 @@ jobs:
             ca-certificates curl git gcc make pkg-config \
             libcurl4-openssl-dev python3 python3-pip python3-venv \
             chromium-browser chromium libcjson-dev ruby ruby-dev zlib1g-dev \
-            procps file tor proxychains4 nikto \
+            procps file tor proxychains4 nikto dnsutils \
             perl libnet-ssleay-perl libwww-perl
           pip install playwright
           playwright install chromium
@@ -141,25 +141,29 @@ jobs:
         continue-on-error: true
         run: |
           set -e
-          ./sentinel thegod.pythonanywhere.com testscanurl --scan-url https://thegod.pythonanywhere.com/greet
+
+          ./sentinel thegod.pythonanywhere.com testscansite --scan-url https://thegod.pythonanywhere.com/echo
+
+          ./sentinel thegod.pythonanywhere.com testscansite --scan-url https://thegod.pythonanywhere.com/preview
+
+          ./sentinel thegod.pythonanywhere.com testscansite --scan-url https://thegod.pythonanywhere.com/search
+
+          ./sentinel thegod.pythonanywhere.com testscansite --scan-url https://thegod.pythonanywhere.com/user
 
       - name: Run Scan Site test
         continue-on-error: true
         run: |
           set -e
-          ./sentinel thegod.pythonanywhere.com testscansite --scan-site https://thegod.pythonanywhere.com/
+           ./sentinel thegod.pythonanywhere.com testscansite --scan-site "https://thegod.pythonanywhere.com/
 
       - name: Run Xss test
         continue-on-error: true
         run: |
           set -e
           echo "XSS TEST"
-          # removing xss tests for now, as they are working but take a long time to run and are not critical for CI
-          # ./sentinel thegod.pythonanywhere.com testxsslow test-new-feature https://thegod.pythonanywhere.com/vulnerabilities/xss_r/low
-          # ./sentinel thegod.pythonanywhere.com testxssmedium test-new-feature https://thegod.pythonanywhere.com/vulnerabilities/xss_r/medium
-          # ./sentinel thegod.pythonanywhere.com testxsshigh test-new-feature https://thegod.pythonanywhere.com/vulnerabilities/xss_r/high
-          # ./sentinel thegod.pythonanywhere.com testxssimpossible test-new-feature https://thegod.pythonanywhere.com/vulnerabilities/xss_r/impossible
+          ./sentinel thegod.pythonanywhere.com testscansite --scan-site https://thegod.pythonanywhere.com/xss
 
+          ./sentinel thegod.pythonanywhere.com testscansite --scan-site https://thegod.pythonanywhere.com/nuclei-xss
 
       - name: Upload all test output directories
         if: always()
