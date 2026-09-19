@@ -1,409 +1,209 @@
 #!/usr/bin/env python3
 """
-JS route harvester + XSS scanner.
+ghostquery/xss/generate_payloads.py
+
+Reads xss.json (same directory by default) and writes one XSS payload
+per line to payloads.txt.
 
 Usage:
-    python3 ghostquery/xss/main.py <target-host> <output-dir>
+    python3 generate_payloads.py [xss.json] [payloads.txt]
 
-Pipeline:
-    1. read gobuster.txt produced upstream by the C pipeline (scan.c)
-    2. headless-Chromium crawl (homepage + a bounded set of discovered pages) to collect JS
-    3. extract candidate routes/parameters from JS
-    4. run Dalfox + XSStrike on injectable URLs (those with query params)
+Placeholders understood:
+    {tag}               entry from tags[category].list
+    {event}             entry from the events pool (per generation_options)
+    {function}          function name from functions[]
+    {value}             value from functions[]
+    {base64}            base64 of "{function}({value})"
+    {base64_full_page}  literal from xss.json (full_page_base64)
 
-Requires: dalfox, XSStrike, playwright (chromium), seclists wordlist.
-Gobuster is NOT run here — the C pipeline runs it once and writes
-gobuster.txt into the same directory we read from.
+Encodings with apply_to == "full_payload" produce additional variants.
+base64_eval (apply_to == "function_call") is already covered by the
+script/breakout_script templates, so it is not applied a second time.
 """
 
+import base64
+import json
 import os
-import re
+import random
 import sys
-import shutil
-import subprocess
-from urllib.parse import urljoin, urlparse, parse_qs, urlsplit, urlunsplit
+from urllib.parse import quote
 
-import requests
-from playwright.sync_api import sync_playwright
-
-ROUTES = set()
-VISITED_JS = set()
-
-USER_AGENT = ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
-              "(KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36")
-
-# Populated in main() once argv is validated.
-OUT_DIR = None
-GOBUSTER_OUT = None
-
-XSSTRIKE_PATHS = [
-    "/opt/XSStrike/xsstrike.py",
-    "/usr/share/XSStrike/xsstrike.py",
-    os.path.join(os.getcwd(), "XSStrike", "xsstrike.py"),
-]
-
-NON_ROUTE_EXT = {
-    ".css", ".png", ".jpg", ".jpeg", ".gif", ".svg", ".webp", ".ico", ".bmp",
-    ".woff", ".woff2", ".ttf", ".eot", ".otf", ".mp4", ".mp3", ".webm", ".avi",
-    ".pdf", ".zip", ".gz", ".tar", ".7z", ".exe", ".msi", ".map", ".txt", ".xml",
-    ".json", ".webmanifest",
-}
-
-TRACKING_PARAMS = {"utm_source", "utm_medium", "utm_campaign", "utm_term",
-                   "utm_content", "_ga", "_gl", "fbclid", "gclid"}
-
-MAX_CRAWL_PAGES = 8
+# Deterministic output: rerunning gives the same payloads.txt
+random.seed(0xC0FFEE)
 
 
 # --------------------------------------------------------------------------- #
-# URL helpers
+# Config loading
 # --------------------------------------------------------------------------- #
-def normalize(base, path):
-    """Resolve a possibly-relative URL against base. Returns None for junk."""
-    if not path:
-        return None
-    path = path.strip().strip("\"'`")
-    if not path:
-        return None
-
-    if path.startswith(("http://", "https://")):
-        url = path
-    elif path.startswith("//"):
-        scheme = urlsplit(base).scheme or "http"
-        url = f"{scheme}:{path}"
-    elif path.startswith("/"):
-        p = urlsplit(base)
-        url = urlunsplit((p.scheme or "http", p.netloc, path, "", ""))
-    else:
-        url = urljoin(base, path)
-
-    parts = urlsplit(url)
-    if parts.scheme not in ("http", "https"):
-        return None
-    # drop fragments, keep query
-    return urlunsplit((parts.scheme, parts.netloc, parts.path, parts.query, ""))
+def load_json(path):
+    with open(path, "r", encoding="utf-8") as f:
+        return json.load(f)
 
 
-def clean_template(s):
-    """Turn `/api/users/${id}` into `/api/users/` so it can be normalized."""
-    return re.sub(r"\$\{[^}]*\}", "", s).strip()
+def build_event_pool(cfg):
+    """Flatten the events sections per generation_options."""
+    ev = cfg.get("events", {})
+    opts = cfg.get("generation_options", {})
 
+    pool = list(ev.get("standard", []))
+    if opts.get("include_interaction_events", True):
+        pool += ev.get("extended", [])
+    if opts.get("include_media_events", False):
+        pool += ev.get("media", [])
+    if opts.get("include_document_body_events", False):
+        pool += ev.get("document_body", [])
+    if opts.get("include_animation_svg_events", False):
+        pool += ev.get("animation_svg", [])
 
-def is_asset(url):
-    """Heuristic: skip URLs that look like static assets rather than routes."""
-    path = urlsplit(url).path.lower()
-    if any(path.endswith(ext) for ext in NON_ROUTE_EXT):
-        return True
-    return "/static/" in path or "/assets/" in path
-
-
-def is_js_url(url):
-    return urlsplit(url).path.lower().endswith((".js", ".mjs"))
-
-
-def is_injectable(url):
-    try:
-        params = parse_qs(urlparse(url).query)
-        # drop pure tracking params; if nothing meaningful remains, not injectable
-        params = {k: v for k, v in params.items() if k.lower() not in TRACKING_PARAMS}
-        return len(params) > 0
-    except Exception:
-        return False
-
-
-def normalize_target(target):
-    target = target.strip()
-    if not re.match(r"^https?://", target, re.I):
-        target = "https://" + target
-    return target.rstrip("/")
+    # Deduplicate, preserve order
+    seen, out = set(), []
+    for e in pool:
+        if e not in seen:
+            seen.add(e)
+            out.append(e)
+    return out or [""]          # templates with no {event} still work
 
 
 # --------------------------------------------------------------------------- #
-# Phase 1: load gobuster output produced by the C pipeline
+# Placeholder substitution
 # --------------------------------------------------------------------------- #
-def load_gobuster(domain):
-    """Read the gobuster.txt the C pipeline wrote into OUT_DIR.
+def substitute(template, tag, event, fn_name, fn_value, full_page_b64):
+    call = f"{fn_name}({fn_value})"
+    b64  = base64.b64encode(call.encode("utf-8")).decode("ascii")
 
-    No subprocess call here — gobuster runs once from scan.c so nuclei
-    and this crawler share a single discovery pass. Missing file just
-    means zero crawl seeds, not a fatal error.
-    """
-    if not os.path.exists(GOBUSTER_OUT):
-        print(f"[!] {GOBUSTER_OUT} not found — no gobuster results to load")
-        return set()
-
-    discovered = set()
-    try:
-        with open(GOBUSTER_OUT, encoding="utf-8", errors="ignore") as f:
-            for line in f:
-                parts = line.strip().split()
-                if not parts:
-                    continue
-                path = parts[0]
-                # skip comment/progress/error lines; keep only "/path" entries
-                if not path.startswith("/"):
-                    continue
-                url = normalize(domain, path)
-                if url:
-                    discovered.add(url)
-    except OSError as e:
-        print(f"[!] Could not read {GOBUSTER_OUT}: {e}")
-        return set()
-
-    print(f"[*] Gobuster (pre-run) found: {len(discovered)}")
-    return discovered
+    # Longest / most specific token first, then the rest.
+    return (template
+            .replace("{base64_full_page}", full_page_b64 or "")
+            .replace("{base64}",            b64)
+            .replace("{tag}",               tag)
+            .replace("{event}",             event)
+            .replace("{function}",          fn_name)
+            .replace("{value}",             fn_value))
 
 
 # --------------------------------------------------------------------------- #
-# Phase 2: JS collection
+# Full-payload encodings
 # --------------------------------------------------------------------------- #
-def download_js(base_url, js_url):
-    try:
-        r = requests.get(js_url, timeout=15,
-                         headers={"User-Agent": USER_AGENT},
-                         allow_redirects=True)
-        if r.status_code != 200:
-            return
-        ctype = r.headers.get("Content-Type", "").lower()
-        if "javascript" in ctype or urlsplit(r.url).path.lower().endswith((".js", ".mjs")):
-            extract(base_url, r.text)
-    except requests.RequestException:
-        pass
+def apply_full_payload_encoding(payload, transform):
+    if transform == "html_entity_decimal":
+        return "".join(f"&#{ord(c)};" for c in payload)
+    if transform == "html_entity_hex":
+        return "".join(f"&#x{ord(c):x};" for c in payload)
+    if transform == "url_encoded":
+        return quote(payload, safe="")
+    if transform == "double_url_encoded":
+        return quote(quote(payload, safe=""), safe="")
+    return payload
 
 
-def crawl(target, extra_urls=None):
-    js_files = set()
+# --------------------------------------------------------------------------- #
+# Core generation
+# --------------------------------------------------------------------------- #
+def generate_raw(cfg, event_pool):
+    tags_cfg     = cfg.get("tags", {})
+    ctx_bindings = cfg.get("context_bindings", {})
+    functions    = cfg.get("functions", [{"name": "alert", "value": "1"}])
+    opts         = cfg.get("generation_options", {})
+    per_ctx_cap  = int(opts.get("max_payloads_per_context", 120))
+    full_page_b64 = cfg.get("full_page_base64", "")
 
-    same_origin = [u for u in (extra_urls or [])
-                   if urlsplit(u).netloc == urlsplit(target).netloc
-                   and not is_asset(u)][: MAX_CRAWL_PAGES - 1]
+    raw = set()
 
-    queue = [target] + same_origin
-    visited = set()
+    for context, cat_list in ctx_bindings.items():
+        ctx_bucket = set()
 
-    try:
-        with sync_playwright() as p:
-            browser = p.chromium.launch(headless=True)
-            context = browser.new_context(user_agent=USER_AGENT)
-            page = context.new_page()
+        for cat_name in cat_list:
+            cat = tags_cfg.get(cat_name)
+            if not cat:
+                continue
 
-            def handler(response):
-                if is_js_url(response.url):
-                    js_files.add(response.url)
+            templates = cat.get("templates", [])
+            tag_list  = cat.get("list", [""])
 
-            page.on("response", handler)
+            for tmpl in templates:
+                tag_iter   = tag_list       if "{tag}"      in tmpl else [""]
+                event_iter = event_pool     if "{event}"    in tmpl else [""]
+                fn_iter    = functions      if "{function}" in tmpl else [functions[0]]
 
-            for u in queue:
-                if u in visited:
-                    continue
-                visited.add(u)
-                print(f"[*] Crawling {u}")
-                try:
-                    page.goto(u, timeout=30000, wait_until="domcontentloaded")
-                    page.wait_for_timeout(4000)
-                except Exception as e:  # noqa: BLE001
-                    print(f"[!] Failed to load {u}: {e}")
-                    continue
+                for tag in tag_iter:
+                    for ev in event_iter:
+                        for fn in fn_iter:
+                            p = substitute(
+                                tmpl, tag, ev,
+                                fn.get("name", ""),
+                                fn.get("value", ""),
+                                full_page_b64,
+                            )
+                            ctx_bucket.add(p)
 
-            context.close()
-            browser.close()
-    except Exception as e:  # noqa: BLE001
-        print(f"[!] Playwright error: {e}")
-        return js_files
+        # Per-context cap via random sampling
+        if len(ctx_bucket) > per_ctx_cap:
+            ctx_bucket = set(random.sample(sorted(ctx_bucket), per_ctx_cap))
 
-    for js in sorted(js_files):
-        if js in VISITED_JS:
+        raw.update(ctx_bucket)
+
+    return raw
+
+
+def apply_encodings(cfg, raw_payloads):
+    """Return the extra payload variants produced by full_payload encodings."""
+    encodings = cfg.get("encodings", {})
+    out = set()
+
+    for enc_name, enc_cfg in encodings.items():
+        if enc_cfg.get("apply_to") != "full_payload":
             continue
-        VISITED_JS.add(js)
-        print(f"[JS] {js}")
-        download_js(target, js)
+        transform = enc_cfg.get("transform", "none")
+        if transform == "none":
+            continue
+        for p in raw_payloads:
+            out.add(apply_full_payload_encoding(p, transform))
 
-    return js_files
-
-
-# --------------------------------------------------------------------------- #
-# Phase 3: route extraction from JS
-# --------------------------------------------------------------------------- #
-def add_route(base, raw):
-    url = normalize(base, clean_template(raw))
-    if url and not is_asset(url):
-        ROUTES.add(url)
-
-
-def extract(base_url, js):
-    # fetch("...")
-    for m in re.finditer(r'fetch\s*\(\s*["\'`]([^"\'`]+)["\'`]', js):
-        add_route(base_url, m.group(1))
-
-    # axios.get/post/put/delete/patch("...")
-    for m in re.finditer(r'axios\.(?:get|post|put|delete|patch)\s*\(\s*["\'`]([^"\'`]+)["\'`]', js):
-        add_route(base_url, m.group(1))
-
-    # router.push("/x") | router.replace("/x") | router.push({ path: "/x" })
-    for m in re.finditer(
-        r'router\.(?:push|replace)\s*\(\s*(?:\{\s*path\s*:\s*)?["\'`]([^"\'`]+)["\'`]', js
-    ):
-        add_route(base_url, m.group(1))
-
-    # history.pushState(state, title, "/x")  -> URL is the 3rd string arg
-    for m in re.finditer(
-        r'pushState\s*\([^)]*?,\s*["\'`][^"\'`]*["\'`]\s*,\s*["\'`]([^"\'`]+)["\'`]', js
-    ):
-        add_route(base_url, m.group(1))
-
-    # location.href = "/x" | window.open("/x") | navigate("/x")
-    for m in re.finditer(
-        r'(?:location\.href\s*=|window\.open\s*\(|navigate\s*\()\s*["\'`]([^"\'`]+)["\'`]', js
-    ):
-        add_route(base_url, m.group(1))
-
-    # quoted path-like strings (bounded length to limit bundle noise)
-    for m in re.finditer(r'["\'`](/[A-Za-z0-9_./?=&%:@#+${}-]{2,120})["\'`]', js):
-        add_route(base_url, m.group(1))
-
-    # new URLSearchParams().set("q", ...)  (require 2 args to cut Map/Set noise)
-    for m in re.finditer(r'\.set\s*\(\s*["\'`]([A-Za-z0-9_\-\[\]]+)["\'`]\s*,', js):
-        ROUTES.add(urljoin(base_url, f"/?{m.group(1)}="))
-
-    # new URLSearchParams({ q: ..., r: ... })
-    for m in re.finditer(r'URLSearchParams\s*\(\s*\{(.*?)\}\s*\)', js, re.S):
-        for k in re.finditer(r'([A-Za-z0-9_\-\[\]]+)\s*:', m.group(1)):
-            ROUTES.add(urljoin(base_url, f"/?{k.group(1)}="))
-
-
-# --------------------------------------------------------------------------- #
-# Phase 4: filtering + scanning
-# --------------------------------------------------------------------------- #
-def save_routes():
-    with open(os.path.join(OUT_DIR, "routes.txt"), "w", encoding="utf-8") as f:
-        for r in sorted(ROUTES):
-            f.write(r + "\n")
-
-
-def build_injectable():
-    injectable = sorted({u for u in ROUTES if is_injectable(u)})
-    with open(os.path.join(OUT_DIR, "urls.txt"), "w", encoding="utf-8") as f:
-        for u in injectable:
-            f.write(u + "\n")
-    return injectable
-
-
-def run_dalfox():
-    if not shutil.which("dalfox"):
-        print("[!] dalfox not found in PATH - skipping")
-        return
-
-    urls_path = os.path.join(OUT_DIR, "urls.txt")
-    if not (os.path.exists(urls_path) and os.path.getsize(urls_path) > 0):
-        print("[!] urls.txt empty - skipping dalfox")
-        return
-
-    dalfox_out = os.path.join(OUT_DIR, "dalfox.txt")
-    if os.path.exists(dalfox_out):
-        os.remove(dalfox_out)
-
-    print("[*] Running Dalfox...")
-    try:
-        subprocess.run(
-            ["dalfox", "file", urls_path,
-             "--worker", "10", "--skip-bav",
-             "--silence", "-o", dalfox_out],
-            check=False,
-        )
-    except Exception as e:  # noqa: BLE001
-        print(f"[!] dalfox failed: {e}")
-
-
-def find_xsstrike():
-    for p in XSSTRIKE_PATHS:
-        if os.path.isfile(p):
-            return p
-    return None
-
-
-def run_xsstrike():
-    xsstrike = find_xsstrike()
-    if not xsstrike:
-        print(f"[!] XSStrike not found (tried: {', '.join(XSSTRIKE_PATHS)}) - skipping")
-        return
-
-    urls_path = os.path.join(OUT_DIR, "urls.txt")
-    if not (os.path.exists(urls_path) and os.path.getsize(urls_path) > 0):
-        print("[!] urls.txt empty - skipping XSStrike")
-        return
-
-    with open(urls_path, encoding="utf-8") as f:
-        urls = [line.strip() for line in f if line.strip()]
-
-    out_file = os.path.join(OUT_DIR, "xsstrike.txt")
-    print(f"[*] Running XSStrike on {len(urls)} URLs...")
-
-    # Append each run's stdout+stderr to xsstrike.txt. subprocess.run with a
-    # list does NOT invoke a shell, so ">" has to be handled here, not in argv.
-    with open(out_file, "a", encoding="utf-8") as fh:
-        for i, url in enumerate(urls, 1):
-            print(f"[XSStrike {i}/{len(urls)}] {url}")
-            try:
-                subprocess.run(
-                    ["python3", xsstrike, "-u", url, "--skip-dom"],
-                    check=False,
-                    timeout=300,
-                    stdout=fh,
-                    stderr=subprocess.STDOUT,
-                )
-            except subprocess.TimeoutExpired:
-                print(f"[!] Timeout after 300s: {url}")
-            except Exception as e:  # noqa: BLE001
-                print(f"[!] XSStrike error on {url}: {e}")
+    return out
 
 
 # --------------------------------------------------------------------------- #
 # Main
 # --------------------------------------------------------------------------- #
 def main():
-    global OUT_DIR, GOBUSTER_OUT
+    here = os.path.dirname(os.path.abspath(__file__))
 
-    if len(sys.argv) < 3:
-        print(__doc__)
-        sys.exit(1)
+    cfg_path = sys.argv[1] if len(sys.argv) > 1 else os.path.join(here, "xss.json")
+    out_path = sys.argv[2] if len(sys.argv) > 2 else os.path.join(here, "payloads.txt")
 
-    target = normalize_target(sys.argv[1])
-    OUT_DIR = sys.argv[2]
-    GOBUSTER_OUT = os.path.join(OUT_DIR, "gobuster.txt")
+    cfg = load_json(cfg_path)
 
-    print(f"[*] Target: {target}")
-    print(f"[*] Output: {OUT_DIR}")
+    event_pool = build_event_pool(cfg)
+    raw        = generate_raw(cfg, event_pool)
+    allp       = set(raw)
+    allp      |= apply_encodings(cfg, raw)
 
-    # 1. Load the gobuster results the C pipeline already produced.
-    gobuster_urls = load_gobuster(target)
-    ROUTES.update(gobuster_urls)
+    sample_size = int(cfg.get("generation_options", {})
+                         .get("random_sample_size", 1000))
+    if sample_size > 0 and len(allp) > sample_size:
+        allp = set(random.sample(sorted(allp), sample_size))
 
-    # 2. Crawl for JS
-    print("[*] Crawling JS...")
-    crawl(target, extra_urls=list(gobuster_urls))
+    payloads = sorted(allp)
 
-    # 3. Persist all routes (crash-safe: written here, not only inside crawl)
-    save_routes()
-    print(f"[*] Total routes: {len(ROUTES)}")
+    out_dir = os.path.dirname(out_path)
+    if out_dir:
+        os.makedirs(out_dir, exist_ok=True)
 
-    # 4. Keep only URLs with query parameters
-    injectable = build_injectable()
-    print(f"[*] Injectable URLs: {len(injectable)}")
+    written = 0
+    with open(out_path, "w", encoding="utf-8") as f:
+        for p in payloads:
+            if not p or "\n" in p or "\r" in p:
+                continue                       # guard: one payload per line
+            f.write(p + "\n")
+            written += 1
 
-    # 5. Scan
-    run_dalfox()
-    run_xsstrike()
-
-    print("[*] Done")
-    print("    - routes.txt   (all extracted routes)")
-    print("    - urls.txt     (injectable URLs fed to scanners)")
-    print("    - dalfox.txt")
-    print("    - xsstrike.txt")
+    print(f"[+] {written} raw-context payloads generated")
+    print(f"[+] Wrote {written} payloads to {out_path}")
 
 
 if __name__ == "__main__":
     try:
         main()
     except KeyboardInterrupt:
-        print("\n[!] Interrupted by user")
+        print("\n[!] Interrupted", file=sys.stderr)
         sys.exit(130)

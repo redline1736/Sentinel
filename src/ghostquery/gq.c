@@ -23,9 +23,9 @@
  * Constants
  * ============================================================================ */
 
-#define MAX_URL_LEN     2048
+#define MAX_URL_LEN     32768
 #define MAX_PARAM_LEN   256
-#define MAX_PAYLOAD_LEN 4096
+#define MAX_PAYLOAD_LEN 32768
 #define MAX_BODY_READ   (1 << 20)   /* 1 MiB reflection-body cap */
 #define CHROME_PORT     9222
 #define CURL_TIMEOUT    10
@@ -84,44 +84,52 @@ static void strip_newline(char *s) {
         s[--len] = '\0';
 }
 
-/* Append "&param=value" (or "?param=value") honoring any #fragment.
- * Preserves an existing query string.  Used by payload stages. */
-static int url_append_param(char *dst, size_t dstsz, const char *url,
-                            const char *param, const char *value) {
-    if (!dst || !url || !param || !value) return 0;
-
-    const char *frag = strchr(url, '#');
-    size_t url_len   = frag ? (size_t)(frag - url) : strlen(url);
-    const char *sep  = memchr(url, '?', url_len) ? "&" : "?";
-
-    int n = snprintf(dst, dstsz, "%.*s%s%s=%s%s",
-                     (int)url_len, url, sep, param, value,
-                     frag ? frag : "");
-    if (n < 0 || (size_t)n >= dstsz) {
-        fprintf(stderr, "Warning: URL construction truncated (needed %d, had %zu)\n",
-                n, dstsz);
-        return 0;
-    }
-    return 1;
-}
-
-/* Build "?param=value" ignoring any pre-existing query string.
- * Used by discovery so that /greet?name=x becomes /greet?probe=asdasda
- * (Flask returns the FIRST value of a repeated param, so appending
- * would give us back the original value, not our marker). */
-static int build_probe_url(char *dst, size_t dstsz,
+/* Insert or replace `param` in the query string, preserving other params
+ * and any #fragment. This is safer than appending: when the base URL is
+ * /greet?name=x and we test param 'name', replacing (rather than appending
+ * a second 'name=') prevents frameworks like Flask from returning the
+ * original value via request.args.get('name'). */
+static int build_param_url(char *dst, size_t dstsz,
                            const char *url, const char *param, const char *value) {
     if (!dst || !url || !param || !value) return 0;
 
-    const char *frag = strchr(url, '#');
-    size_t url_len   = frag ? (size_t)(frag - url) : strlen(url);
-    const char *q    = memchr(url, '?', url_len);
-    size_t base_len  = q ? (size_t)(q - url) : url_len;
+    const char *frag    = strchr(url, '#');
+    size_t      url_len = frag ? (size_t)(frag - url) : strlen(url);
+    const char *q       = memchr(url, '?', url_len);
 
-    int n = snprintf(dst, dstsz, "%.*s?%s=%s",
-                     (int)base_len, url, param, value);
+    /* Look for an existing `param=` segment in the query. */
+    const char *hit     = NULL;
+    const char *seg_end = NULL;
+    if (q) {
+        size_t plen = strlen(param);
+        const char *p   = q + 1;
+        const char *end = url + url_len;
+        while (p < end) {
+            const char *amp = memchr(p, '&', (size_t)(end - p));
+            const char *e   = amp ? amp : end;
+            if ((size_t)(e - p) > plen && p[plen] == '=' &&
+                strncmp(p, param, plen) == 0) {
+                hit = p;
+                seg_end = e;
+                break;
+            }
+            p = amp ? amp + 1 : end;
+        }
+    }
+
+    int n;
+    if (hit) {
+        n = snprintf(dst, dstsz, "%.*s%s=%s%s",
+                     (int)(hit - url), url, param, value, seg_end);
+    } else {
+        const char *sep = q ? "&" : "?";
+        n = snprintf(dst, dstsz, "%.*s%s%s=%s%s",
+                     (int)url_len, url, sep, param, value,
+                     frag ? frag : "");
+    }
     if (n < 0 || (size_t)n >= dstsz) {
-        fprintf(stderr, "Warning: probe URL truncated\n");
+        fprintf(stderr, "[gq] URL too long for param '%s' (needed %d, had %zu)\n",
+                param, n, dstsz);
         return 0;
     }
     return 1;
@@ -138,6 +146,66 @@ static int ensure_directory(const char *path) {
     char tmp[512];
     snprintf(tmp, sizeof(tmp), "mkdir -p %s 2>/dev/null", path);
     return system(tmp);
+}
+
+/* ============================================================================
+ * Payload file iterator — yields ONE payload per call.
+ *
+ * Lines in custom.txt (and many SecLists payload lists) pack N payloads
+ * separated by '|' on a single line. Treating the whole line as a single
+ * value blows past MAX_URL_LEN and produces garbage. This iterator splits
+ * on '|' and trims whitespace.
+ * ============================================================================ */
+
+typedef struct {
+    FILE *fp;
+    char  line[65536];
+    char *cursor;
+} payload_iter;
+
+static void payload_iter_init(payload_iter *it, FILE *fp) {
+    it->fp = fp;
+    it->cursor = NULL;
+}
+
+static int payload_iter_next(payload_iter *it, char *buf, size_t bufsz) {
+    if (bufsz == 0) return 0;
+
+    for (;;) {
+        if (it->cursor && *it->cursor) {
+            char *sep = strchr(it->cursor, '|');
+            char *end = sep ? sep : it->cursor + strlen(it->cursor);
+
+            while (it->cursor < end && isspace((unsigned char)*it->cursor))
+                it->cursor++;
+            while (end > it->cursor && isspace((unsigned char)end[-1]))
+                end--;
+
+            size_t len = (size_t)(end - it->cursor);
+            if (len == 0) {
+                it->cursor = sep ? sep + 1 : NULL;
+                continue;
+            }
+            if (len >= bufsz) len = bufsz - 1;
+            memcpy(buf, it->cursor, len);
+            buf[len] = '\0';
+            it->cursor = sep ? sep + 1 : NULL;
+            return 1;
+        }
+
+        if (!fgets(it->line, sizeof(it->line), it->fp)) return 0;
+
+        strip_newline(it->line);
+
+        /* Skip blank lines and comments */
+        char *p = it->line;
+        while (*p && isspace((unsigned char)*p)) p++;
+        if (*p == '\0' || *p == '#') {
+            it->cursor = NULL;
+            continue;
+        }
+        it->cursor = it->line;
+    }
 }
 
 /* ============================================================================
@@ -172,7 +240,6 @@ static int gq_http_send(request *r, const char *url) {
         proxy = proxy_get_socks();
         if (!proxy)
             fprintf(stderr, "gq_http_send: no proxy available — sending direct\n");
-        /* NOTE: fall through; do NOT return 0 */
     }
 
     if (create_unique_filename(filename, sizeof(filename), "curl") <= 0) {
@@ -213,13 +280,32 @@ static int gq_http_send(request *r, const char *url) {
         curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &http_code);
         r->code = (int)http_code;
     } else {
-        fprintf(stderr, "Request failed for %s: %s\n", url, curl_easy_strerror(result));
+        fprintf(stderr, "Request failed for %s: %s\n",
+                url, curl_easy_strerror(result));
         safe_remove(filename);
         r->filename[0] = '\0';
     }
 
     curl_easy_cleanup(curl);
     return result == CURLE_OK ? 1 : 0;
+}
+
+/* ============================================================================
+ * Reflection-body matcher
+ *
+ * We look for three forms, because servers reflect input in different ways:
+ *   1. raw        -> body contains the payload verbatim
+ *   2. url-encoded-> body contains the encoded form we sent
+ *   3. HTML-escaped first char (common partial-escape) -> "&lt;rest"
+ * ============================================================================ */
+
+static int body_contains_payload(const char *body, const char *raw, const char *enc) {
+    if (!body || !raw || !*raw) return 0;
+    if (strstr(body, raw)) return 1;
+    if (enc && *enc && strcmp(enc, raw) != 0 && strstr(body, enc)) return 1;
+    if (raw[0] == '<' && raw[1] && strstr(body, "&lt;") && strstr(body, raw + 1))
+        return 1;
+    return 0;
 }
 
 /* ============================================================================
@@ -277,7 +363,7 @@ int find_param_reflecting(char *url, char *path) {
         if (buffer[0] == '\0' || buffer[0] == '#') continue;
         if (i >= allocated) break;
 
-        if (!build_probe_url(full_url, sizeof(full_url), url, buffer, "asdasda")) {
+        if (!build_param_url(full_url, sizeof(full_url), url, buffer, "asdasda")) {
             fprintf(stderr, "[find_param_reflecting] URL too long for '%s'\n", buffer);
             i++;
             continue;
@@ -411,26 +497,26 @@ static void xss_payload_run(const char *tag,
         ex = fopen(payload_file, "r");
         if (!ex) { fprintf(stderr, "[%s] cannot open %s\n", tag, payload_file); break; }
 
-        while (fgets(payload, sizeof(payload), ex)) {
+        payload_iter pit;
+        payload_iter_init(&pit, ex);
+
+        while (payload_iter_next(&pit, payload, sizeof(payload))) {
             char *enc;
             int interaction_type;
-
-            strip_newline(payload);
-            if (payload[0] == '\0' || payload[0] == '#') continue;
 
             total_tested++;
 
             enc = curl_easy_escape(NULL, payload, 0);
             if (!enc) continue;
 
-            if (!url_append_param(full_url, sizeof(full_url), url, param, enc)) {
+            if (!build_param_url(full_url, sizeof(full_url), url, param, enc)) {
                 curl_free(enc);
                 continue;
             }
 
             interaction_type = detect_payload_event_type(payload);
-            printf("[%s] Testing: %s=%s (event=%d)\n",
-                   tag, param, payload, interaction_type);
+            printf("[%s] Testing: %s=%s (event=%d, url_len=%zu)\n",
+                   tag, param, payload, interaction_type, strlen(full_url));
 
             if (chrome_initialized) {
                 if (navigate_to(full_url) == -1) { curl_free(enc); continue; }
@@ -446,7 +532,7 @@ static void xss_payload_run(const char *tag,
                 if (gq_http_send(&r, full_url) && r.code == 200) {
                     char *resp = slurp_file(r.filename, NULL);
                     if (resp) {
-                        if (strstr(resp, payload)) {
+                        if (body_contains_payload(resp, payload, enc)) {
                             fprintf(found, "%s -> %s\n", param, payload);
                             fflush(found);
                             total_confirmed++;
@@ -495,7 +581,8 @@ static void mirror_xss_findings(const char *path, const char *report_dir) {
         >= (int)sizeof(mirror))
         return;
 
-    FILE *out = fopen(mirror, "a");
+    /* Open with "w" so repeated runs don't grow the file unboundedly. */
+    FILE *out = fopen(mirror, "w");
     if (!out) return;
 
     const char *files[] = { "valid_payloads.txt", "valid_payloads_custom.txt", NULL };
@@ -508,7 +595,7 @@ static void mirror_xss_findings(const char *path, const char *report_dir) {
         if (!in) continue;
         char line[4096];
         while (fgets(line, sizeof(line), in))
-            fprintf(out, "%s:%s", path, line);   /* tag with subdir */
+            fprintf(out, "%s:%s", path, line);
         fclose(in);
     }
     fclose(out);
@@ -533,8 +620,21 @@ int xss_run(char *url, char *path, char *report_dir) {
     char *payloads = "ghostquery/xss/payloads.txt";
 
     if (!file_exists(payloads)) {
-        if (system("python3 ghostquery/xss/xss.py") != 0) {
-            fprintf(stderr, "warning: xss.py exited with an error (continuing)\n");
+        /* Payload generation is done by an external generator that reads
+         * xss.json. We shell out to the scanner's generation hook if present;
+         * if the payload file still doesn't exist afterwards we warn and
+         * continue — xss_custom does not depend on payloads.txt. */
+        char cmd[4096];
+        snprintf(cmd, sizeof(cmd),
+                 "python3 ghostquery/xss/xss.py '%s' '%s' >/dev/null 2>&1",
+                 url, path);
+        if (system(cmd) != 0)
+            fprintf(stderr, "warning: payload generator exited non-zero (continuing)\n");
+
+        if (!file_exists(payloads)) {
+            fprintf(stderr,
+                    "warning: %s still missing — xss_generated will skip; "
+                    "xss_custom will still run\n", payloads);
         }
     } else {
         printf("[xss_run] Using existing payloads file: %s\n", payloads);

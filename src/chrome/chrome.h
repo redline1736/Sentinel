@@ -21,6 +21,7 @@ int simulate_click(int x, int y);
 int handle_dialogs(int max_polls);
 int detect_payload_event_type(const char *payload);
 int detect_xss(int max_polls, int interaction);
+int probe_runtime_marker(void);   /* returns 0 if window.__gq_xss===1, else 1 */
 void close_chrome(void);
 
 #ifdef __cplusplus

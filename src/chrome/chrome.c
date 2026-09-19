@@ -26,7 +26,7 @@ static size_t write_callback(char *ptr, size_t size, size_t nmemb, void *userdat
     char *buf = (char*)userdata;
     size_t current_len = strlen(buf);
     size_t max_len = 4095;
-    
+
     if (current_len + total > max_len) {
         total = max_len - current_len;
     }
@@ -100,40 +100,49 @@ int discover_ws_url(int port) {
     return 0;
 }
 
-/* Send HTTP command to Chrome */
+/* Send HTTP command to Chrome (kept for API-compat; unused by default) */
 static int send_cdp_http(const char *method, const char *params, int id) {
     if (!c.curl) return -1;
-    
+
     char cmd[MAX_CDP_CMD];
     snprintf(cmd, sizeof(cmd),
              "{\"id\":%d,\"method\":\"%s\",\"params\":%s}", id, method, params);
-    
+
     char response[4096] = {0};
     char url[256];
     snprintf(url, sizeof(url), "http://127.0.0.1:9222/json/rpc");
-    
+
     curl_easy_reset(c.curl);
     curl_easy_setopt(c.curl, CURLOPT_URL, url);
     curl_easy_setopt(c.curl, CURLOPT_POSTFIELDS, cmd);
     curl_easy_setopt(c.curl, CURLOPT_WRITEFUNCTION, write_callback);
     curl_easy_setopt(c.curl, CURLOPT_WRITEDATA, response);
     curl_easy_setopt(c.curl, CURLOPT_TIMEOUT, 5L);
-    
+
     struct curl_slist *headers = NULL;
     headers = curl_slist_append(headers, "Content-Type: application/json");
     curl_easy_setopt(c.curl, CURLOPT_HTTPHEADER, headers);
-    
+
     CURLcode res = curl_easy_perform(c.curl);
     curl_slist_free_all(headers);
-    
+
     if (res != CURLE_OK) {
         fprintf(stderr, "[CDP] send_cdp_http failed: %s\n", curl_easy_strerror(res));
         return -1;
     }
-    
-    printf("[CDP] Command sent: %s\n", method);
     return 0;
 }
+
+/* JS installed on every new document: record XSS firing into window.__gq_xss */
+static const char *INSTRUMENT_JS =
+    "(function(){"
+    "['alert','prompt','confirm'].forEach(function(f){"
+    "var o=window[f];"
+    "window[f]=function(){window.__gq_xss=1;"
+    "try{return o.apply(window,arguments)}catch(e){}};"
+    "});"
+    "window.addEventListener('error',function(){window.__gq_xss=1});"
+    "})()";
 
 /* Initialize Chrome and connect */
 int init_chrome(int port) {
@@ -147,7 +156,7 @@ int init_chrome(int port) {
              ">/dev/null 2>&1 &",
              port, port);
     printf("[CDP] Launching: %s\n", cmd);
-    
+
     if (system(cmd) == -1) {
         fprintf(stderr, "Failed to launch Chrome\n");
         return -1;
@@ -164,57 +173,61 @@ int init_chrome(int port) {
     c.curl = curl_easy_init();
     if (!c.curl) return -1;
 
-    /* Try WebSocket first if available */
     c.use_websocket = 0;
-    
-    /* Check if WebSocket is supported - using feature check that works with older libcurl */
+
     curl_version_info_data *ver = curl_version_info(CURLVERSION_NOW);
     int ws_supported = 0;
-    
-    /* Check if CURL_VERSION_WEBSOCKETS is defined and supported */
+
 #ifdef CURL_VERSION_WEBSOCKETS
-    if (ver && (ver->features & CURL_VERSION_WEBSOCKETS)) {
-        ws_supported = 1;
-    }
+    if (ver && (ver->features & CURL_VERSION_WEBSOCKETS)) ws_supported = 1;
 #else
-    /* CURL_VERSION_WEBSOCKETS not defined - check version instead */
-    if (ver && ver->version_num >= 0x075600) { /* >= 7.86.0 */
-        ws_supported = 1;
-    }
+    if (ver && ver->version_num >= 0x075600) ws_supported = 1;
 #endif
-    
+
     if (ws_supported) {
         printf("[CDP] WebSocket support detected\n");
         c.use_websocket = 1;
-        
+
         curl_easy_setopt(c.curl, CURLOPT_URL, c.ws_url);
         curl_easy_setopt(c.curl, CURLOPT_CONNECT_ONLY, 2L);
-        
+
         CURLcode res = curl_easy_perform(c.curl);
         if (res != CURLE_OK) {
-            fprintf(stderr, "WebSocket connection failed: %s, falling back to HTTP\n", 
+            fprintf(stderr, "WebSocket connection failed: %s, falling back to HTTP\n",
                     curl_easy_strerror(res));
             c.use_websocket = 0;
-            /* Try HTTP fallback */
             curl_easy_cleanup(c.curl);
             c.curl = curl_easy_init();
             if (!c.curl) return -1;
         } else {
             printf("[CDP] WebSocket connected\n");
-            const char *enable_cmd = "{\"id\":1,\"method\":\"Page.enable\"}";
             size_t sent;
+
+            const char *enable_cmd = "{\"id\":1,\"method\":\"Page.enable\"}";
             curl_ws_send(c.curl, enable_cmd, strlen(enable_cmd), &sent, 0, CURLWS_TEXT);
-            printf("[CDP] Page.enable sent\n");
+
+            const char *rt_cmd = "{\"id\":2,\"method\":\"Runtime.enable\"}";
+            curl_ws_send(c.curl, rt_cmd, strlen(rt_cmd), &sent, 0, CURLWS_TEXT);
+
+            /* Install marker hook into every new document. The source string
+             * contains no double-quotes so it needs no JSON escaping. */
+            char instr[2048];
+            snprintf(instr, sizeof(instr),
+                     "{\"id\":3,\"method\":\"Page.addScriptToEvaluateOnNewDocument\","
+                     "\"params\":{\"source\":\"%s\"}}",
+                     INSTRUMENT_JS);
+            curl_ws_send(c.curl, instr, strlen(instr), &sent, 0, CURLWS_TEXT);
+
+            printf("[CDP] Page.enable + Runtime.enable + instrumentation sent\n");
             return 0;
         }
     }
-    
-    /* HTTP fallback */
+
     printf("[CDP] Using HTTP fallback\n");
     curl_easy_setopt(c.curl, CURLOPT_TIMEOUT, 5L);
     curl_easy_setopt(c.curl, CURLOPT_CONNECTTIMEOUT, 3L);
     printf("[CDP] HTTP connection established\n");
-    
+
     return 0;
 }
 
@@ -224,28 +237,27 @@ int navigate_to(const char *url) {
         fprintf(stderr, "Not connected\n");
         return -1;
     }
-    
+
     if (c.use_websocket) {
-        char nav_cmd[1024];
+        char nav_cmd[8192];
         snprintf(nav_cmd, sizeof(nav_cmd),
-                 "{\"id\":2,\"method\":\"Page.navigate\","
+                 "{\"id\":50,\"method\":\"Page.navigate\","
                  "\"params\":{\"url\":\"%s\"}}",
                  url);
         size_t sent;
         curl_ws_send(c.curl, nav_cmd, strlen(nav_cmd), &sent, 0, CURLWS_TEXT);
     } else {
-        char params[1024];
+        char params[8192];
         snprintf(params, sizeof(params), "{\"url\":\"%s\"}", url);
-        send_cdp_http("Page.navigate", params, 2);
+        send_cdp_http("Page.navigate", params, 50);
     }
-    
     return 0;
 }
 
 /* Send a raw CDP command */
 int send_cdp(const char *method, const char *params, int id) {
     if (!c.curl) return -1;
-    
+
     if (c.use_websocket) {
         char cmd[MAX_CDP_CMD];
         snprintf(cmd, sizeof(cmd),
@@ -253,7 +265,8 @@ int send_cdp(const char *method, const char *params, int id) {
         size_t sent;
         CURLcode res = curl_ws_send(c.curl, cmd, strlen(cmd), &sent, 0, CURLWS_TEXT);
         if (res != CURLE_OK) {
-            fprintf(stderr, "[CDP] send_cdp failed (%s): %s\n", method, curl_easy_strerror(res));
+            fprintf(stderr, "[CDP] send_cdp failed (%s): %s\n",
+                    method, curl_easy_strerror(res));
             return -1;
         }
     } else {
@@ -269,9 +282,7 @@ int simulate_mouse_move(int x, int y) {
              "{\"type\":\"mouseMoved\",\"x\":%d,\"y\":%d,"
              "\"button\":\"none\",\"modifiers\":0,\"pointerType\":\"mouse\"}",
              x, y);
-    int ret = send_cdp("Input.dispatchMouseEvent", params, 100);
-    if (ret == 0)
-    return ret;
+    return send_cdp("Input.dispatchMouseEvent", params, 100);
 }
 
 /* Simulate mouse click */
@@ -293,19 +304,13 @@ int simulate_click(int x, int y) {
              "\"button\":\"left\",\"clickCount\":1,\"modifiers\":0,"
              "\"pointerType\":\"mouse\"}",
              x, y);
-    int ret = send_cdp("Input.dispatchMouseEvent", release_params, 102);
-    if (ret == 0)
-        
-    return ret;
+    return send_cdp("Input.dispatchMouseEvent", release_params, 102);
 }
 
 /* Poll for dialogs and handle them */
 int handle_dialogs(int max_polls) {
     if (!c.curl) return -1;
-
-    if (!c.use_websocket) {
-        return 1;
-    }
+    if (!c.use_websocket) return 1;
 
     for (int i = 0; i < max_polls; i++) {
         const struct curl_ws_frame *meta;
@@ -317,14 +322,10 @@ int handle_dialogs(int max_polls) {
             usleep(100000);
             continue;
         }
-        if (rc != CURLE_OK) {
-            fprintf(stderr, "WebSocket recv error: %s\n", curl_easy_strerror(rc));
-            break;
-        }
+        if (rc != CURLE_OK) break;
         if (nread == 0) continue;
 
         buf[nread] = '\0';
-        printf("[WS] %s\n", buf);
 
         if (strstr(buf, "Page.javascriptDialogOpening")) {
             const char *handle_cmd =
@@ -339,10 +340,39 @@ int handle_dialogs(int max_polls) {
     return 1;
 }
 
+/* Check window.__gq_xss via Runtime.evaluate.
+ * Returns 0 if the marker fired, 1 otherwise. */
+int probe_runtime_marker(void) {
+    if (!c.curl || !c.use_websocket) return 1;
+
+    const char *cmd =
+        "{\"id\":77,\"method\":\"Runtime.evaluate\",\"params\":{"
+        "\"expression\":\"window.__gq_xss===1\","
+        "\"returnByValue\":true}}";
+
+    size_t sent;
+    if (curl_ws_send(c.curl, cmd, strlen(cmd), &sent, 0, CURLWS_TEXT) != CURLE_OK)
+        return 1;
+
+    for (int i = 0; i < 20; i++) {
+        const struct curl_ws_frame *meta;
+        char buf[4096];
+        size_t n;
+        CURLcode rc = curl_ws_recv(c.curl, buf, sizeof(buf) - 1, &n, &meta);
+        if (rc == CURLE_AGAIN) { usleep(50000); continue; }
+        if (rc != CURLE_OK) break;
+        if (n == 0) continue;
+        buf[n] = '\0';
+        if (strstr(buf, "\"id\":77") && strstr(buf, "\"value\":true"))
+            return 0;
+    }
+    return 1;
+}
+
 /* Detect what interaction a payload needs based on its event handler */
 int detect_payload_event_type(const char *payload) {
     if (!payload) return XSS_INTERACT_NONE;
-    
+
     if (strstr(payload, "onmousemove") ||
         strstr(payload, "onmouseover") ||
         strstr(payload, "onmouseenter") ||
@@ -362,16 +392,16 @@ int detect_payload_event_type(const char *payload) {
     return XSS_INTERACT_NONE;
 }
 
-/* Enhanced XSS detection */
+/* Enhanced XSS detection — dialogs OR runtime marker */
 int detect_xss(int max_polls, int interaction) {
     if (interaction == XSS_INTERACT_MOUSE) {
         for (int step = 0; step < 10; step++) {
             simulate_mouse_move(step * 100 + 10, 50 + (step % 5) * 30);
             usleep(80000);
-            if (handle_dialogs(3) == 0)
-                return 0;
+            if (handle_dialogs(3) == 0) return 0;
         }
-        return handle_dialogs(max_polls);
+        if (handle_dialogs(max_polls) == 0) return 0;
+        return probe_runtime_marker();
     }
 
     if (interaction == XSS_INTERACT_CLICK) {
@@ -382,13 +412,14 @@ int detect_xss(int max_polls, int interaction) {
         for (int i = 0; i < 6; i++) {
             simulate_click(click_positions[i][0], click_positions[i][1]);
             usleep(100000);
-            if (handle_dialogs(3) == 0)
-                return 0;
+            if (handle_dialogs(3) == 0) return 0;
         }
-        return handle_dialogs(max_polls);
+        if (handle_dialogs(max_polls) == 0) return 0;
+        return probe_runtime_marker();
     }
 
-    return handle_dialogs(max_polls);
+    if (handle_dialogs(max_polls) == 0) return 0;
+    return probe_runtime_marker();
 }
 
 /* Clean up */
