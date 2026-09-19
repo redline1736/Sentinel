@@ -18,6 +18,7 @@ static void print_usage(const char *prog) {
     printf("        --fast-scan     full scan pipeline on interesting hosts\n");
     printf("        --full-scan     full scan on ALL hosts\n");
     printf("        --scan-url <url>  single-URL scan (full pipeline, no subdomain enum)\n");
+    printf("        --scan-site <url>  single-site scan (gobuster + per-URL deep pass)\n");
     printf("  proxy flags (default: direct, no proxy):\n");
     printf("        --tor           route through a pool of local Tor SOCKS5 instances\n");
     printf("        --elite         use live ProxyScrape 'elite' public proxies (WARNING: untrusted)\n");
@@ -105,7 +106,7 @@ int main(int argc, char *argv[]) {
     g.proxy_mode = PROXY_NONE;
     g.proxy_list[0] = '\0';
 
-    /* --scan-url puts the URL at argv[4]; flags start at argv[5] */
+    /* --scan-url / --scan-site put the URL at argv[4]; flags start at argv[5] */
     int flag_start = 4;
     if (strcmp(argv[3], "--scan-url") == 0) {
         if (argc < 5) {
@@ -116,23 +117,17 @@ int main(int argc, char *argv[]) {
     }
     else if (strcmp(argv[3], "--scan-site") == 0) {
         if (argc < 5) {
-            fprintf(stderr, "[-] --scan-url requires a URL argument\n");
+            fprintf(stderr, "[-] --scan-site requires a URL argument\n");
             return 1;
         }
         flag_start = 5;
     }
     else if (strcmp(argv[3], "test-new-feature") == 0) {
         if (argc < 5) {
-            fprintf(stderr, "[-] --scan-url requires a URL argument\n");
+            fprintf(stderr, "[-] test-new-feature requires a URL argument\n");
             return 1;
         }
         flag_start = 5;
-    } else if (strcmp(argv[3], "--test-dvr") == 0){
-        if (argc < 5) {
-            fprintf(stderr, "[-] --scan-url requires a URL argument\n");
-            return 1;
-        }
-        flag_start = 5;       
     }
 
     /* --- optional flags --- */
@@ -200,7 +195,8 @@ int main(int argc, char *argv[]) {
         run(NULL);
     }
     else if (strcmp(argv[3], "test-new-feature") == 0) {
-        xss_run(argv[4], argv[2]);
+        /* FIX: xss_run signature is (url, path, report_dir) */
+        xss_run(argv[4], argv[2], argv[2]);
     }
     else if (strcmp(argv[3], "--scan-url") == 0) {
         g.urlscan = true;
@@ -212,7 +208,7 @@ int main(int argc, char *argv[]) {
         /* pipeline + per-host output dirs key off g.domain / live.txt */
         strncpy(g.domain, host, sizeof(g.domain) - 1);
         g.domain[sizeof(g.domain) - 1] = '\0';
-  
+
         write_live(host);
 
         run(argv[4]);                      /* same pipeline as --full-scan, minus subdomain */
@@ -228,7 +224,7 @@ int main(int argc, char *argv[]) {
         /* pipeline + per-host output dirs key off g.domain / live.txt */
         strncpy(g.domain, host, sizeof(g.domain) - 1);
         g.domain[sizeof(g.domain) - 1] = '\0';
-  
+
         write_live(host);
 
         run(NULL);                      /* same pipeline as --full-scan, minus subdomain */

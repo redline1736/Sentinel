@@ -90,7 +90,7 @@ jobs:
           go install github.com/hahwul/dalfox/v2@latest
           go install -v github.com/PentestPad/subzy@latest
           go install -mod=mod github.com/haccer/subjack@latest
-          go install github.com/OJ/gobuster/v3@latest 
+          go install github.com/OJ/gobuster/v3@latest
 
       - name: Install wpscan with proper permissions
         run: |
@@ -120,7 +120,7 @@ jobs:
             -o "${SECLISTS}/Discovery/Web-Content/common.txt"
 
           echo "greet" | sudo tee -a /usr/share/seclists/Discovery/Web-Content/common.txt
-            
+
       - name: Download sentinel binary
         uses: actions/download-artifact@v4
         with:
@@ -132,38 +132,40 @@ jobs:
       - name: Run Subdomain test
         continue-on-error: true
         run: |
-          set -e
           export PATH="$(ruby -e 'puts Gem.user_dir')/bin:$PATH"
           # Run tests for sentinel
           ./sentinel rapyd.org test_sub -sub
-          
+
       - name: Run Scan URL test
         continue-on-error: true
         run: |
-          set -e
+          ./sentinel thegod.pythonanywhere.com testscanurlecho \
+            --scan-url https://thegod.pythonanywhere.com/echo
 
-          ./sentinel thegod.pythonanywhere.com testscansite --scan-url https://thegod.pythonanywhere.com/echo
+          ./sentinel thegod.pythonanywhere.com testscanurlpreview \
+            --scan-url https://thegod.pythonanywhere.com/preview
 
-          ./sentinel thegod.pythonanywhere.com testscansite --scan-url https://thegod.pythonanywhere.com/preview
+          ./sentinel thegod.pythonanywhere.com testscanurlsearch \
+            --scan-url https://thegod.pythonanywhere.com/search
 
-          ./sentinel thegod.pythonanywhere.com testscansite --scan-url https://thegod.pythonanywhere.com/search
-
-          ./sentinel thegod.pythonanywhere.com testscansite --scan-url https://thegod.pythonanywhere.com/user
+          ./sentinel thegod.pythonanywhere.com testscanurluser \
+            --scan-url https://thegod.pythonanywhere.com/user
 
       - name: Run Scan Site test
         continue-on-error: true
         run: |
-          set -e
-           ./sentinel thegod.pythonanywhere.com testscansite --scan-site "https://thegod.pythonanywhere.com/
+          ./sentinel thegod.pythonanywhere.com testscansite \
+            --scan-site "https://thegod.pythonanywhere.com/"
 
-      - name: Run Xss test
+      - name: Run XSS test
         continue-on-error: true
         run: |
-          set -e
-          echo "XSS TEST"
-          ./sentinel thegod.pythonanywhere.com testscansite --scan-site https://thegod.pythonanywhere.com/xss
+          echo "=== XSS TEST ==="
+          ./sentinel thegod.pythonanywhere.com testxss \
+            --scan-url https://thegod.pythonanywhere.com/xss
 
-          ./sentinel thegod.pythonanywhere.com testscansite --scan-site https://thegod.pythonanywhere.com/nuclei-xss
+          ./sentinel thegod.pythonanywhere.com testnucleixss \
+            --scan-url https://thegod.pythonanywhere.com/nuclei-xss
 
       - name: Upload all test output directories
         if: always()
@@ -172,11 +174,13 @@ jobs:
           name: test-outputs
           path: |
             test_sub/
-            testscanurl/
+            testscanurlecho/
+            testscanurlpreview/
+            testscanurlsearch/
+            testscanurluser/
             testscansite/
-            testxsslow/
-            testxssmedium/
-            testxsshigh/
-            testxssimpossible/
+            testxss/
+            testnucleixss/
             ghostquery/
           retention-days: 14
+          if-no-files-found: warn

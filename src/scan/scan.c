@@ -508,7 +508,7 @@ void scanning(char *target_url) {
                                tline, rc);
 
                     /* 4b. XSS scanner finds reflecting params for this URL */
-                    xss_run(tline, subdir);
+                    xss_run(tline, subdir, hostdir); 
 
                     /* 4c. Param-driven nuclei (uses valid_params.txt) */
                     nuclei_run(tline, subdir);
@@ -550,7 +550,7 @@ void scanning(char *target_url) {
                 printf("[!] xss pipeline failed on %s with code %d\n", buffer, xrc);
 
             /* FIX: was buffer, must be target_url */
-            xss_run(target_url, hostdir);
+            xss_run(target_url, hostdir, hostdir);
             nuclei_run(target_url, hostdir);
         }
     }

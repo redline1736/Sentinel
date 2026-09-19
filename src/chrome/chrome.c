@@ -239,7 +239,6 @@ int navigate_to(const char *url) {
         send_cdp_http("Page.navigate", params, 2);
     }
     
-    printf("[CDP] Navigate sent: %s\n", url);
     return 0;
 }
 
@@ -272,7 +271,6 @@ int simulate_mouse_move(int x, int y) {
              x, y);
     int ret = send_cdp("Input.dispatchMouseEvent", params, 100);
     if (ret == 0)
-        printf("[CDP] Mouse moved to (%d, %d)\n", x, y);
     return ret;
 }
 
@@ -297,7 +295,7 @@ int simulate_click(int x, int y) {
              x, y);
     int ret = send_cdp("Input.dispatchMouseEvent", release_params, 102);
     if (ret == 0)
-        printf("[CDP] Click at (%d, %d)\n", x, y);
+        
     return ret;
 }
 
