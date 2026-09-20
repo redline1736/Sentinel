@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-ghostquery/xss/generate_payloads.py
+ghostquery/xss/main.py
 
 Reads xss.json (same directory by default) and writes one XSS payload
 per line to payloads.txt.

@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """
-ghostquery/xss/main.py — JS route harvester + XSS scanner.
+ghostquery/xss/xss.py — JS route harvester + XSS scanner.
 
 Usage:
-    python3 ghostquery/xss/main.py <target-url> <output-dir> [--gobuster <file>]
+    python3 ghostquery/xss/xss.py <target-url> <output-dir> [--gobuster <file>]
 
 Arguments:
     <target-url>     Full URL or bare hostname. Examples:

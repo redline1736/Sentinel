@@ -5,12 +5,18 @@
 #include <ctype.h>
 #include <errno.h>
 #include <time.h>
+#include <strings.h>        /* strcasecmp / strncasecmp */
+#include <sys/types.h>
+#include <sys/socket.h>
+#include <netdb.h>          /* getaddrinfo, AI_CANONNAME */
 #include <curl/curl.h>
+
 #include "sub.h"
+
 /* ------------------------------------------------------------------ */
 /* Tunables                                                            */
 /* ------------------------------------------------------------------ */
-#define BODY_MAX         (256 * 1024)   /* cap response body at 256 KB    */
+#define BODY_MAX         (1024 * 1024)   /* 1 MiB */
 #define CNAME_MAX        512
 #define MAX_FP           256
 #define HTTP_TIMEOUT     10L
@@ -26,28 +32,47 @@ typedef struct {
     char fingerprint[256];
 } fp_t;
 
-static fp_t  g_fps[MAX_FP];
-static int   g_fp_count = 0;
+static fp_t g_fps[MAX_FP];
+static int  g_fp_count = 0;
 
 /* ------------------------------------------------------------------ */
-/* Response body buffer                                                */
+/* Heap-allocated response body                                        */
 /* ------------------------------------------------------------------ */
 typedef struct {
-    char   data[BODY_MAX + 1];
+    char  *data;
     size_t len;
+    size_t cap;
 } body_t;
+
+static int body_init(body_t *b, size_t cap) {
+    b->data = malloc(cap + 1);
+    if (!b->data) return -1;
+    b->data[0] = '\0';
+    b->len     = 0;
+    b->cap     = cap;
+    return 0;
+}
+
+static void body_free(body_t *b) {
+    if (!b) return;
+    free(b->data);
+    b->data = NULL;
+    b->len  = b->cap = 0;
+}
 
 static size_t body_write_cb(void *ptr, size_t size, size_t nmemb, void *ud) {
     size_t realsize = size * nmemb;
     body_t *b = (body_t *)ud;
-    size_t space = BODY_MAX - b->len;
+    if (!b || !b->data) return size * nmemb;
+
+    size_t space = b->cap - b->len;
     if (realsize > space) realsize = space;
     if (realsize > 0) {
         memcpy(b->data + b->len, ptr, realsize);
         b->len += realsize;
         b->data[b->len] = '\0';
     }
-    /* Always return the FULL size or curl aborts the transfer. */
+    /* Always report FULL size or curl aborts the transfer. */
     return size * nmemb;
 }
 
@@ -92,10 +117,9 @@ static int load_driver(const char *file) {
     while (fgets(line, sizeof(line), fp)) {
         lineno++;
         rstrip(line);
-
         if (line[0] == '\0' || line[0] == '#') continue;
 
-        char *save = NULL;
+        char *save        = NULL;
         char *provider    = strtok_r(line, "|", &save);
         char *cname       = strtok_r(NULL, "|", &save);
         char *fingerprint = strtok_r(NULL, "|", &save);
@@ -105,18 +129,16 @@ static int load_driver(const char *file) {
                     lineno, line);
             continue;
         }
-
         if (g_fp_count >= MAX_FP) {
             fprintf(stderr, "[!] Driver table full (%d entries), stopping\n",
                     MAX_FP);
             break;
         }
 
-        /* snprintf always null-terminates; strncpy does NOT. */
         snprintf(g_fps[g_fp_count].provider,
                  sizeof(g_fps[g_fp_count].provider), "%s", provider);
         snprintf(g_fps[g_fp_count].cname,
-                 sizeof(g_fps[g_fp_count].cname), "%s", cname);
+                 sizeof(g_fps[g_fp_count].cname),    "%s", cname);
         snprintf(g_fps[g_fp_count].fingerprint,
                  sizeof(g_fps[g_fp_count].fingerprint), "%s", fingerprint);
         g_fp_count++;
@@ -127,59 +149,69 @@ static int load_driver(const char *file) {
 }
 
 /* ------------------------------------------------------------------ */
-/* DNS: does the host resolve at all?                                  */
-/* ------------------------------------------------------------------ */
-static int host_resolves(const char *host) {
-    /* Use getent (portable, works without libresolv) via popen. */
-    char cmd[512];
-    snprintf(cmd, sizeof(cmd), "getent hosts %s >/dev/null 2>&1", host);
-    int rc = system(cmd);
-    return rc == 0;
-}
-
-/* ------------------------------------------------------------------ */
-/* CNAME: walk the full chain, concatenate into `out`.                 */
-/* Returns 1 if at least one CNAME hop was found, else 0.              */
+/* CNAME chain. No hard dependency on `dig` or `getent`.               */
+/*   1) getaddrinfo(AI_CANONNAME)   — portable, always available       */
+/*   2) `dig +short CNAME` (optional) — augments if binary is present  */
+/* Returns 1 if any CNAME hop was found, else 0.                       */
 /* ------------------------------------------------------------------ */
 static int get_cname_chain(const char *domain, char *out, size_t outsz) {
-    char cmd[512];
-    /* +short collapses the chain to one line per hop */
-    snprintf(cmd, sizeof(cmd), "dig +short CNAME %s 2>/dev/null", domain);
-
-    FILE *fp = popen(cmd, "r");
-    if (!fp) return 0;
-
+    if (!domain || !out || outsz == 0) return 0;
     out[0] = '\0';
-    char line[256];
-    int  found = 0;
+    int found = 0;
 
-    while (fgets(line, sizeof(line), fp)) {
-        rstrip(line);
-        if (line[0] == '\0') continue;
-        found = 1;
+    /* ---- 1. getaddrinfo ---- */
+    struct addrinfo hints;
+    memset(&hints, 0, sizeof(hints));
+    hints.ai_family   = AF_UNSPEC;
+    hints.ai_socktype = SOCK_STREAM;
+    hints.ai_flags    = AI_CANONNAME;
 
-        size_t cur = strlen(out);
-        if (cur + strlen(line) + 2 >= outsz) break;
-
-        if (cur) {
-            out[cur++] = ' ';
-            out[cur]   = '\0';
+    struct addrinfo *res = NULL;
+    if (getaddrinfo(domain, NULL, &hints, &res) == 0 && res) {
+        const char *canon = res->ai_canonname;
+        if (canon && *canon && strcasecmp(canon, domain) != 0) {
+            snprintf(out, outsz, "%s", canon);
+            found = 1;
         }
-        strncat(out, line, outsz - strlen(out) - 1);
+        freeaddrinfo(res);
     }
-    pclose(fp);
+
+    /* ---- 2. dig fallback / augmentation ---- */
+    char cmd[512];
+    snprintf(cmd, sizeof(cmd), "dig +short CNAME %s 2>/dev/null", domain);
+    FILE *fp = popen(cmd, "r");
+    if (fp) {
+        char line[256];
+        while (fgets(line, sizeof(line), fp)) {
+            rstrip(line);
+            if (line[0] == '\0') continue;
+
+            if (!found) {
+                snprintf(out, outsz, "%s", line);
+                found = 1;
+            } else if (!stristr(out, line)) {
+                size_t cur = strlen(out);
+                if (cur + 1 + strlen(line) + 1 < outsz) {
+                    out[cur] = ' ';
+                    snprintf(out + cur + 1, outsz - cur - 1, "%s", line);
+                }
+            }
+        }
+        pclose(fp);
+    }
+
     return found;
 }
 
 /* ------------------------------------------------------------------ */
-/* HTTP GET with HTTPS→HTTP fallback. Returns status code or -1.       */
+/* HTTP GET. Returns status code or -1 on transport failure.           */
 /* ------------------------------------------------------------------ */
 static long http_get_sub(const char *url, body_t *body) {
     CURL *curl = curl_easy_init();
     if (!curl) return -1;
 
-    body->data[0] = '\0';
     body->len     = 0;
+    body->data[0] = '\0';
 
     curl_easy_setopt(curl, CURLOPT_URL, url);
     curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, body_write_cb);
@@ -190,9 +222,8 @@ static long http_get_sub(const char *url, body_t *body) {
     curl_easy_setopt(curl, CURLOPT_CONNECTTIMEOUT, CONNECT_TIMEOUT);
     curl_easy_setopt(curl, CURLOPT_USERAGENT, USER_AGENT);
     curl_easy_setopt(curl, CURLOPT_NOSIGNAL, 1L);
-    curl_easy_setopt(curl, CURLOPT_ACCEPT_ENCODING, "");  /* auto-gzip */
-
-    /* Unclaimed services often have broken/expired certs. */
+    curl_easy_setopt(curl, CURLOPT_ACCEPT_ENCODING, "");
+    /* Dangling records often have broken/expired certs. */
     curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, 0L);
     curl_easy_setopt(curl, CURLOPT_SSL_VERIFYHOST, 0L);
 
@@ -206,10 +237,35 @@ static long http_get_sub(const char *url, body_t *body) {
     return (rc == CURLE_OK) ? code : -1;
 }
 
+/* Try HTTP first, then HTTPS.  Returns the first scheme that produced
+ * a non-empty body.  Records which scheme won in `used_scheme`.        */
+static long fetch_both(const char *host, body_t *body,
+                       char *used_scheme, size_t ss) {
+    char url[600];
+    long code;
+
+    if (used_scheme && ss) used_scheme[0] = '\0';
+
+    snprintf(url, sizeof(url), "http://%s/", host);
+    code = http_get_sub(url, body);
+    if (code > 0 && body->len > 0) {
+        if (used_scheme && ss) snprintf(used_scheme, ss, "http");
+        return code;
+    }
+
+    snprintf(url, sizeof(url), "https://%s/", host);
+    code = http_get_sub(url, body);
+    if (code > 0 && body->len > 0) {
+        if (used_scheme && ss) snprintf(used_scheme, ss, "https");
+        return code;
+    }
+
+    if (used_scheme && ss) snprintf(used_scheme, ss, "none");
+    return code;
+}
+
 /* ------------------------------------------------------------------ */
 /* Check one host. Returns 1 if vulnerable, 0 otherwise.               */
-/* Writes provider name into provider_out and a human detail into      */
-/* detail_out.                                                         */
 /* ------------------------------------------------------------------ */
 static int check_host(const char *host,
                       char *provider_out, size_t provider_sz,
@@ -219,65 +275,60 @@ static int check_host(const char *host,
     detail_out[0]   = '\0';
     *http_code_out  = 0;
 
-    /* 1. If it doesn't resolve, nothing to take over. */
-    if (!host_resolves(host)) {
-        snprintf(detail_out, detail_sz, "does not resolve");
-        return 0;
-    }
-
-    /* 2. Get the full CNAME chain (if any). */
     char cname[CNAME_MAX] = {0};
     int  has_cname = get_cname_chain(host, cname, sizeof(cname));
 
-    /* 3. Fetch root over HTTPS, fall back to HTTP. */
     body_t body;
-    char   url[600];
-    long   code;
-
-    snprintf(url, sizeof(url), "https://%s/", host);
-    code = http_get_sub(url, &body);
-    if (code < 0) {
-        snprintf(url, sizeof(url), "http://%s/", host);
-        code = http_get_sub(url, &body);
-    }
-    *http_code_out = code;
-
-    if (code < 0 || body.len == 0) {
-        snprintf(detail_out, detail_sz, "no HTTP response");
+    if (body_init(&body, BODY_MAX) != 0) {
+        snprintf(detail_out, detail_sz, "out of memory");
         return 0;
     }
 
-    /* 4. Match fingerprints: CNAME (if we got one) AND body must match. */
+    char scheme[8] = {0};
+    long code = fetch_both(host, &body, scheme, sizeof(scheme));
+    *http_code_out = code;
+
+    if (code < 0 || body.len == 0) {
+        snprintf(detail_out, detail_sz,
+                 "no HTTP body (scheme=%s cname='%s' http=%ld)",
+                 scheme[0] ? scheme : "none",
+                 has_cname ? cname : "(none)", code);
+        body_free(&body);
+        return 0;
+    }
+
+    /* Fingerprint match.  CNAME is only required when both sides have
+     * data; body-only entries are still tested. */
     for (int i = 0; i < g_fp_count; i++) {
-        /* If the driver row has a CNAME hint and we got a CNAME,
-         * require the hint to appear. If we got NO CNAME, skip the row
-         * entirely — a body-only match is too noisy. */
-        if (!has_cname) break;
-        if (!stristr(cname, g_fps[i].cname)) continue;
+        if (has_cname && g_fps[i].cname[0] &&
+            !stristr(cname, g_fps[i].cname))
+            continue;
         if (!stristr(body.data, g_fps[i].fingerprint)) continue;
 
         snprintf(provider_out, provider_sz, "%s", g_fps[i].provider);
         snprintf(detail_out, detail_sz,
-                 "cname='%s' sig='%s' http=%ld",
-                 cname, g_fps[i].fingerprint, code);
+                 "scheme=%s cname='%s' sig='%s' http=%ld bodylen=%zu",
+                 scheme, has_cname ? cname : "(none)",
+                 g_fps[i].fingerprint, code, body.len);
+        body_free(&body);
         return 1;
     }
 
     snprintf(detail_out, detail_sz,
-             "cname='%s' http=%ld no sig match",
-             has_cname ? cname : "(none)", code);
+             "scheme=%s cname='%s' http=%ld bodylen=%zu no sig match",
+             scheme, has_cname ? cname : "(none)", code, body.len);
+    body_free(&body);
     return 0;
 }
 
 /* ------------------------------------------------------------------ */
-/* main                                                                */
+/* Public entry point                                                  */
 /* ------------------------------------------------------------------ */
 int atlas(char *hosts_file, char *hostdir) {
     char out_file[512];
     snprintf(out_file, sizeof(out_file), "%s/atlas.txt", hostdir);
- 
-    const char driver_file[] = "atlas/sig.txt";
 
+    const char driver_file[] = "atlas/sig.txt";
 
     if (curl_global_init(CURL_GLOBAL_DEFAULT) != 0) {
         fprintf(stderr, "[-] curl_global_init failed\n");
@@ -309,41 +360,43 @@ int atlas(char *hosts_file, char *hostdir) {
         return 1;
     }
 
-    char  line[512];
-    int   total = 0, vuln = 0;
+    char   line[512];
+    int    total = 0, vuln = 0;
     time_t start = time(NULL);
 
     while (fgets(line, sizeof(line), in)) {
         rstrip(line);
         if (line[0] == '\0' || line[0] == '#') continue;
 
-        /* Skip entries containing '/' — a host list shouldn't have paths. */
-        if (strchr(line, '/')) {
-            printf("[!] Skipping invalid host entry: %s\n", line);
-            continue;
-        }
+        /* Accept bare hostnames AND URLs. Strip scheme + path in place. */
+        char *host = line;
+        if      (strncmp(host, "https://", 8) == 0) host += 8;
+        else if (strncmp(host, "http://",  7) == 0) host += 7;
+
+        char *slash = strchr(host, '/');
+        if (slash) *slash = '\0';
+
+        if (host[0] == '\0') continue;
 
         total++;
-        printf("[*] Checking %s\n", line);
+        printf("[*] Checking %s\n", host);
 
         char provider[128] = {0};
         char detail[512]   = {0};
         long http_code     = 0;
 
-        int is_vuln = check_host(line, provider, sizeof(provider),
+        int is_vuln = check_host(host, provider, sizeof(provider),
                                  detail, sizeof(detail), &http_code);
 
         if (is_vuln) {
             vuln++;
             printf("[+] VULNERABLE: %s -> %s (HTTP %ld)\n",
-                   line, provider, http_code);
-            /* Emit the exact tag subjack/subzy use so analyze() in
-             * scan.c picks this up without modification. */
+                   host, provider, http_code);
             fprintf(out, "[VULNERABLE] %s -> %s (HTTP %ld) %s\n",
-                    line, provider, http_code, detail);
+                    host, provider, http_code, detail);
             fflush(out);
         } else {
-            printf("[-] %s — %s\n", line, detail);
+            printf("[-] %s — %s\n", host, detail);
         }
     }
 

@@ -1,15 +1,18 @@
 # takeover_drivers.txt — subzy-equivalent fingerprint database
 # Format: provider|cname_substring|body_fingerprint
 # Both columns are matched case-insensitively as substrings.
-# CNAME column is matched against the full `dig +short CNAME` chain.
-# Body column is matched against the HTTP response body.
+# CNAME column is matched against the full CNAME chain
+# (getaddrinfo AI_CANONNAME + optional dig).
+# Body column is matched against the HTTP response body (HTTP tried
+# first, HTTPS as fallback).
 
 # ---------------------------------------------------------------
-# Providers flagged by subzy on rapyd.org (your test case)
+# Providers flagged by subzy on rapyd.org (verified fingerprints)
 # ---------------------------------------------------------------
-Cargo Collective|cargocollective.com|If you're the owner of this website
+Cargo Collective|cargocollective.com|<title>404 - Not Found</title>
 Cargo Collective|cargocollective.com|404 Not Found
 Uptimerobot|uptimerobot.com|page not found
+Uptimerobot|uptimerobot.com|Page not found
 
 # ---------------------------------------------------------------
 # Amazon
@@ -48,7 +51,7 @@ Azure Websites|azurewebsites.net|Error 404 - Web app not found.
 Azure CDN|azureedge.net|The specified resource does not exist
 Azure Traffic Manager|trafficmanager.net|Not Found
 Azure Blob|blob.core.windows.net|The specified resource does not exist
-Azure CloudApp|cloudapp.net|Error 404 - Web app not found
+Azure CloudApp|cloudapp.net|Error 404 - Web app not found.
 Azure CloudApp (alt)|cloudapp.azure.com|Error 404 - Web app not found
 Google Cloud|googleapis.com|The requested URL was not found on this server
 Google App Engine|appspot.com|404 Not Found

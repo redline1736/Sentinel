@@ -540,7 +540,7 @@ void scanning(char *target_url) {
 
             /* XSS scanner finds params on target_url */
             char *xss_args[] = {
-                "python3", "ghostquery/xss/main.py",
+                "python3", "ghostquery/xss/xss.py",
                 target_url,
                 hostdir,
                 NULL

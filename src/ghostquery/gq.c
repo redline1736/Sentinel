@@ -85,10 +85,8 @@ static void strip_newline(char *s) {
 }
 
 /* Insert or replace `param` in the query string, preserving other params
- * and any #fragment. This is safer than appending: when the base URL is
- * /greet?name=x and we test param 'name', replacing (rather than appending
- * a second 'name=') prevents frameworks like Flask from returning the
- * original value via request.args.get('name'). */
+ * and any #fragment. Safer than appending: /greet?name=x + param 'name'
+ * stays a single `name=` (Flask's request.args.get returns the FIRST). */
 static int build_param_url(char *dst, size_t dstsz,
                            const char *url, const char *param, const char *value) {
     if (!dst || !url || !param || !value) return 0;
@@ -97,7 +95,6 @@ static int build_param_url(char *dst, size_t dstsz,
     size_t      url_len = frag ? (size_t)(frag - url) : strlen(url);
     const char *q       = memchr(url, '?', url_len);
 
-    /* Look for an existing `param=` segment in the query. */
     const char *hit     = NULL;
     const char *seg_end = NULL;
     if (q) {
@@ -109,9 +106,7 @@ static int build_param_url(char *dst, size_t dstsz,
             const char *e   = amp ? amp : end;
             if ((size_t)(e - p) > plen && p[plen] == '=' &&
                 strncmp(p, param, plen) == 0) {
-                hit = p;
-                seg_end = e;
-                break;
+                hit = p; seg_end = e; break;
             }
             p = amp ? amp + 1 : end;
         }
@@ -146,66 +141,6 @@ static int ensure_directory(const char *path) {
     char tmp[512];
     snprintf(tmp, sizeof(tmp), "mkdir -p %s 2>/dev/null", path);
     return system(tmp);
-}
-
-/* ============================================================================
- * Payload file iterator — yields ONE payload per call.
- *
- * Lines in custom.txt (and many SecLists payload lists) pack N payloads
- * separated by '|' on a single line. Treating the whole line as a single
- * value blows past MAX_URL_LEN and produces garbage. This iterator splits
- * on '|' and trims whitespace.
- * ============================================================================ */
-
-typedef struct {
-    FILE *fp;
-    char  line[65536];
-    char *cursor;
-} payload_iter;
-
-static void payload_iter_init(payload_iter *it, FILE *fp) {
-    it->fp = fp;
-    it->cursor = NULL;
-}
-
-static int payload_iter_next(payload_iter *it, char *buf, size_t bufsz) {
-    if (bufsz == 0) return 0;
-
-    for (;;) {
-        if (it->cursor && *it->cursor) {
-            char *sep = strchr(it->cursor, '|');
-            char *end = sep ? sep : it->cursor + strlen(it->cursor);
-
-            while (it->cursor < end && isspace((unsigned char)*it->cursor))
-                it->cursor++;
-            while (end > it->cursor && isspace((unsigned char)end[-1]))
-                end--;
-
-            size_t len = (size_t)(end - it->cursor);
-            if (len == 0) {
-                it->cursor = sep ? sep + 1 : NULL;
-                continue;
-            }
-            if (len >= bufsz) len = bufsz - 1;
-            memcpy(buf, it->cursor, len);
-            buf[len] = '\0';
-            it->cursor = sep ? sep + 1 : NULL;
-            return 1;
-        }
-
-        if (!fgets(it->line, sizeof(it->line), it->fp)) return 0;
-
-        strip_newline(it->line);
-
-        /* Skip blank lines and comments */
-        char *p = it->line;
-        while (*p && isspace((unsigned char)*p)) p++;
-        if (*p == '\0' || *p == '#') {
-            it->cursor = NULL;
-            continue;
-        }
-        it->cursor = it->line;
-    }
 }
 
 /* ============================================================================
@@ -269,7 +204,7 @@ static int gq_http_send(request *r, const char *url) {
     curl_easy_setopt(curl, CURLOPT_CONNECTTIMEOUT, CURL_CONNECT_TIMEOUT);
     curl_easy_setopt(curl, CURLOPT_USERAGENT, "ghostquery/1.0");
     curl_easy_setopt(curl, CURLOPT_NOSIGNAL, 1L);
-    curl_easy_setopt(curl, CURLOPT_ACCEPT_ENCODING, "");  /* gzip/br/deflate */
+    curl_easy_setopt(curl, CURLOPT_ACCEPT_ENCODING, "");
     curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, 0L);
     curl_easy_setopt(curl, CURLOPT_SSL_VERIFYHOST, 0L);
 
@@ -280,8 +215,6 @@ static int gq_http_send(request *r, const char *url) {
         curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &http_code);
         r->code = (int)http_code;
     } else {
-        fprintf(stderr, "Request failed for %s: %s\n",
-                url, curl_easy_strerror(result));
         safe_remove(filename);
         r->filename[0] = '\0';
     }
@@ -291,12 +224,7 @@ static int gq_http_send(request *r, const char *url) {
 }
 
 /* ============================================================================
- * Reflection-body matcher
- *
- * We look for three forms, because servers reflect input in different ways:
- *   1. raw        -> body contains the payload verbatim
- *   2. url-encoded-> body contains the encoded form we sent
- *   3. HTML-escaped first char (common partial-escape) -> "&lt;rest"
+ * Reflection-body matcher — checks raw, encoded, and HTML-escaped forms.
  * ============================================================================ */
 
 static int body_contains_payload(const char *body, const char *raw, const char *enc) {
@@ -436,7 +364,7 @@ static char *slurp_file(const char *path, size_t *out_len) {
 }
 
 /* ============================================================================
- * XSS payload runner — shared by generated and custom paths
+ * XSS payload runner — one payload per line, plain fgets loop.
  * ============================================================================ */
 static void xss_payload_run(const char *tag,
                             char *url, char *path,
@@ -497,12 +425,12 @@ static void xss_payload_run(const char *tag,
         ex = fopen(payload_file, "r");
         if (!ex) { fprintf(stderr, "[%s] cannot open %s\n", tag, payload_file); break; }
 
-        payload_iter pit;
-        payload_iter_init(&pit, ex);
-
-        while (payload_iter_next(&pit, payload, sizeof(payload))) {
+        while (fgets(payload, sizeof(payload), ex)) {
             char *enc;
             int interaction_type;
+
+            strip_newline(payload);
+            if (payload[0] == '\0' || payload[0] == '#') continue;
 
             total_tested++;
 
@@ -564,7 +492,6 @@ void xss_generated(char *url, char *path) {
 }
 
 void xss_custom(char *url, char *path) {
-    /* Distinct output file — do NOT clobber xss_generated's results */
     xss_payload_run("xss_custom", url, path,
                     "ghostquery/xss/custom.txt",
                     "valid_payloads_custom.txt");
@@ -581,7 +508,6 @@ static void mirror_xss_findings(const char *path, const char *report_dir) {
         >= (int)sizeof(mirror))
         return;
 
-    /* Open with "w" so repeated runs don't grow the file unboundedly. */
     FILE *out = fopen(mirror, "w");
     if (!out) return;
 
@@ -617,33 +543,18 @@ int xss_run(char *url, char *path, char *report_dir) {
     if (!report_dir) report_dir = path;
 
     printf("[xss_run] Generating XSS payloads...\n");
-    char *payloads = "ghostquery/xss/payloads.txt";
+    const char *payloads = "ghostquery/xss/payloads.txt";
 
     if (!file_exists(payloads)) {
-        /* Payload generation is done by an external generator that reads
-         * xss.json. We shell out to the scanner's generation hook if present;
-         * if the payload file still doesn't exist afterwards we warn and
-         * continue — xss_custom does not depend on payloads.txt. */
-        char cmd[4096];
-        snprintf(cmd, sizeof(cmd),
-                 "python3 ghostquery/xss/xss.py '%s' '%s' >/dev/null 2>&1",
-                 url, path);
-        if (system(cmd) != 0)
-            fprintf(stderr, "warning: payload generator exited non-zero (continuing)\n");
-
-        if (!file_exists(payloads)) {
-            fprintf(stderr,
-                    "warning: %s still missing — xss_generated will skip; "
-                    "xss_custom will still run\n", payloads);
-        }
+        if (system("python3 ghostquery/xss/main.py") != 0)
+            fprintf(stderr, "warning: generate_payloads.py failed (continuing)\n");
     } else {
         printf("[xss_run] Using existing payloads file: %s\n", payloads);
     }
 
     printf("[xss_run] Finding reflecting parameters...\n");
-    if (find_param_reflecting(url, path) != 0) {
+    if (find_param_reflecting(url, path) != 0)
         fprintf(stderr, "warning: find_param_reflecting failed\n");
-    }
 
     printf("[xss_run] Running generated payload scan...\n");
     xss_generated(url, path);
@@ -708,7 +619,6 @@ int nuclei_run(char *url, char *path) {
         printf("[nuclei_run] %s not found — will use fallback wordlist\n", param_file);
     }
 
-    /* ---- Fallback: seed the target list from the static wordlist ---- */
     if (ntargets == 0) {
         printf("[nuclei_run] no reflecting params — falling back to params.txt\n");
         FILE *wf = fopen("ghostquery/params.txt", "r");
@@ -759,7 +669,6 @@ int nuclei_run(char *url, char *path) {
     if (rc != 0)
         printf("[!] nuclei failed on %s with code %d\n", url, rc);
 
-    /* Merge into nuclei.txt so analyze() sees the findings */
     FILE *in  = fopen(nuclei_out, "r");
     FILE *out = fopen(nuclei_merged, "a");
     if (in && out) {
