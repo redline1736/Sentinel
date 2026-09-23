@@ -9,6 +9,6 @@ int run_graphql_scanning(char *path) {
     // Placeholder for the actual scanning logic
     printf("Scanning GraphQL files in path: %s\n", path);
     
-    int result = graphql_scanning(path);
+    int result = graphql_scanning(path, true, NULL);
     return result;
 }

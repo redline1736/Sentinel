@@ -948,61 +948,12 @@ int detect_graphql(char *api_path, char *graphql_path) {
 //     5. send the analysis result back over the socket
 //   Finish when all URLs are processed.
 // ------------------------------------------------------------------
-int graphql_scanning(char *path, bool gobuster, ) {
+int graphql_scanning(char *path, bool gobuster, char target_url) {
     /* ---------------- socket setup ---------------- */
     int fd = init_socket(SOCK_PATH);
     int client = accept_connection(fd);
     if (client < 0) {
         fprintf(stderr, "Failed to accept socket connection\n");
-        close_socket(fd, client, SOCK_PATH);
-        return 1;
-    }
-
-    /* Buffer for whatever the peer sends back after the query. */
-    char recv_buffer[1024 * 256];
-
-    /* ---------------- paths ---------------- */
-    char gobuster_path[512];
-    char api_path[512];
-    char graphql_path[512];
-
-    snprintf(gobuster_path, sizeof(gobuster_path), "%s/gobuster.txt", path);
-    snprintf(api_path,      sizeof(api_path),      "%s/api.txt",      path);
-    snprintf(graphql_path,  sizeof(graphql_path),  "%s/graphql.txt",  path);
-
-    /* ---------------- filter gobuster -> api ---------------- */
-    FILE *gobuster_file = fopen(gobuster_path, "r");
-    if (!gobuster_file) {
-        fprintf(stderr, "Failed to open gobuster.txt\n");
-        close_socket(fd, client, SOCK_PATH);
-        return 1;
-    }
-    FILE *api_file = fopen(api_path, "w");
-    if (!api_file) {
-        fclose(gobuster_file);
-        close_socket(fd, client, SOCK_PATH);
-        return 1;
-    }
-    char gobuster_url[512];
-    while (fgets(gobuster_url, sizeof(gobuster_url), gobuster_file)) {
-        gobuster_url[strcspn(gobuster_url, "\n")] = '\0';
-        if (strstr(gobuster_url, "graphql") || strstr(gobuster_url, "api")) {
-            fprintf(api_file, "%s\n", gobuster_url);
-        }
-    }
-    fclose(gobuster_file);
-    fclose(api_file);
-
-    /* ---------------- detect GraphQL endpoints ---------------- */
-    if (detect_graphql(api_path, graphql_path) == 0)
-        printf("[+] GraphQL detection completed.\n");
-    else
-        printf("[-] No GraphQL endpoints found.\n");
-
-    /* ---------------- load introspection query ---------------- */
-    FILE *graphql_file = fopen(graphql_path, "r");
-    if (!graphql_file) {
-        fprintf(stderr, "Failed to open graphql.txt\n");
         close_socket(fd, client, SOCK_PATH);
         return 1;
     }
@@ -1030,6 +981,82 @@ int graphql_scanning(char *path, bool gobuster, ) {
     introspection_json[json_size] = '\0';
     fclose(f);
 
+    /* Buffer for whatever the peer sends back after the query. */
+    char recv_buffer[1024 * 256];
+    char api_path[512];
+    char graphql_path[512];
+
+    snprintf(api_path,      sizeof(api_path),      "%s/api.txt",      path);
+    snprintf(graphql_path,  sizeof(graphql_path),  "%s/graphql.txt",  path);
+    if (gobuster){
+    /* ---------------- paths ---------------- */
+        char gobuster_path[512];
+
+        snprintf(gobuster_path, sizeof(gobuster_path), "%s/gobuster.txt", path);
+
+        /* ---------------- filter gobuster -> api ---------------- */
+        FILE *gobuster_file = fopen(gobuster_path, "r");
+        if (!gobuster_file) {
+            fprintf(stderr, "Failed to open gobuster.txt\n");
+            close_socket(fd, client, SOCK_PATH);
+            return 1;
+        }   
+        FILE *api_file = fopen(api_path, "w");
+        if (!api_file) {
+            fclose(gobuster_file);
+            close_socket(fd, client, SOCK_PATH);
+            return 1;
+        }
+        char gobuster_url[512];
+        while (fgets(gobuster_url, sizeof(gobuster_url), gobuster_file)) {
+            gobuster_url[strcspn(gobuster_url, "\n")] = '\0';
+            if (strstr(gobuster_url, "graphql") || strstr(gobuster_url, "api")) {
+                fprintf(api_file, "%s\n", gobuster_url);
+            }
+        }
+        fclose(gobuster_file);
+        fclose(api_file);
+
+    /* ---------------- detect GraphQL endpoints ---------------- */
+        if (detect_graphql(api_path, graphql_path) == 0)
+            printf("[+] GraphQL detection completed.\n");
+        else
+            printf("[-] No GraphQL endpoints found.\n");
+
+    /* ---------------- load introspection query ---------------- */
+        FILE *graphql_file = fopen(graphql_path, "r");
+        if (!graphql_file) {
+            fprintf(stderr, "Failed to open graphql.txt\n");
+            close_socket(fd, client, SOCK_PATH);
+            return 1;
+        }
+
+
+    }else {
+
+
+        FILE *api_file = fopen(api_path, "w");
+        if (!api_file) {
+            fclose(gobuster_file);
+            close_socket(fd, client, SOCK_PATH);
+            return 1;
+        }
+        fprintf(api_file, "%s\n", target_url);
+            /* ---------------- detect GraphQL endpoints ---------------- */
+        if (detect_graphql(api_path, graphql_path) == 0)
+            printf("[+] GraphQL detection completed.\n");
+        else
+            printf("[-] No GraphQL endpoints found.\n");
+
+        /* ---------------- load introspection query ---------------- */
+        FILE *graphql_file = fopen(graphql_path, "r");
+        if (!graphql_file) {
+            fprintf(stderr, "Failed to open graphql.txt\n");
+            close_socket(fd, client, SOCK_PATH);
+            return 1;
+        }
+
+    }
     /* ---------------- main loop ---------------- */
     request r = {0};
     char graphql_url[1028];
