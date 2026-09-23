@@ -8,7 +8,7 @@
 #include "../http/http.h"
 #include "../sock/sock.h"
 
-#define SOCK_PATH "/tmp/myapp.sock"
+#define SOCK_PATH "/tmp/sentinel.sock"
 
 // ------------------------------------------------------------------
 // Data structures
@@ -948,7 +948,7 @@ int detect_graphql(char *api_path, char *graphql_path) {
 //     5. send the analysis result back over the socket
 //   Finish when all URLs are processed.
 // ------------------------------------------------------------------
-int graphql_scanning(char *path) {
+int graphql_scanning(char *path, bool gobuster, ) {
     /* ---------------- socket setup ---------------- */
     int fd = init_socket(SOCK_PATH);
     int client = accept_connection(fd);

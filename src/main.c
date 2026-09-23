@@ -1,6 +1,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <stdbool.h>3
+
 #include <errno.h>
 #include <sys/stat.h>
 #include <ctype.h>
@@ -228,6 +230,8 @@ int main(int argc, char *argv[]) {
         write_live(host);
 
         run(NULL);                      /* same pipeline as --full-scan, minus subdomain */
+    } else if (strcmp(argv[3], "--graphql-scan") == 0){
+        
     }
     else {
         fprintf(stderr, "[-] Unknown mode: %s\n", argv[3]);

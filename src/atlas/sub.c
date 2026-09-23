@@ -5,10 +5,10 @@
 #include <ctype.h>
 #include <errno.h>
 #include <time.h>
-#include <strings.h>        /* strcasecmp / strncasecmp */
+#include <strings.h>
 #include <sys/types.h>
 #include <sys/socket.h>
-#include <netdb.h>          /* getaddrinfo, AI_CANONNAME */
+#include <netdb.h>
 #include <curl/curl.h>
 
 #include "sub.h"
@@ -72,7 +72,6 @@ static size_t body_write_cb(void *ptr, size_t size, size_t nmemb, void *ud) {
         b->len += realsize;
         b->data[b->len] = '\0';
     }
-    /* Always report FULL size or curl aborts the transfer. */
     return size * nmemb;
 }
 
@@ -149,34 +148,19 @@ static int load_driver(const char *file) {
 }
 
 /* ------------------------------------------------------------------ */
-/* CNAME chain. No hard dependency on `dig` or `getent`.               */
-/*   1) getaddrinfo(AI_CANONNAME)   — portable, always available       */
-/*   2) `dig +short CNAME` (optional) — augments if binary is present  */
-/* Returns 1 if any CNAME hop was found, else 0.                       */
+/* CNAME chain.                                                        */
+/*   glibc's getaddrinfo(AI_CANONNAME) does NOT reliably return the    */
+/*   CNAME chain — it often returns the original name. Use `dig` as    */
+/*   the primary source; keep getaddrinfo only as a fallback so the    */
+/*   tool still works on hosts without dig.                            */
+/*   Returns 1 if any CNAME hop was found, else 0.                     */
 /* ------------------------------------------------------------------ */
 static int get_cname_chain(const char *domain, char *out, size_t outsz) {
     if (!domain || !out || outsz == 0) return 0;
     out[0] = '\0';
     int found = 0;
 
-    /* ---- 1. getaddrinfo ---- */
-    struct addrinfo hints;
-    memset(&hints, 0, sizeof(hints));
-    hints.ai_family   = AF_UNSPEC;
-    hints.ai_socktype = SOCK_STREAM;
-    hints.ai_flags    = AI_CANONNAME;
-
-    struct addrinfo *res = NULL;
-    if (getaddrinfo(domain, NULL, &hints, &res) == 0 && res) {
-        const char *canon = res->ai_canonname;
-        if (canon && *canon && strcasecmp(canon, domain) != 0) {
-            snprintf(out, outsz, "%s", canon);
-            found = 1;
-        }
-        freeaddrinfo(res);
-    }
-
-    /* ---- 2. dig fallback / augmentation ---- */
+    /* 1. dig +short CNAME (primary — this is what subzy uses) */
     char cmd[512];
     snprintf(cmd, sizeof(cmd), "dig +short CNAME %s 2>/dev/null", domain);
     FILE *fp = popen(cmd, "r");
@@ -185,6 +169,9 @@ static int get_cname_chain(const char *domain, char *out, size_t outsz) {
         while (fgets(line, sizeof(line), fp)) {
             rstrip(line);
             if (line[0] == '\0') continue;
+            /* dig appends a trailing dot to FQDNs; strip it */
+            size_t l = strlen(line);
+            if (l && line[l-1] == '.') line[--l] = '\0';
 
             if (!found) {
                 snprintf(out, outsz, "%s", line);
@@ -198,6 +185,30 @@ static int get_cname_chain(const char *domain, char *out, size_t outsz) {
             }
         }
         pclose(fp);
+    }
+
+    /* 2. getaddrinfo fallback — weak on glibc but harmless */
+    if (!found) {
+        struct addrinfo hints;
+        memset(&hints, 0, sizeof(hints));
+        hints.ai_family   = AF_UNSPEC;
+        hints.ai_socktype = SOCK_STREAM;
+        hints.ai_flags    = AI_CANONNAME;
+
+        struct addrinfo *res = NULL;
+        if (getaddrinfo(domain, NULL, &hints, &res) == 0 && res) {
+            const char *canon = res->ai_canonname;
+            if (canon && *canon && strcasecmp(canon, domain) != 0) {
+                size_t l = strlen(canon);
+                if (l && canon[l-1] == '.') l--;
+                if (l > 0 && l < outsz) {
+                    memcpy(out, canon, l);
+                    out[l] = '\0';
+                    found = 1;
+                }
+            }
+            freeaddrinfo(res);
+        }
     }
 
     return found;
@@ -223,7 +234,6 @@ static long http_get_sub(const char *url, body_t *body) {
     curl_easy_setopt(curl, CURLOPT_USERAGENT, USER_AGENT);
     curl_easy_setopt(curl, CURLOPT_NOSIGNAL, 1L);
     curl_easy_setopt(curl, CURLOPT_ACCEPT_ENCODING, "");
-    /* Dangling records often have broken/expired certs. */
     curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, 0L);
     curl_easy_setopt(curl, CURLOPT_SSL_VERIFYHOST, 0L);
 
@@ -237,8 +247,13 @@ static long http_get_sub(const char *url, body_t *body) {
     return (rc == CURLE_OK) ? code : -1;
 }
 
-/* Try HTTP first, then HTTPS.  Returns the first scheme that produced
- * a non-empty body.  Records which scheme won in `used_scheme`.        */
+/* Try HTTP first, then HTTPS. Returns the first scheme that produced
+ * a non-empty body. Records which scheme won in `used_scheme`.
+ *
+ * HTTP-first matters: several providers (Cargo Collective, UptimeRobot,
+ * Heroku, ...) serve a distinctive unclaimed-site page over HTTP that
+ * is either absent or different over HTTPS. subzy also probes HTTP
+ * first (see its `--https No` default).                          */
 static long fetch_both(const char *host, body_t *body,
                        char *used_scheme, size_t ss) {
     char url[600];
@@ -297,13 +312,16 @@ static int check_host(const char *host,
         return 0;
     }
 
-    /* Fingerprint match.  CNAME is only required when both sides have
-     * data; body-only entries are still tested. */
+    /* Body fingerprint is the evidence.  The CNAME column is an
+     * additional constraint only when both sides have data — it must
+     * never block a body-only match, and it must never `break` the
+     * whole loop.  Also: keep the loop going past non-matching rows
+     * instead of aborting on the first host-level condition. */
     for (int i = 0; i < g_fp_count; i++) {
+        if (!stristr(body.data, g_fps[i].fingerprint)) continue;
         if (has_cname && g_fps[i].cname[0] &&
             !stristr(cname, g_fps[i].cname))
             continue;
-        if (!stristr(body.data, g_fps[i].fingerprint)) continue;
 
         snprintf(provider_out, provider_sz, "%s", g_fps[i].provider);
         snprintf(detail_out, detail_sz,
