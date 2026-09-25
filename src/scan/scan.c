@@ -652,7 +652,8 @@ void run(char *url) {
     for (int i = 0; i < thread_count; i++)
         pthread_join(threads[i], NULL);
 
-
+    // todo anal; from rust 
+    
     if (g.deepblue) {
         deepblue_run();
     }
