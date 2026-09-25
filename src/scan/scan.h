@@ -16,5 +16,5 @@ void subdomain();
 void scanning(char *target_url);
 void *wpscan(void *arg);  /* thread worker */
 void run(char *url);  /* main pipeline (subdomain + scanning + analysis) */
-
+void analyze();
 #endif
