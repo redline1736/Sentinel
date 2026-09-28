@@ -1,3 +1,0 @@
-{
-    "query":"query { __schema { types { name } } }"
-}

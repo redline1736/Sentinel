@@ -124,7 +124,7 @@ int main(int argc, char *argv[]) {
         }
         flag_start = 5;
     }
-    else if (strcmp(argv[3], "test-new-feature") == 0) {
+    else if (strcmp(argv[3], "--xss-only") == 0) {
         if (argc < 5) {
             fprintf(stderr, "[-] test-new-feature requires a URL argument\n");
             return 1;
@@ -196,7 +196,7 @@ int main(int argc, char *argv[]) {
         g.full = false;
         run(NULL);
     }
-    else if (strcmp(argv[3], "test-new-feature") == 0) {
+    else if (strcmp(argv[3], "--xss-only") == 0) {
         /* FIX: xss_run signature is (url, path, report_dir) */
         xss_run(argv[4], argv[2], argv[2]);
     }
@@ -230,8 +230,6 @@ int main(int argc, char *argv[]) {
         write_live(host);
 
         run(NULL);                      /* same pipeline as --full-scan, minus subdomain */
-    } else if (strcmp(argv[3], "--graphql-scan") == 0){
-        
     }
     else {
         fprintf(stderr, "[-] Unknown mode: %s\n", argv[3]);
