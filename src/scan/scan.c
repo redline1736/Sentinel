@@ -507,11 +507,7 @@ void scanning(char *target_url) {
                         printf("[!] per-URL nuclei failed on %s with code %d\n",
                                tline, rc);
 
-                    /* 4b. XSS scanner finds reflecting params for this URL */
-                    xss_run(tline, subdir, hostdir); 
-
-                    /* 4c. Param-driven nuclei (uses valid_params.txt) */
-                    nuclei_run(tline, subdir);
+                    ghostquery_run(tline, subdir, hostdir);
                 }
                 fclose(tf);
             }
@@ -550,8 +546,7 @@ void scanning(char *target_url) {
                 printf("[!] xss pipeline failed on %s with code %d\n", buffer, xrc);
 
             /* FIX: was buffer, must be target_url */
-            xss_run(target_url, hostdir, hostdir);
-            nuclei_run(target_url, hostdir);
+            ghostquery_run(target_url, hostdir, hostdir);  /* param-driven nuclei (valid_params.txt) */
         }
     }
 

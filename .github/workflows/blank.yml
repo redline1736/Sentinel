@@ -139,33 +139,33 @@ jobs:
       - name: Run Scan URL test
         continue-on-error: true
         run: |
-          ./sentinel thegod.pythonanywhere.com testscanurlecho \
-            --scan-url https://thegod.pythonanywhere.com/echo
+          ./sentinel https://thegod.pythonanywhere.com/echo testscanurlecho \
+            --scan-url 
 
-          ./sentinel thegod.pythonanywhere.com testscanurlpreview \
-            --scan-url https://thegod.pythonanywhere.com/preview
+          ./sentinel https://thegod.pythonanywhere.com/preview testscanurlpreview \
+            --scan-url 
 
-          ./sentinel thegod.pythonanywhere.com testscanurlsearch \
-            --scan-url https://thegod.pythonanywhere.com/search
+          ./sentinel https://thegod.pythonanywhere.com/search testscanurlsearch \
+            --scan-url 
 
-          ./sentinel thegod.pythonanywhere.com testscanurluser \
-            --scan-url https://thegod.pythonanywhere.com/user
+          ./sentinel https://thegod.pythonanywhere.com/user testscanurluser \
+            --scan-url
 
       - name: Run Scan Site test
         continue-on-error: true
         run: |
-          ./sentinel thegod.pythonanywhere.com testscansite \
-            --scan-site "https://thegod.pythonanywhere.com/"
+          ./sentinel https://thegod.pythonanywhere.com/ testscansite \
+            --scan-site 
 
       - name: Run XSS test
         continue-on-error: true
         run: |
           echo "=== XSS TEST ==="
-          ./sentinel thegod.pythonanywhere.com testxss \
-            --scan-url https://thegod.pythonanywhere.com/xss
+          ./sentinel https://thegod.pythonanywhere.com/xss testxss \
+            --xss-only 
 
-          ./sentinel thegod.pythonanywhere.com testnucleixss \
-            --scan-url https://thegod.pythonanywhere.com/nuclei-xss
+          ./sentinel https://thegod.pythonanywhere.com/nuclei-xss testnucleixss \
+            --xss-only 
 
       - name: Upload all test output directories
         if: always()

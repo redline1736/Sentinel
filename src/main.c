@@ -7,11 +7,10 @@
 #include <sys/stat.h>
 #include <ctype.h>
 
-#include "glassworm/gw.h"
 #include "util/util.h"
 #include "prox/prox.h"
 #include "scan/scan.h"
-#include "ghostquery/gq.h"
+#include "ghostquery/xss/xss.h"
 #include "global.h"
 
 static void print_usage(const char *prog) {
@@ -21,6 +20,7 @@ static void print_usage(const char *prog) {
     printf("        --full-scan     full scan on ALL hosts\n");
     printf("        --scan-url <url>  single-URL scan (full pipeline, no subdomain enum)\n");
     printf("        --scan-site <url>  single-site scan (gobuster + per-URL deep pass)\n");
+    printf("        --xss-only <url>  single-URL XSS scan only (no subdomain, no deep pass)\n");
     printf("  proxy flags (default: direct, no proxy):\n");
     printf("        --tor           route through a pool of local Tor SOCKS5 instances\n");
     printf("        --elite         use live ProxyScrape 'elite' public proxies (WARNING: untrusted)\n");
@@ -32,7 +32,8 @@ static void print_usage(const char *prog) {
     printf("Examples:\n");
     printf("  %s example.com output -sub --tor\n", prog);
     printf("  %s example.com output --full-scan --proxy mylist.txt\n", prog);
-    printf("  %s example.com output --scan-url https://example.com/login.php?u=1 --tor\n", prog);
+    printf("  %s https://example.com/login.php?u=1 output --scan-url --tor\n", prog);
+    printf("  %s https://example.com/login.php?u=1 output --xss-only \n", prog);
 }
 
 /* Extract the bare host from a URL: "https://example.com:8443/a?b=1" -> "example.com" */
@@ -111,25 +112,16 @@ int main(int argc, char *argv[]) {
     /* --scan-url / --scan-site put the URL at argv[4]; flags start at argv[5] */
     int flag_start = 4;
     if (strcmp(argv[3], "--scan-url") == 0) {
-        if (argc < 5) {
-            fprintf(stderr, "[-] --scan-url requires a URL argument\n");
-            return 1;
-        }
-        flag_start = 5;
+        strncpy(g.target, argv[2], sizeof(g.target) - 1);
+        g.target[sizeof(g.target) - 1] = '\0';
     }
     else if (strcmp(argv[3], "--scan-site") == 0) {
-        if (argc < 5) {
-            fprintf(stderr, "[-] --scan-site requires a URL argument\n");
-            return 1;
-        }
-        flag_start = 5;
+        strncpy(g.target, argv[2], sizeof(g.target) - 1);
+        g.target[sizeof(g.target) - 1] = '\0';
     }
     else if (strcmp(argv[3], "--xss-only") == 0) {
-        if (argc < 5) {
-            fprintf(stderr, "[-] test-new-feature requires a URL argument\n");
-            return 1;
-        }
-        flag_start = 5;
+        strncpy(g.target, argv[2], sizeof(g.target) - 1);
+        g.target[sizeof(g.target) - 1] = '\0';
     }
 
     /* --- optional flags --- */
@@ -198,14 +190,14 @@ int main(int argc, char *argv[]) {
     }
     else if (strcmp(argv[3], "--xss-only") == 0) {
         /* FIX: xss_run signature is (url, path, report_dir) */
-        xss_run(argv[4], argv[2], argv[2]);
+        xss_run(g.target, argv[2], argv[2]);
     }
     else if (strcmp(argv[3], "--scan-url") == 0) {
         g.urlscan = true;
         g.full = true;
 
         char host[G_DOMAIN_MAX];
-        host_of_url(argv[4], host, sizeof(host));
+        host_of_url(g.target, host, sizeof(host));
 
         /* pipeline + per-host output dirs key off g.domain / live.txt */
         strncpy(g.domain, host, sizeof(g.domain) - 1);
@@ -213,7 +205,7 @@ int main(int argc, char *argv[]) {
 
         write_live(host);
 
-        run(argv[4]);                      /* same pipeline as --full-scan, minus subdomain */
+        run(g.target);                      /* same pipeline as --full-scan, minus subdomain */
     }
     else if (strcmp(argv[3], "--scan-site") == 0) {
         g.sitescan = true;
@@ -221,7 +213,7 @@ int main(int argc, char *argv[]) {
         g.full = true;
 
         char host[G_DOMAIN_MAX];
-        host_of_url(argv[4], host, sizeof(host));
+        host_of_url(g.target, host, sizeof(host));
 
         /* pipeline + per-host output dirs key off g.domain / live.txt */
         strncpy(g.domain, host, sizeof(g.domain) - 1);

@@ -19,6 +19,7 @@ struct global {
     bool tor;          /* true specifically for the Tor pool */
     int  proxy_mode;   /* PROXY_NONE / PROXY_TOR / PROXY_CUSTOM / PROXY_ELITE */
     char proxy_list[G_PROXY_MAX]; /* path to user proxy file (PROXY_CUSTOM) */
+    char target[G_DOMAIN_MAX];     /* target host for --scan-url / --scan-site */
 };
 
 
