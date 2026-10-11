@@ -19,7 +19,7 @@
 #include "../../chrome/chrome.h"
 #include "../../http/http.h"
 #include "../../global.h"
-#include "gq.h"
+
 
 /* ============================================================================
  * Constants
