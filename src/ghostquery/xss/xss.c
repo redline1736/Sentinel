@@ -14,11 +14,11 @@
 #include <dirent.h>
 #include <signal.h>
 
-#include "../util/util.h"
-#include "../prox/prox.h"
-#include "../chrome/chrome.h"
-#include "../http/http.h"
-#include "../global.h"
+#include "../../util/util.h"
+#include "../../prox/prox.h"
+#include "../../chrome/chrome.h"
+#include "../../http/http.h"
+#include "../../global.h"
 #include "sql/sql.h"
 #include "gq.h"
 

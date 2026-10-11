@@ -19,7 +19,7 @@
 #include "../../http/http.h"
 #include "../../global.h"
 #include "../sql/sql.h"
-#include "gq.h"
+#include "../gq.h"
 
 
 

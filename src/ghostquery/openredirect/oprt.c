@@ -7,8 +7,8 @@
 #include <errno.h>
 #include <curl/curl.h>
 
-#include "../chrome/chrome.h"
-#include "openredirect.h"
+#include "../../chrome/chrome.h"
+#include "oprt.h"
 
 /* ============================================================================
  * Constants
