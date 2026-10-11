@@ -22,6 +22,13 @@
 #include "../gq.h"
 
 
+#ifndef MAX_URL_LEN
+#define MAX_URL_LEN     32768
+#endif
+
+#ifndef MAX_PARAM_LEN
+#define MAX_PARAM_LEN   256
+#endif
 
 /* Insert or replace `param` in the query string, preserving other params
  * and any #fragment. Safer than appending: /greet?name=x + param 'name'
@@ -220,7 +227,7 @@ int sql_run(char *url, char *path) {
     /* Redirect sqlmap's stdout/stderr into a raw log we can scan.
      * run_tool() is assumed to fork/exec the binary; we capture via a
      * temp file to avoid interleaving with our own printf. */
-    int rc = run_tool_redirect(sqlmap_args, sqlmap_raw);
+    int rc = run_tool_out(sqlmap_args, sqlmap_raw, true);
     if (rc != 0)
         printf("[!] sqlmap exited with code %d (findings may still exist)\n", rc);
 

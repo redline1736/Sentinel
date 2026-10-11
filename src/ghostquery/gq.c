@@ -29,14 +29,15 @@
  * Constants
  * ============================================================================ */
 
- int ghostquery_full(char *url, char *path, char *report_dir) {
+int ghostquery_full(char *url, char *path, char *report_dir) {
     if (!url || !path) {
         fprintf(stderr, "ghostquery_full: invalid arguments\n");
         return 1;
-    }   
+    }
     printf("[ghostquery_full] Starting XSS scan on %s\n", url);
     xss_run(url, path, report_dir);
     nuclei_run(url, path);
     sql_run(url, path);
-
+    openredirect_run(url, path);
+    return 0;                              /* <-- add this */
 }
