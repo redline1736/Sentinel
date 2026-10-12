@@ -14,7 +14,7 @@
 #include "global.h"
 
 static void print_usage(const char *prog) {
-    printf("Usage: %s <domain> <output_dir> <mode> [flags]\n", prog);
+    printf("Usage: %s <domain> <output_dir> <mode> [url] [flags]\n", prog);
     printf("  mode: -sub            subdomain enumeration + takeover checks\n");
     printf("        --fast-scan     full scan pipeline on interesting hosts\n");
     printf("        --full-scan     full scan on ALL hosts\n");
@@ -32,8 +32,8 @@ static void print_usage(const char *prog) {
     printf("Examples:\n");
     printf("  %s example.com output -sub --tor\n", prog);
     printf("  %s example.com output --full-scan --proxy mylist.txt\n", prog);
-    printf("  %s https://example.com/login.php?u=1 output --scan-url --tor\n", prog);
-    printf("  %s https://example.com/login.php?u=1 output --xss-only \n", prog);
+    printf("  %s example.com output --scan-url https://example.com/login.php?u=1 --tor\n", prog);
+    printf("  %s example.com output --xss-only https://example.com/login.php?u=1\n", prog);
 }
 
 /* Extract the bare host from a URL: "https://example.com:8443/a?b=1" -> "example.com" */
@@ -85,7 +85,7 @@ static void write_live(const char *host) {
 }
 
 int main(int argc, char *argv[]) {
-    
+
     if (argc < 4) {
         print_usage(argv[0]);
         return 1;
@@ -108,20 +108,33 @@ int main(int argc, char *argv[]) {
     g.sitescan = false;
     g.proxy_mode = PROXY_NONE;
     g.proxy_list[0] = '\0';
+    g.target[0] = '\0';
 
-    /* --scan-url / --scan-site put the URL at argv[4]; flags start at argv[5] */
+    /* -------------------------------------------------------------------
+     * For --scan-url / --scan-site / --xss-only, the URL is a separate
+     * positional argument:
+     *     sentinel <domain> <outdir> <mode> <url> [flags]
+     *
+     * For -sub / --full-scan / --fast-scan, no URL is needed:
+     *     sentinel <domain> <outdir> <mode> [flags]
+     * ----------------------------------------------------------------- */
     int flag_start = 4;
-    if (strcmp(argv[3], "--scan-url") == 0) {
-        strncpy(g.target, argv[2], sizeof(g.target) - 1);
+
+    if (strcmp(argv[3], "--scan-url") == 0 ||
+        strcmp(argv[3], "--scan-site") == 0 ||
+        strcmp(argv[3], "--xss-only") == 0) {
+
+        if (argc < 5) {
+            fprintf(stderr, "[-] %s requires a URL\n", argv[3]);
+            print_usage(argv[0]);
+            return 1;
+        }
+
+        strncpy(g.target, argv[4], sizeof(g.target) - 1);
         g.target[sizeof(g.target) - 1] = '\0';
-    }
-    else if (strcmp(argv[3], "--scan-site") == 0) {
-        strncpy(g.target, argv[2], sizeof(g.target) - 1);
-        g.target[sizeof(g.target) - 1] = '\0';
-    }
-    else if (strcmp(argv[3], "--xss-only") == 0) {
-        strncpy(g.target, argv[2], sizeof(g.target) - 1);
-        g.target[sizeof(g.target) - 1] = '\0';
+
+        /* flags begin after the URL */
+        flag_start = 5;
     }
 
     /* --- optional flags --- */
@@ -168,6 +181,8 @@ int main(int argc, char *argv[]) {
     printf("[+] Sentinel starting\n");
     printf("[+] Target: %s\n", g.domain);
     printf("[+] Output: %s/\n", g.dir);
+    if (g.target[0])
+        printf("[+] URL:    %s\n", g.target);
 
     int rc = 0;
     if (strcmp(argv[3], "-sub") == 0) {
@@ -189,8 +204,8 @@ int main(int argc, char *argv[]) {
         run(NULL);
     }
     else if (strcmp(argv[3], "--xss-only") == 0) {
-        /* FIX: xss_run signature is (url, path, report_dir) */
-        xss_run(g.target, argv[2], argv[2]);
+        /* xss_run signature is (url, path, report_dir) */
+        xss_run(g.target, g.dir, g.dir);
     }
     else if (strcmp(argv[3], "--scan-url") == 0) {
         g.urlscan = true;
@@ -205,7 +220,7 @@ int main(int argc, char *argv[]) {
 
         write_live(host);
 
-        run(g.target);                      /* same pipeline as --full-scan, minus subdomain */
+        run(g.target);   /* same pipeline as --full-scan, minus subdomain */
     }
     else if (strcmp(argv[3], "--scan-site") == 0) {
         g.sitescan = true;
@@ -215,13 +230,12 @@ int main(int argc, char *argv[]) {
         char host[G_DOMAIN_MAX];
         host_of_url(g.target, host, sizeof(host));
 
-        /* pipeline + per-host output dirs key off g.domain / live.txt */
         strncpy(g.domain, host, sizeof(g.domain) - 1);
         g.domain[sizeof(g.domain) - 1] = '\0';
 
         write_live(host);
 
-        run(NULL);                      /* same pipeline as --full-scan, minus subdomain */
+        run(NULL);       /* same pipeline as --full-scan, minus subdomain */
     }
     else {
         fprintf(stderr, "[-] Unknown mode: %s\n", argv[3]);
