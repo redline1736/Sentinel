@@ -392,27 +392,29 @@ int find_param_reflecting(char *url, char *path) {
 struct xss_ctx {
     const char *tag;
     const char *url;
-    char       *path;
+    char *path;
 
-    char      **params;      int nparams;
-    char      **payloads;    int npayloads;
-    char      **escaped;
+    char **params;      
+    int nparams;
+    char **payloads;    
+    int npayloads;
+    char **escaped;
 
-    FILE           *found;
+    FILE *found;
     pthread_mutex_t found_lock;
 
-    int             total_tested;
-    int             total_confirmed;
+    int total_tested;
+    int total_confirmed;
     pthread_mutex_t stat_lock;
 
-    int             chrome_port_base;
+    int chrome_port_base;
 };
 
 struct worker_arg {
     struct xss_ctx *ctx;
-    int             worker_id;
-    int             start_param;
-    int             end_param;
+    int worker_id;
+    int start_param;
+    int end_param;
 };
 
 static void *xss_worker(void *arg) {
@@ -615,19 +617,7 @@ static void *scan_thread(void *arg) {
     return NULL;
 }
 
-void xss_generated(char *url, char *path) {
-    xss_payload_run("xss_generated", url, path,
-                    "/usr/share/sentinel/ghostquery/xss/payloads.txt",
-                    "valid_payloads.txt",
-                    CHROME_BASE_PORT_GENERATED);
-}
 
-void xss_custom(char *url, char *path) {
-    xss_payload_run("xss_custom", url, path,
-                    "/usr/share/sentinel/ghostquery/xss/custom.txt",
-                    "valid_payloads_custom.txt",
-                    CHROME_BASE_PORT_CUSTOM);
-}
 
 /* ============================================================================
  * Mirror findings
