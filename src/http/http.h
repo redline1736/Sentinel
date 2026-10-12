@@ -8,6 +8,9 @@ typedef struct {
     char filename[64];
 } request;
 
+void curl_http_init(void);
+void curl_http_cleanup(void);
+
 int http_send_get(request *r, const char *url);
 int http_send_post(request *r, const char *url,
                    bool upload, const char *data,

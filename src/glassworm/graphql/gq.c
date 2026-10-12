@@ -1,4 +1,4 @@
-#include "../global.h"
+#include "../../global.h"
 #include <unistd.h>
 #include <limits.h>
 #include <cjson/cJSON.h>

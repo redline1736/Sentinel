@@ -1,4 +1,4 @@
-#include "global.h"
+#include "../global.h"
 #include "graphql/gq.h"
 #include "sock/sock.h"
 #include "util/util.h"

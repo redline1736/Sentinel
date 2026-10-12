@@ -724,12 +724,12 @@ void run(char *url) {
             char target[512];
             snprintf(target, sizeof(target), "https://%s", entry->d_name);
             request r = {0};
-            if(http_send_post(&r, target, NULL, NULL, 0) < 0) {
+            if(http_send_post(&r, target, false, NULL, false, NULL) < 0) {
                 printf("[!] Failed to send request to %s\n", target);
                 continue;
             }
 
-            FILE *fp = fopen(r->filename, "r");
+            FILE *fp = fopen(r.filename, "r");
             if (!fp)
                 continue;
 

@@ -55,7 +55,7 @@ static const char *CSRF_ERROR_PHRASES[] = {
     NULL
 };
 
-int csrf_token_exists(const char *target_url) {
+int csrf_token_exists(char *target_url) {
     request r = {0};
 
     if (!http_send_post(&r, target_url, false, NULL, false, NULL)) {
