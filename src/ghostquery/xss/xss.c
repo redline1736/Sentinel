@@ -27,15 +27,13 @@
 #define CHROME_POLL_ATTEMPTS    10
 #define CHROME_POLL_INTERVAL_US 20000   /* 20 ms */
 
-/* 4 workers per scan, 2 scans (generated + custom) running in parallel.
- * Chrome ports: 9222..9225 for xss_generated, 9226..9229 for xss_custom. */
 #define WORKERS_PER_SCAN 4
 #define CHROME_BASE_PORT_GENERATED 9222
 #define CHROME_BASE_PORT_CUSTOM    9226
 
 
 /* ============================================================================
- * Path / string utilities
+ * Safe Path Utilities
  * ============================================================================ */
 
 static int is_safe_path(const char *path) {
@@ -46,10 +44,37 @@ static int is_safe_path(const char *path) {
     return 1;
 }
 
+static int create_unique_filename(char *dst, size_t dstsz, const char *prefix) {
+    struct timespec ts;
+    static unsigned int counter = 0;
+    unsigned int my_counter = __sync_fetch_and_add(&counter, 1);
+
+    if (clock_gettime(CLOCK_REALTIME, &ts) != 0) {
+        time_t t = time(NULL);
+        return snprintf(dst, dstsz, "%s_%d_%ld_%u.txt",
+                        prefix, getpid(), (long)t, my_counter);
+    }
+    return snprintf(dst, dstsz, "%s_%d_%ld_%ld_%u.txt",
+                    prefix, getpid(), (long)ts.tv_sec, (long)ts.tv_nsec, my_counter);
+}
+
+static FILE *safe_fopen_exclusive(const char *filename, const char *mode) {
+    if (!is_safe_path(filename)) { errno = EPERM; return NULL; }
+    int fd = open(filename, O_WRONLY | O_CREAT | O_EXCL, 0600);
+    if (fd < 0) return NULL;
+    FILE *fp = fdopen(fd, mode);
+    if (!fp) { close(fd); unlink(filename); return NULL; }
+    return fp;
+}
+
 static int safe_remove(const char *filename) {
     if (!is_safe_path(filename)) return -1;
     return remove(filename);
 }
+
+/* ============================================================================
+ * String Utilities
+ * ============================================================================ */
 
 static void strip_newline(char *s) {
     if (!s) return;
@@ -124,66 +149,60 @@ static int ensure_directory(const char *path) {
 }
 
 /* ============================================================================
- * curl: per-thread handle, body in memory
+ * Libcurl Write Callback
  * ============================================================================ */
 
-struct mem_buf {
-    char  *data;
-    size_t len;
-    size_t cap;
-};
+static size_t write_file(void *ptr, size_t size, size_t nmemb, void *stream) {
+    return fwrite(ptr, size, nmemb, (FILE *)stream);
+}
 
-static size_t write_mem(void *ptr, size_t size, size_t nmemb, void *ud) {
-    struct mem_buf *b = ud;
-    size_t n = size * nmemb;
-    if (b->len + n + 1 > b->cap) {
-        size_t nc = b->cap ? b->cap * 2 : 8192;
-        while (nc < b->len + n + 1) nc *= 2;
-        char *nd = realloc(b->data, nc);
-        if (!nd) return 0;
-        b->data = nd; b->cap = nc;
+/* ============================================================================
+ * HTTP Request Sender  — your original, unchanged
+ * ============================================================================ */
+
+static int gq_http_send(request *r, const char *url) {
+    CURL *curl;
+    CURLcode result;
+    FILE *fp;
+    char filename[128];
+    const char *proxy = NULL;
+    long http_code = 0;
+
+    if (!r || !url) {
+        fprintf(stderr, "gq_http_send: invalid arguments\n");
+        return 0;
     }
-    memcpy(b->data + b->len, ptr, n);
-    b->len += n;
-    b->data[b->len] = '\0';
-    return n;
-}
 
-static pthread_key_t  g_curl_key;
-static pthread_once_t g_curl_once = PTHREAD_ONCE_INIT;
-
-static void curl_key_destructor(void *p) {
-    if (p) curl_easy_cleanup((CURL*)p);
-}
-static void curl_key_init(void) {
-    pthread_key_create(&g_curl_key, curl_key_destructor);
-}
-
-static CURL *get_curl(void) {
-    pthread_once(&g_curl_once, curl_key_init);
-    CURL *c = pthread_getspecific(g_curl_key);
-    if (!c) {
-        curl_global_init(CURL_GLOBAL_DEFAULT);
-        c = curl_easy_init();
-        pthread_setspecific(g_curl_key, c);
-    } else {
-        curl_easy_reset(c);
-    }
-    return c;
-}
-
-static int gq_http_send(request *r, const char *url, struct mem_buf *body) {
-    if (!r || !url) return 0;
     r->code = -1;
     r->filename[0] = '\0';
 
-    const char *proxy = g.proxy ? proxy_get_socks() : NULL;
+    if (g.proxy) {
+        proxy = proxy_get_socks();
+        if (!proxy)
+            fprintf(stderr, "gq_http_send: no proxy available — sending direct\n");
+    }
 
-    CURL *curl = get_curl();
-    if (!curl) return 0;
+    if (create_unique_filename(filename, sizeof(filename), "curl") <= 0) {
+        fprintf(stderr, "gq_http_send: failed to create filename\n");
+        return 0;
+    }
+
+    fp = safe_fopen_exclusive(filename, "wb");
+    if (!fp) { perror("gq_http_send: fopen"); return 0; }
+    snprintf(r->filename, sizeof(r->filename), "%s", filename);
+
+    curl = curl_easy_init();
+    if (!curl) {
+        fclose(fp); safe_remove(filename); r->filename[0] = '\0';
+        fprintf(stderr, "gq_http_send: curl_easy_init failed\n");
+        return 0;
+    }
 
     if (proxy) curl_easy_setopt(curl, CURLOPT_PROXY, proxy);
+
     curl_easy_setopt(curl, CURLOPT_URL, url);
+    curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, write_file);
+    curl_easy_setopt(curl, CURLOPT_WRITEDATA, fp);
     curl_easy_setopt(curl, CURLOPT_FOLLOWLOCATION, 1L);
     curl_easy_setopt(curl, CURLOPT_MAXREDIRS, 5L);
     curl_easy_setopt(curl, CURLOPT_TIMEOUT, CURL_TIMEOUT);
@@ -193,29 +212,24 @@ static int gq_http_send(request *r, const char *url, struct mem_buf *body) {
     curl_easy_setopt(curl, CURLOPT_ACCEPT_ENCODING, "");
     curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, 0L);
     curl_easy_setopt(curl, CURLOPT_SSL_VERIFYHOST, 0L);
-    curl_easy_setopt(curl, CURLOPT_TCP_KEEPALIVE, 1L);
 
-    if (body) {
-        body->len = 0;
-        if (!body->data) { body->data = malloc(8192); body->cap = 8192; }
-        if (!body->data) return 0;
-        body->data[0] = '\0';
-        curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, write_mem);
-        curl_easy_setopt(curl, CURLOPT_WRITEDATA, body);
+    result = curl_easy_perform(curl);
+    fclose(fp);
+
+    if (result == CURLE_OK) {
+        curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &http_code);
+        r->code = (int)http_code;
+    } else {
+        safe_remove(filename);
+        r->filename[0] = '\0';
     }
 
-    CURLcode rc = curl_easy_perform(curl);
-    if (rc == CURLE_OK) {
-        long code = 0;
-        curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &code);
-        r->code = (int)code;
-        return 1;
-    }
-    return 0;
+    curl_easy_cleanup(curl);
+    return result == CURLE_OK ? 1 : 0;
 }
 
 /* ============================================================================
- * Reflection matcher
+ * Reflection-body matcher
  * ============================================================================ */
 
 static int body_contains_payload(const char *body, const char *raw, const char *enc) {
@@ -225,6 +239,26 @@ static int body_contains_payload(const char *body, const char *raw, const char *
     if (raw[0] == '<' && raw[1] && strstr(body, "&lt;") && strstr(body, raw + 1))
         return 1;
     return 0;
+}
+
+/* ============================================================================
+ * Read whole file into heap buffer
+ * ============================================================================ */
+
+static char *slurp_file(const char *path, size_t *out_len) {
+    FILE *fp = fopen(path, "rb");
+    if (!fp) return NULL;
+    fseek(fp, 0, SEEK_END);
+    long sz = ftell(fp);
+    if (sz < 0) { fclose(fp); return NULL; }
+    rewind(fp);
+    char *buf = malloc((size_t)sz + 1);
+    if (!buf) { fclose(fp); return NULL; }
+    size_t rd = fread(buf, 1, (size_t)sz, fp);
+    buf[rd] = '\0';
+    fclose(fp);
+    if (out_len) *out_len = rd;
+    return buf;
 }
 
 /* ============================================================================
@@ -262,18 +296,21 @@ static void free_lines(char **lines, int n) {
 }
 
 /* ============================================================================
- * Find reflecting params
+ * Find Reflecting Parameters
  * ============================================================================ */
 
 int find_param_reflecting(char *url, char *path) {
-    if (!url) { fprintf(stderr, "find_param_reflecting: url is NULL\n"); return 1; }
-
+    int nparams = 0, i = 0;
+    char full_url[MAX_URL_LEN];
+    request *r;
+    FILE *fptr;
     const char *param_file = "/usr/share/sentinel/ghostquery/params.txt";
-    const char *output_dir = "ghostquery/xss";
     char output_file[4096];
+    const char *output_dir = "ghostquery/xss";
 
     snprintf(output_file, sizeof(output_file), "%s/valid_params.txt", path);
 
+    if (!url) { fprintf(stderr, "find_param_reflecting: url is NULL\n"); return 1; }
     if (ensure_directory(output_dir) != 0) {
         fprintf(stderr, "find_param_reflecting: failed to create %s\n", output_dir);
         return 1;
@@ -283,55 +320,66 @@ int find_param_reflecting(char *url, char *path) {
         return 1;
     }
 
-    int nparams = 0;
+    int total = line_count((char*)param_file);
+    if (total <= 0) {
+        fprintf(stderr, "find_param_reflecting: %s is empty or missing\n", param_file);
+        return 1;
+    }
+
     char **params = load_lines(param_file, &nparams);
     if (nparams <= 0) {
-        fprintf(stderr, "find_param_reflecting: %s is empty or missing\n", param_file);
+        fprintf(stderr, "find_param_reflecting: cannot load %s\n", param_file);
         free_lines(params, nparams);
         return 1;
     }
 
-    FILE *fptr = fopen(output_file, "w");
+    r = calloc((size_t)(total + 1), sizeof(request));
+    if (!r) { fprintf(stderr, "find_param_reflecting: calloc failed\n"); free_lines(params, nparams); return 1; }
+
+    fptr = fopen(output_file, "w");
     if (!fptr) {
         fprintf(stderr, "find_param_reflecting: cannot open %s\n", output_file);
-        free_lines(params, nparams);
-        return 1;
+        free(r); free_lines(params, nparams); return 1;
     }
 
     printf("[find_param_reflecting] probing %d params against %s\n", nparams, url);
 
-    struct mem_buf body = {0};
-    char full_url[MAX_URL_LEN];
-
-    for (int i = 0; i < nparams; i++) {
+    for (i = 0; i < nparams; i++) {
         if (!build_param_url(full_url, sizeof(full_url), url, params[i], "asdasda")) {
             fprintf(stderr, "[find_param_reflecting] URL too long for '%s'\n", params[i]);
             continue;
         }
 
-        request r = {0};
-        if (gq_http_send(&r, full_url, &body)) {
-            if (r.code >= 200 && r.code < 400 && body.data) {
-                if (strstr(body.data, "asdasda")) {
-                    fprintf(fptr, "%s\n", params[i]);
-                    fflush(fptr);
-                    printf("[find_param_reflecting] REFLECTS: %s (HTTP %d, %zu bytes)\n",
-                           params[i], r.code, body.len);
-                } else {
-                    printf("[find_param_reflecting] no reflection: %s (HTTP %d)\n",
-                           params[i], r.code);
+        request *cur = &r[i];
+        if (gq_http_send(cur, full_url)) {
+            if (cur->code >= 200 && cur->code < 400 && cur->filename[0]) {
+                size_t blen = 0;
+                char *body = slurp_file(cur->filename, &blen);
+                if (body) {
+                    if (strstr(body, "asdasda")) {
+                        fprintf(fptr, "%s\n", params[i]);
+                        fflush(fptr);
+                        printf("[find_param_reflecting] REFLECTS: %s (HTTP %d, %zu bytes)\n",
+                               params[i], cur->code, blen);
+                    } else {
+                        printf("[find_param_reflecting] no reflection: %s (HTTP %d)\n",
+                               params[i], cur->code);
+                    }
+                    free(body);
                 }
             } else {
                 printf("[find_param_reflecting] %s -> HTTP %d (skipped)\n",
-                       params[i], r.code);
+                       params[i], cur->code);
             }
         } else {
             printf("[find_param_reflecting] %s -> request failed\n", params[i]);
         }
+
+        if (cur->filename[0]) { safe_remove(cur->filename); cur->filename[0] = '\0'; }
     }
 
-    free(body.data);
     fclose(fptr);
+    free(r);
     free_lines(params, nparams);
     printf("find_param_reflecting: results written to %s\n", output_file);
     return 0;
@@ -346,12 +394,10 @@ struct xss_ctx {
     const char *url;
     char       *path;
 
-    /* shared, read-only across workers */
     char      **params;      int nparams;
     char      **payloads;    int npayloads;
-    char      **escaped;     /* URL-escaped payloads, one per payload */
+    char      **escaped;
 
-    /* shared output */
     FILE           *found;
     pthread_mutex_t found_lock;
 
@@ -359,15 +405,14 @@ struct xss_ctx {
     int             total_confirmed;
     pthread_mutex_t stat_lock;
 
-    /* chrome port base for this scan */
     int             chrome_port_base;
 };
 
 struct worker_arg {
     struct xss_ctx *ctx;
-    int             worker_id;    /* 0..WORKERS_PER_SCAN-1 */
-    int             start_param;  /* inclusive */
-    int             end_param;    /* exclusive */
+    int             worker_id;
+    int             start_param;
+    int             end_param;
 };
 
 static void *xss_worker(void *arg) {
@@ -375,7 +420,6 @@ static void *xss_worker(void *arg) {
     struct xss_ctx    *ctx = wa->ctx;
 
     char   full_url[MAX_URL_LEN];
-    struct mem_buf body = {0};
     chrome c;
     int    chrome_ok = 0;
 
@@ -421,9 +465,14 @@ static void *xss_worker(void *arg) {
                 }
             } else {
                 request r = {0};
-                if (gq_http_send(&r, full_url, &body) && r.code == 200 &&
-                    body_contains_payload(body.data, ctx->payloads[k], ctx->escaped[k])) {
-                    confirmed = 1;
+                if (gq_http_send(&r, full_url) && r.code == 200 && r.filename[0]) {
+                    char *body = slurp_file(r.filename, NULL);
+                    if (body) {
+                        if (body_contains_payload(body, ctx->payloads[k], ctx->escaped[k]))
+                            confirmed = 1;
+                        free(body);
+                    }
+                    safe_remove(r.filename);
                 }
             }
 
@@ -443,12 +492,10 @@ static void *xss_worker(void *arg) {
         }
     }
 
-    free(body.data);
     if (chrome_ok) close_chrome(&c);
     return NULL;
 }
 
-/* Runs one scan type with WORKERS_PER_SCAN workers over the same param list. */
 static void xss_payload_run(const char *tag,
                             char *url, char *path,
                             const char *payload_file,
@@ -484,7 +531,6 @@ static void xss_payload_run(const char *tag,
         return;
     }
 
-    /* Escape payloads once. */
     ctx.escaped = calloc((size_t)ctx.npayloads, sizeof(char*));
     for (int k = 0; k < ctx.npayloads; k++)
         ctx.escaped[k] = curl_easy_escape(NULL, ctx.payloads[k], 0);
@@ -503,7 +549,6 @@ static void xss_payload_run(const char *tag,
     pthread_mutex_init(&ctx.found_lock, NULL);
     pthread_mutex_init(&ctx.stat_lock,  NULL);
 
-    /* Split params evenly across workers. */
     pthread_t         tids[WORKERS_PER_SCAN];
     struct worker_arg wargs[WORKERS_PER_SCAN];
 
@@ -521,7 +566,6 @@ static void xss_payload_run(const char *tag,
 
         if (pthread_create(&tids[w], NULL, xss_worker, &wargs[w]) != 0) {
             fprintf(stderr, "[%s] pthread_create failed for worker %d\n", tag, w);
-            /* Fall back: run this slice on the main thread. */
             xss_worker(&wargs[w]);
             tids[w] = 0;
         }
@@ -546,13 +590,13 @@ static void xss_payload_run(const char *tag,
 }
 
 /* ============================================================================
- * Scan entrypoints — xss_generated and xss_custom now run in parallel
+ * Scan entrypoints
  * ============================================================================ */
 
 struct scan_arg {
     char *url;
     char *path;
-    int   which;   /* 0 = generated, 1 = custom */
+    int   which;
 };
 
 static void *scan_thread(void *arg) {
@@ -571,7 +615,6 @@ static void *scan_thread(void *arg) {
     return NULL;
 }
 
-/* Keep the old function names around for any other caller. */
 void xss_generated(char *url, char *path) {
     xss_payload_run("xss_generated", url, path,
                     "/usr/share/sentinel/ghostquery/xss/payloads.txt",
@@ -647,8 +690,8 @@ int xss_run(char *url, char *path, char *report_dir) {
         fprintf(stderr, "warning: find_param_reflecting failed\n");
 
     printf("[xss_run] Launching generated + custom scans in parallel...\n");
-    struct scan_arg gen  = { url, path, 0 };
-    struct scan_arg cus  = { url, path, 1 };
+    struct scan_arg gen = { url, path, 0 };
+    struct scan_arg cus = { url, path, 1 };
     pthread_t tgen = 0, tcus = 0;
 
     pthread_create(&tgen, NULL, scan_thread, &gen);
