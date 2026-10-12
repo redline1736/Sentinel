@@ -1,8 +1,3 @@
-// _GNU_SOURCE is set via compiler flags (-D_GNU_SOURCE) — do NOT redefine here
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <stdbool.h>
 #include <dirent.h>
 #include <pthread.h>
 #include <ctype.h>

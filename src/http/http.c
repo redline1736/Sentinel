@@ -1,9 +1,6 @@
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <stdbool.h>
-#include <curl/curl.h>
 
+#include <curl/curl.h>
+#include "../global.h"
 #include "http.h"
 
 /* Trim helper */
