@@ -1,3 +1,8 @@
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <stdbool.h>
+
 #include <errno.h>
 #include <sys/stat.h>
 #include <ctype.h>
@@ -9,26 +14,26 @@
 #include "global.h"
 
 static void print_usage(const char *prog) {
-    printf("Usage: %s <domain> <output_dir> <mode> [url] [flags]\n", prog);
-    printf("  mode: -sub            subdomain enumeration + takeover checks\n");
-    printf("        --fast-scan     full scan pipeline on interesting hosts\n");
-    printf("        --full-scan     full scan on ALL hosts\n");
-    printf("        --scan-url <url>  single-URL scan (full pipeline, no subdomain enum)\n");
-    printf("        --scan-site <url>  single-site scan (gobuster + per-URL deep pass)\n");
-    printf("        --xss-only <url>  single-URL XSS scan only (no subdomain, no deep pass)\n");
+    printf("Usage:\n");
+    printf("  %s <outdir> --scan-url  <url>    [flags]\n", prog);
+    printf("  %s <outdir> --scan-site <url>    [flags]\n", prog);
+    printf("  %s <outdir> --xss-only  <url>    [flags]\n", prog);
+    printf("  %s <outdir> -sub        <domain> [flags]\n", prog);
+    printf("  %s <outdir> --full-scan <domain> [flags]\n", prog);
+    printf("  %s <outdir> --fast-scan <domain> [flags]\n", prog);
+    printf("\n");
     printf("  proxy flags (default: direct, no proxy):\n");
     printf("        --tor           route through a pool of local Tor SOCKS5 instances\n");
-    printf("        --elite         use live ProxyScrape 'elite' public proxies (WARNING: untrusted)\n");
-    printf("        --proxy <file>  use a custom list of [proto://]host:port proxies (WARNING: untrusted)\n");
+    printf("        --elite         use live ProxyScrape 'elite' public proxies\n");
+    printf("        --proxy <file>  use a custom list of [proto://]host:port proxies\n");
     printf("        --no-proxy      force direct connections (default)\n");
     printf("  other flags:\n");
     printf("        --xss-no        disable XSS scanning\n");
     printf("        --deepblue      run DeepBlue exploit phase after scan\n\n");
     printf("Examples:\n");
-    printf("  %s example.com output -sub --tor\n", prog);
-    printf("  %s example.com output --full-scan --proxy mylist.txt\n", prog);
-    printf("  %s example.com output --scan-url https://example.com/login.php?u=1 --tor\n", prog);
-    printf("  %s example.com output --xss-only https://example.com/login.php?u=1\n", prog);
+    printf("  %s output -sub example.com --tor\n", prog);
+    printf("  %s output --scan-url https://example.com/login.php?u=1 --tor\n", prog);
+    printf("  %s output --xss-only https://example.com/login.php?u=1\n", prog);
 }
 
 /* Extract the bare host from a URL: "https://example.com:8443/a?b=1" -> "example.com" */
@@ -45,8 +50,8 @@ static void host_of_url(const char *url, char *out, size_t outsz) {
         n = (size_t)(slash - h);
     else
         n = strlen(h);
-    if (n >= outsz)
-        n = outsz - 1;
+
+    if (n >= outsz) n = outsz - 1;
     memcpy(out, h, n);
     out[n] = '\0';
 
@@ -54,7 +59,6 @@ static void host_of_url(const char *url, char *out, size_t outsz) {
         *q = (char)tolower((unsigned char)*q);
 }
 
-/* Seed the host list that scanning() consumes: the URL's host, one per line. */
 static void write_live(const char *host) {
     char path[2048];
     snprintf(path, sizeof(path), "%s/live.txt", g.dir);
@@ -68,8 +72,6 @@ static void write_live(const char *host) {
     fclose(fp);
     printf("[+] live.txt seeded with %s\n", host);
 
-    /* insurance: if scanning() opens live.txt relative to the CWD instead
-     * of g.dir, mirror it so the single host is always picked up. */
     if (strcmp(g.dir, ".") != 0 && strcmp(g.dir, "./") != 0) {
         FILE *mirror = fopen("live.txt", "w");
         if (mirror) {
@@ -79,19 +81,26 @@ static void write_live(const char *host) {
     }
 }
 
+/* Returns 1 if the token is a URL-bearing mode. */
+static int is_url_mode(const char *mode) {
+    return (strcmp(mode, "--scan-url")  == 0) ||
+           (strcmp(mode, "--scan-site") == 0) ||
+           (strcmp(mode, "--xss-only")  == 0);
+}
+
+/* Returns 1 if the token is a domain-bearing mode. */
+static int is_domain_mode(const char *mode) {
+    return (strcmp(mode, "-sub")        == 0) ||
+           (strcmp(mode, "--full-scan") == 0) ||
+           (strcmp(mode, "--fast-scan") == 0);
+}
+
 int main(int argc, char *argv[]) {
 
     if (argc < 4) {
         print_usage(argv[0]);
         return 1;
     }
-
-    /* --- bounds-checked copies (no overflow) --- */
-    strncpy(g.domain, argv[1], sizeof(g.domain) - 1);
-    g.domain[sizeof(g.domain) - 1] = '\0';
-
-    strncpy(g.dir, argv[2], sizeof(g.dir) - 1);
-    g.dir[sizeof(g.dir) - 1] = '\0';
 
     /* --- defaults --- */
     g.xss = true;
@@ -104,32 +113,41 @@ int main(int argc, char *argv[]) {
     g.proxy_mode = PROXY_NONE;
     g.proxy_list[0] = '\0';
     g.target[0] = '\0';
+    g.domain[0] = '\0';
 
     /* -------------------------------------------------------------------
-     * For --scan-url / --scan-site / --xss-only, the URL is a separate
-     * positional argument:
-     *     sentinel <domain> <outdir> <mode> <url> [flags]
+     * Universal shape:
      *
-     * For -sub / --full-scan / --fast-scan, no URL is needed:
-     *     sentinel <domain> <outdir> <mode> [flags]
+     *     sentinel <outdir> <mode> <arg> [flags]
+     *
+     *   <outdir>  = argv[1]   (always)
+     *   <mode>    = argv[2]
+     *   <arg>     = argv[3]   url  (url modes)  OR  domain (domain modes)
+     *   flags     = argv[4..]
      * ----------------------------------------------------------------- */
-    int flag_start = 4;
 
-    if (strcmp(argv[3], "--scan-url") == 0 ||
-        strcmp(argv[3], "--scan-site") == 0 ||
-        strcmp(argv[3], "--xss-only") == 0) {
+    const char *mode = argv[2];
 
-        if (argc < 5) {
-            fprintf(stderr, "[-] %s requires a URL\n", argv[3]);
-            print_usage(argv[0]);
-            return 1;
-        }
+    strncpy(g.dir, argv[1], sizeof(g.dir) - 1);
+    g.dir[sizeof(g.dir) - 1] = '\0';
 
-        strncpy(g.target, argv[4], sizeof(g.target) - 1);
+    const int flag_start = 4;
+
+    if (is_url_mode(mode)) {
+        strncpy(g.target, argv[3], sizeof(g.target) - 1);
         g.target[sizeof(g.target) - 1] = '\0';
 
-        /* flags begin after the URL */
-        flag_start = 5;
+        /* domain is derived from the URL */
+        host_of_url(g.target, g.domain, sizeof(g.domain));
+    }
+    else if (is_domain_mode(mode)) {
+        strncpy(g.domain, argv[3], sizeof(g.domain) - 1);
+        g.domain[sizeof(g.domain) - 1] = '\0';
+    }
+    else {
+        fprintf(stderr, "[-] Unknown mode: %s\n", mode);
+        print_usage(argv[0]);
+        return 1;
     }
 
     /* --- optional flags --- */
@@ -165,80 +183,55 @@ int main(int argc, char *argv[]) {
         }
     }
 
-    /* --- safe mkdir (no system() / no shell injection) --- */
+    /* --- safe mkdir --- */
     if (mkdir(g.dir, 0755) != 0 && errno != EEXIST) {
         perror("mkdir");
         return 1;
     }
 
-    curl_http_init();   /* libcurl global init ONCE */
+    curl_http_init();
 
     printf("[+] Sentinel starting\n");
-    printf("[+] Target: %s\n", g.domain);
+    if (g.domain[0]) printf("[+] Target: %s\n", g.domain);
     printf("[+] Output: %s/\n", g.dir);
-    if (g.target[0])
-        printf("[+] URL:    %s\n", g.target);
+    if (g.target[0]) printf("[+] URL:    %s\n", g.target);
 
     int rc = 0;
-    if (strcmp(argv[3], "-sub") == 0) {
-        if (g.proxy)
-            start_proxies();
+
+    if (strcmp(mode, "-sub") == 0) {
+        if (g.proxy) start_proxies();
         subdomain();
-        if (g.proxy)
-            proxy_shutdown();
+        if (g.proxy) proxy_shutdown();
         printf("[+] Subdomain enumeration complete. Results in %s/\n", g.dir);
     }
-    else if (strcmp(argv[3], "--full-scan") == 0) {
+    else if (strcmp(mode, "--full-scan") == 0) {
         g.sitescan = true;
         g.full = true;
         run(NULL);
     }
-    else if (strcmp(argv[3], "--fast-scan") == 0) {
+    else if (strcmp(mode, "--fast-scan") == 0) {
         g.sitescan = true;
         g.full = false;
         run(NULL);
     }
-    else if (strcmp(argv[3], "--xss-only") == 0) {
-        /* xss_run signature is (url, path, report_dir) */
+    else if (strcmp(mode, "--xss-only") == 0) {
         xss_run(g.target, g.dir, g.dir);
     }
-    else if (strcmp(argv[3], "--scan-url") == 0) {
+    else if (strcmp(mode, "--scan-url") == 0) {
         g.urlscan = true;
         g.full = true;
-
-        char host[G_DOMAIN_MAX];
-        host_of_url(g.target, host, sizeof(host));
-
-        /* pipeline + per-host output dirs key off g.domain / live.txt */
-        strncpy(g.domain, host, sizeof(g.domain) - 1);
-        g.domain[sizeof(g.domain) - 1] = '\0';
-
-        write_live(host);
-
-        run(g.target);   /* same pipeline as --full-scan, minus subdomain */
+        write_live(g.domain);
+        run(g.target);
     }
-    else if (strcmp(argv[3], "--scan-site") == 0) {
+    else if (strcmp(mode, "--scan-site") == 0) {
         g.sitescan = true;
         g.urlscan = true;
         g.full = true;
-
-        char host[G_DOMAIN_MAX];
-        host_of_url(g.target, host, sizeof(host));
-
-        strncpy(g.domain, host, sizeof(g.domain) - 1);
-        g.domain[sizeof(g.domain) - 1] = '\0';
-
-        write_live(host);
-
-        run(NULL);       /* same pipeline as --full-scan, minus subdomain */
-    }
-    else {
-        fprintf(stderr, "[-] Unknown mode: %s\n", argv[3]);
-        print_usage(argv[0]);
-        rc = 1;
+        write_live(g.domain);
+        run(NULL);
     }
 
-    proxy_shutdown();      /* idempotent; reaps Tor children if needed */
+    proxy_shutdown();
     curl_http_cleanup();
     return rc;
 }
