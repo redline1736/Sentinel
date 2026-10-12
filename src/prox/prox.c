@@ -20,10 +20,10 @@
 #define MIN_REQUIRED_PROXIES 5
 #define MAX_PROBE_THREADS    16
 
-#define CONF_DIR      "darkshield/proxy/tor"
-#define CUSTOM_DIR    "darkshield/proxy/custom"
-#define BUNDLED_LIST  "darkshield/proxy/custom/proxy.txt"
-#define SCRAPE_CACHE  "darkshield/proxy/custom/proxyscrape.txt"
+#define CONF_DIR      "/usr/share/sentinel/darkshield/proxy/tor"
+#define CUSTOM_DIR    "/usr/share/sentinel/darkshield/proxy/custom"
+#define BUNDLED_LIST  "/usr/share/sentinel/darkshield/proxy/custom/proxy.txt"
+#define SCRAPE_CACHE  "/usr/share/sentinel/darkshield/proxy/custom/proxyscrape.txt"
 
 #define SCRAPE_V4_URL \
     "https://api.proxyscrape.com/v4/free-proxy-list/get" \
@@ -62,8 +62,8 @@ static void ensure_dir(const char *path) {
 }
 
 static void ensure_conf_dirs(void) {
-    ensure_dir("darkshield");
-    ensure_dir("darkshield/proxy");
+    ensure_dir("/usr/share/sentinel/darkshield");
+    ensure_dir("/usr/share/sentinel/darkshield/proxy");
     ensure_dir(CONF_DIR);
     ensure_dir(CUSTOM_DIR);
 }

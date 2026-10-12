@@ -244,7 +244,7 @@ int find_param_reflecting(char *url, char *path) {
     char buffer[MAX_PARAM_LEN];
     request *r;
     FILE *fp, *fptr;
-    char *param_file = "ghostquery/params.txt";
+    char *param_file = "/usr/share/sentinel/ghostquery/params.txt";
     char output_file[4096];
     char *output_dir = "ghostquery/xss";
 
@@ -491,13 +491,13 @@ static void xss_payload_run(const char *tag,
 
 void xss_generated(char *url, char *path) {
     xss_payload_run("xss_generated", url, path,
-                    "ghostquery/xss/payloads.txt",
+                    "/usr/share/sentinel/ghostquery/xss/payloads.txt",
                     "valid_payloads.txt");
 }
 
 void xss_custom(char *url, char *path) {
     xss_payload_run("xss_custom", url, path,
-                    "ghostquery/xss/custom.txt",
+                    "/usr/share/sentinel/ghostquery/xss/custom.txt",
                     "valid_payloads_custom.txt");
 }
 
@@ -548,10 +548,10 @@ int xss_run(char *url, char *path, char *report_dir) {
     if (!report_dir) report_dir = path;
 
     printf("[xss_run] Generating XSS payloads...\n");
-    const char *payloads = "ghostquery/xss/payloads.txt";
+    const char *payloads = "/usr/bin/sentinel/ghostquery/xss/payloads.txt";
 
     if (!file_exists(payloads)) {
-        if (system("python3 ghostquery/xss/main.py") != 0)
+        if (system("python3 /usr/bin/sentinel/ghostquery/xss/main.py") != 0)
             fprintf(stderr, "warning: generate_payloads.py failed (continuing)\n");
     } else {
         printf("[xss_run] Using existing payloads file: %s\n", payloads);
@@ -626,7 +626,7 @@ int nuclei_run(char *url, char *path) {
 
     if (ntargets == 0) {
         printf("[nuclei_run] no reflecting params — falling back to params.txt\n");
-        FILE *wf = fopen("ghostquery/params.txt", "r");
+        FILE *wf = fopen("/usr/share/sentinel/ghostquery/params.txt", "r");
         if (!wf) {
             fprintf(stderr, "[nuclei_run] fallback wordlist missing\n");
             fclose(tl);

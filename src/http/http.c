@@ -1,4 +1,3 @@
-
 #include <curl/curl.h>
 #include "../global.h"
 #include "http.h"

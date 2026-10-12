@@ -25,7 +25,7 @@
 #define MARKER_URL       "http://example.com/"
 
 /* Payload file — read-only from this point on. */
-#define PAYLOAD_FILE     "ghostquery/openredirect/payloads.txt"
+#define PAYLOAD_FILE     "/usr/share/sentinel/ghostquery/openredirect/payloads.txt"
 
 /* ============================================================================
  * Small helpers

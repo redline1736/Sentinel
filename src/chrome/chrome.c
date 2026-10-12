@@ -1,7 +1,3 @@
-#define _DEFAULT_SOURCE
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
 #include <unistd.h>
 #include <signal.h>
 #include <fcntl.h>
@@ -14,6 +10,7 @@
 #include <curl/curl.h>
 
 #include "chrome.h"
+#include "../global.h"
 
 /* ============================================================================
  * Internal helpers

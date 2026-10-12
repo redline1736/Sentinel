@@ -346,7 +346,7 @@ int atlas(char *hosts_file, char *hostdir) {
     char out_file[512];
     snprintf(out_file, sizeof(out_file), "%s/atlas.txt", hostdir);
 
-    const char driver_file[] = "atlas/sig.txt";
+    const char driver_file[] = "/usr/share/sentinel/atlas/sig.txt";
 
     if (curl_global_init(CURL_GLOBAL_DEFAULT) != 0) {
         fprintf(stderr, "[-] curl_global_init failed\n");

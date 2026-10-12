@@ -14,6 +14,7 @@
 #include "../deepblue/deepblue.h"
 #include "../ghostquery/gq.h"
 #include "../global.h"
+#include "../http/http.h"
 #include "../atlas/sub.h"
 
 /* ---------- rate-limit tunables (declared extern in scan.h) ---------- */
@@ -720,10 +721,15 @@ void run(char *url) {
             if (!strcmp(entry->d_name, ".."))
                 continue;
 
-            char nikto[2048];
-            snprintf(nikto, sizeof(nikto), "%s/%s/nikto.txt", g.dir, entry->d_name);
+            char target[512];
+            snprintf(target, sizeof(target), "https://%s", entry->d_name);
+            request r = {0};
+            if(http_send_post(&r, target, NULL, NULL, 0) < 0) {
+                printf("[!] Failed to send request to %s\n", target);
+                continue;
+            }
 
-            FILE *fp = fopen(nikto, "r");
+            FILE *fp = fopen(r->filename, "r");
             if (!fp)
                 continue;
 
