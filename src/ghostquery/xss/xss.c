@@ -2,7 +2,7 @@
 #include <errno.h>
 #include <sys/stat.h>
 #include <sys/types.h>
-#include <sys/wait.h>   /* waitpid */
+#include <sys/wait.h>
 #include <time.h>
 #include <ctype.h>
 #include <curl/curl.h>
@@ -18,28 +18,24 @@
 #include "../../global.h"
 
 
-/* ============================================================================
- * Constants
- * ============================================================================ */
-
 #define MAX_URL_LEN     32768
 #define MAX_PARAM_LEN   256
 #define MAX_PAYLOAD_LEN 32768
-#define MAX_BODY_READ   (1 << 20)   /* 1 MiB reflection-body cap */
-#define CHROME_PORT     9222
 #define CURL_TIMEOUT    10
 #define CURL_CONNECT_TIMEOUT 5
 
-/* Chrome-poll tuning: instead of a hard 300 ms sleep, poll quickly with a
- * bounded number of attempts. */
-#define CHROME_POLL_ATTEMPTS   10
+#define CHROME_POLL_ATTEMPTS    10
 #define CHROME_POLL_INTERVAL_US 20000   /* 20 ms */
 
-/* Thread pool size for the HTTP-only fallback path. */
-#define HTTP_WORKERS 8
+/* 4 workers per scan, 2 scans (generated + custom) running in parallel.
+ * Chrome ports: 9222..9225 for xss_generated, 9226..9229 for xss_custom. */
+#define WORKERS_PER_SCAN 4
+#define CHROME_BASE_PORT_GENERATED 9222
+#define CHROME_BASE_PORT_CUSTOM    9226
+
 
 /* ============================================================================
- * Safe Path Utilities
+ * Path / string utilities
  * ============================================================================ */
 
 static int is_safe_path(const char *path) {
@@ -50,39 +46,10 @@ static int is_safe_path(const char *path) {
     return 1;
 }
 
-static int create_unique_filename(char *dst, size_t dstsz, const char *prefix) {
-    struct timespec ts;
-    static unsigned int counter = 0;
-    unsigned int my_counter;
-
-    if (clock_gettime(CLOCK_REALTIME, &ts) != 0) {
-        time_t t = time(NULL);
-        my_counter = __sync_fetch_and_add(&counter, 1);
-        return snprintf(dst, dstsz, "%s_%d_%ld_%u.txt",
-                        prefix, getpid(), (long)t, my_counter);
-    }
-    my_counter = __sync_fetch_and_add(&counter, 1);
-    return snprintf(dst, dstsz, "%s_%d_%ld_%ld_%u.txt",
-                    prefix, getpid(), (long)ts.tv_sec, (long)ts.tv_nsec, my_counter);
-}
-
-static FILE *safe_fopen_exclusive(const char *filename, const char *mode) {
-    if (!is_safe_path(filename)) { errno = EPERM; return NULL; }
-    int fd = open(filename, O_WRONLY | O_CREAT | O_EXCL, 0600);
-    if (fd < 0) return NULL;
-    FILE *fp = fdopen(fd, mode);
-    if (!fp) { close(fd); unlink(filename); return NULL; }
-    return fp;
-}
-
 static int safe_remove(const char *filename) {
     if (!is_safe_path(filename)) return -1;
     return remove(filename);
 }
-
-/* ============================================================================
- * String Utilities
- * ============================================================================ */
 
 static void strip_newline(char *s) {
     if (!s) return;
@@ -91,8 +58,6 @@ static void strip_newline(char *s) {
         s[--len] = '\0';
 }
 
-/* Insert or replace `param` in the query string, preserving other params
- * and any #fragment. */
 static int build_param_url(char *dst, size_t dstsz,
                            const char *url, const char *param, const char *value) {
     if (!dst || !url || !param || !value) return 0;
@@ -136,7 +101,6 @@ static int build_param_url(char *dst, size_t dstsz,
     return 1;
 }
 
-/* Recursive mkdir without shelling out. */
 static int ensure_directory(const char *path) {
     if (!path) return -1;
     struct stat st;
@@ -160,7 +124,7 @@ static int ensure_directory(const char *path) {
 }
 
 /* ============================================================================
- * Libcurl: reusable handle + in-memory body
+ * curl: per-thread handle, body in memory
  * ============================================================================ */
 
 struct mem_buf {
@@ -185,21 +149,12 @@ static size_t write_mem(void *ptr, size_t size, size_t nmemb, void *ud) {
     return n;
 }
 
-static void mem_buf_free(struct mem_buf *b) {
-    if (!b) return;
-    free(b->data);
-    b->data = NULL; b->len = 0; b->cap = 0;
-}
-
-/* Per-thread curl handle so the HTTP worker pool is safe. */
 static pthread_key_t  g_curl_key;
 static pthread_once_t g_curl_once = PTHREAD_ONCE_INIT;
 
 static void curl_key_destructor(void *p) {
-    CURL *c = p;
-    if (c) curl_easy_cleanup(c);
+    if (p) curl_easy_cleanup((CURL*)p);
 }
-
 static void curl_key_init(void) {
     pthread_key_create(&g_curl_key, curl_key_destructor);
 }
@@ -217,72 +172,50 @@ static CURL *get_curl(void) {
     return c;
 }
 
-/* ============================================================================
- * HTTP Request Sender
- * ============================================================================ */
-
-static int gq_http_send(request *r, const char *url, struct mem_buf *body_out) {
-    if (!r || !url) {
-        fprintf(stderr, "gq_http_send: invalid arguments\n");
-        return 0;
-    }
-
+static int gq_http_send(request *r, const char *url, struct mem_buf *body) {
+    if (!r || !url) return 0;
     r->code = -1;
     r->filename[0] = '\0';
 
     const char *proxy = g.proxy ? proxy_get_socks() : NULL;
-    if (g.proxy && !proxy)
-        fprintf(stderr, "gq_http_send: no proxy available — sending direct\n");
 
     CURL *curl = get_curl();
-    if (!curl) {
-        fprintf(stderr, "gq_http_send: curl_easy_init failed\n");
-        return 0;
-    }
+    if (!curl) return 0;
 
     if (proxy) curl_easy_setopt(curl, CURLOPT_PROXY, proxy);
-
     curl_easy_setopt(curl, CURLOPT_URL, url);
     curl_easy_setopt(curl, CURLOPT_FOLLOWLOCATION, 1L);
     curl_easy_setopt(curl, CURLOPT_MAXREDIRS, 5L);
     curl_easy_setopt(curl, CURLOPT_TIMEOUT, CURL_TIMEOUT);
     curl_easy_setopt(curl, CURLOPT_CONNECTTIMEOUT, CURL_CONNECT_TIMEOUT);
-    curl_easy_setopt(curl, CURLOPT_USERAGENT, "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:124.0) Gecko/20100101 Firefox/124.0");
+    curl_easy_setopt(curl, CURLOPT_USERAGENT, "ghostquery/1.0");
     curl_easy_setopt(curl, CURLOPT_NOSIGNAL, 1L);
     curl_easy_setopt(curl, CURLOPT_ACCEPT_ENCODING, "");
     curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, 0L);
     curl_easy_setopt(curl, CURLOPT_SSL_VERIFYHOST, 0L);
     curl_easy_setopt(curl, CURLOPT_TCP_KEEPALIVE, 1L);
-    curl_easy_setopt(curl, CURLOPT_FRESH_CONNECT, 0L);
-    curl_easy_setopt(curl, CURLOPT_FORBID_REUSE, 0L);
 
-    if (body_out) {
-        body_out->len = 0;
-        if (!body_out->data) {
-            body_out->data = malloc(8192);
-            body_out->cap  = 8192;
-        }
-        if (!body_out->data) return 0;
-        body_out->data[0] = '\0';
+    if (body) {
+        body->len = 0;
+        if (!body->data) { body->data = malloc(8192); body->cap = 8192; }
+        if (!body->data) return 0;
+        body->data[0] = '\0';
         curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, write_mem);
-        curl_easy_setopt(curl, CURLOPT_WRITEDATA, body_out);
-    } else {
-        curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, NULL);
-        curl_easy_setopt(curl, CURLOPT_WRITEDATA, NULL);
+        curl_easy_setopt(curl, CURLOPT_WRITEDATA, body);
     }
 
-    CURLcode result = curl_easy_perform(curl);
-    if (result == CURLE_OK) {
-        long http_code = 0;
-        curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &http_code);
-        r->code = (int)http_code;
+    CURLcode rc = curl_easy_perform(curl);
+    if (rc == CURLE_OK) {
+        long code = 0;
+        curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &code);
+        r->code = (int)code;
         return 1;
     }
     return 0;
 }
 
 /* ============================================================================
- * Reflection-body matcher
+ * Reflection matcher
  * ============================================================================ */
 
 static int body_contains_payload(const char *body, const char *raw, const char *enc) {
@@ -295,282 +228,13 @@ static int body_contains_payload(const char *body, const char *raw, const char *
 }
 
 /* ============================================================================
- * Find Reflecting Parameters
- * ============================================================================ */
-
-int find_param_reflecting(char *url, char *path) {
-    int size, allocated, i = 0;
-    char full_url[MAX_URL_LEN];
-    char buffer[MAX_PARAM_LEN];
-    request *r;
-    FILE *fp, *fptr;
-    char *param_file = "/usr/share/sentinel/ghostquery/params.txt";
-    char output_file[4096];
-    char *output_dir = "ghostquery/xss";
-    struct mem_buf body = {0};
-
-    snprintf(output_file, sizeof(output_file), "%s/valid_params.txt", path);
-
-    if (!url) { fprintf(stderr, "find_param_reflecting: url is NULL\n"); return 1; }
-    if (ensure_directory(output_dir) != 0) {
-        fprintf(stderr, "find_param_reflecting: failed to create %s\n", output_dir);
-        return 1;
-    }
-    if (ensure_directory(path) != 0) {
-        fprintf(stderr, "find_param_reflecting: failed to create %s\n", path);
-        return 1;
-    }
-
-    size = line_count(param_file);
-    if (size <= 0) {
-        fprintf(stderr, "find_param_reflecting: %s is empty or missing\n", param_file);
-        return 1;
-    }
-
-    allocated = size + 1;
-    r = calloc((size_t)allocated, sizeof(request));
-    if (!r) { fprintf(stderr, "find_param_reflecting: calloc failed\n"); return 1; }
-
-    fp = fopen(param_file, "r");
-    if (!fp) {
-        fprintf(stderr, "find_param_reflecting: cannot open %s\n", param_file);
-        free(r); return 1;
-    }
-
-    fptr = fopen(output_file, "w");
-    if (!fptr) {
-        fprintf(stderr, "find_param_reflecting: cannot open %s\n", output_file);
-        fclose(fp); free(r); return 1;
-    }
-
-    printf("[find_param_reflecting] probing %d params against %s\n", size, url);
-
-    while (fgets(buffer, sizeof(buffer), fp)) {
-        strip_newline(buffer);
-        if (buffer[0] == '\0' || buffer[0] == '#') continue;
-        if (i >= allocated) break;
-
-        if (!build_param_url(full_url, sizeof(full_url), url, buffer, "asdasda")) {
-            fprintf(stderr, "[find_param_reflecting] URL too long for '%s'\n", buffer);
-            i++;
-            continue;
-        }
-
-        request *cur = &r[i];
-        body.len = 0;
-
-        if (gq_http_send(cur, full_url, &body)) {
-            if (cur->code >= 200 && cur->code < 400 && body.data) {
-                if (strstr(body.data, "asdasda")) {
-                    fprintf(fptr, "%s\n", buffer);
-                    fflush(fptr);
-                    printf("[find_param_reflecting] REFLECTS: %s (HTTP %d, %zu bytes)\n",
-                           buffer, cur->code, body.len);
-                } else {
-                    printf("[find_param_reflecting] no reflection: %s (HTTP %d)\n",
-                           buffer, cur->code);
-                }
-            } else {
-                printf("[find_param_reflecting] %s -> HTTP %d (skipped)\n",
-                       buffer, cur->code);
-            }
-        } else {
-            printf("[find_param_reflecting] %s -> request failed\n", buffer);
-        }
-
-        i++;
-    }
-
-    fclose(fp);
-    fclose(fptr);
-    free(r);
-    mem_buf_free(&body);
-    printf("find_param_reflecting: results written to %s\n", output_file);
-    return 0;
-}
-
-/* ============================================================================
- * XSS payload runner
- * ============================================================================ */
-
-struct xss_job {
-    char *param;
-    char *payload;
-    char *enc;          /* URL-escaped payload (owned by pool, do not free) */
-    char *full_url;
-    int   event_type;
-};
-
-struct xss_shared {
-    /* HTTP fallback path */
-    char  *payload_file;
-    FILE  *found;
-    pthread_mutex_t found_lock;
-
-    /* Counters */
-    pthread_mutex_t stat_lock;
-    int total_tested;
-    int total_confirmed;
-
-    /* Tag for logging */
-    const char *tag;
-};
-
-/* ------ HTTP-only worker ------ */
-
-static void *http_worker(void *arg) {
-    struct xss_job    *j = arg;
-    struct xss_shared *s = j->user;   /* not used — see below */
-    (void)s;
-    return NULL;
-}
-
-/* Because C doesn't let us tack extra fields cleanly onto a malloc'd job,
- * we carry the shared pointer inside the job struct. */
-struct xss_job_full {
-    struct xss_job base;
-    struct xss_shared *shared;
-};
-
-static void *http_worker_full(void *arg) {
-    struct xss_job_full *jf = arg;
-    struct xss_job      *j  = &jf->base;
-    struct xss_shared   *s  = jf->shared;
-
-    request r = {0};
-    struct mem_buf body = {0};
-
-    if (gq_http_send(&r, j->full_url, &body) && r.code == 200 && body.data) {
-        if (body_contains_payload(body.data, j->payload, j->enc)) {
-            pthread_mutex_lock(&s->found_lock);
-            fprintf(s->found, "%s -> %s\n", j->param, j->payload);
-            fflush(s->found);
-            pthread_mutex_lock(&s->stat_lock);
-            s->total_confirmed++;
-            pthread_mutex_unlock(&s->stat_lock);
-            pthread_mutex_unlock(&s->found_lock);
-            printf("[%s] *** CONFIRMED (HTTP): %s=%s ***\n",
-                   s->tag, j->param, j->payload);
-        }
-    }
-
-    pthread_mutex_lock(&s->stat_lock);
-    s->total_tested++;
-    pthread_mutex_unlock(&s->stat_lock);
-
-    mem_buf_free(&body);
-    free(j->param);
-    free(j->payload);
-    free(j->enc);
-    free(j->full_url);
-    free(jf);
-    return NULL;
-}
-
-/* ------ Chrome path (serialized) ------ */
-
-static int chrome_confirm(chrome *c, struct xss_job *j,
-                          struct xss_shared *s) {
-    if (navigate_to(c, j->full_url) != 0) return 0;
-
-    /* Bounded poll instead of a fixed 300 ms sleep. */
-    for (int a = 0; a < CHROME_POLL_ATTEMPTS; a++) {
-        if (detect_xss(c, 5, j->event_type) == 0) {
-            pthread_mutex_lock(&s->found_lock);
-            fprintf(s->found, "%s -> %s\n", j->param, j->payload);
-            fflush(s->found);
-            pthread_mutex_unlock(&s->found_lock);
-            printf("[%s] *** CONFIRMED: %s=%s ***\n",
-                   s->tag, j->param, j->payload);
-            return 1;
-        }
-        usleep(CHROME_POLL_INTERVAL_US);
-    }
-    return 0;
-}
-
-/* ============================================================================
- * Simple bounded thread queue for HTTP workers
- * ============================================================================ */
-
-struct job_queue {
-    struct xss_job_full **items;
-    size_t cap, head, tail, count;
-    pthread_mutex_t lock;
-    pthread_cond_t  not_empty;
-    pthread_cond_t  not_full;
-    int shutdown;
-};
-
-static int queue_init(struct job_queue *q, size_t cap) {
-    q->items = calloc(cap, sizeof(*q->items));
-    if (!q->items) return -1;
-    q->cap = cap; q->head = q->tail = q->count = 0; q->shutdown = 0;
-    pthread_mutex_init(&q->lock, NULL);
-    pthread_cond_init(&q->not_empty, NULL);
-    pthread_cond_init(&q->not_full, NULL);
-    return 0;
-}
-
-static void queue_destroy(struct job_queue *q) {
-    free(q->items);
-    pthread_mutex_destroy(&q->lock);
-    pthread_cond_destroy(&q->not_empty);
-    pthread_cond_destroy(&q->not_full);
-}
-
-static int queue_push(struct job_queue *q, struct xss_job_full *j) {
-    pthread_mutex_lock(&q->lock);
-    while (q->count == q->cap && !q->shutdown)
-        pthread_cond_wait(&q->not_full, &q->lock);
-    if (q->shutdown) { pthread_mutex_unlock(&q->lock); return -1; }
-    q->items[q->tail] = j;
-    q->tail = (q->tail + 1) % q->cap;
-    q->count++;
-    pthread_cond_signal(&q->not_empty);
-    pthread_mutex_unlock(&q->lock);
-    return 0;
-}
-
-static struct xss_job_full *queue_pop(struct job_queue *q) {
-    pthread_mutex_lock(&q->lock);
-    while (q->count == 0 && !q->shutdown)
-        pthread_cond_wait(&q->not_empty, &q->lock);
-    if (q->count == 0 && q->shutdown) {
-        pthread_mutex_unlock(&q->lock);
-        return NULL;
-    }
-    struct xss_job_full *j = q->items[q->head];
-    q->head = (q->head + 1) % q->cap;
-    q->count--;
-    pthread_cond_signal(&q->not_full);
-    pthread_mutex_unlock(&q->lock);
-    return j;
-}
-
-static void queue_shutdown(struct job_queue *q) {
-    pthread_mutex_lock(&q->lock);
-    q->shutdown = 1;
-    pthread_cond_broadcast(&q->not_empty);
-    pthread_cond_broadcast(&q->not_full);
-    pthread_mutex_unlock(&q->lock);
-}
-
-static void *http_worker_loop(void *arg) {
-    struct job_queue *q = arg;
-    struct xss_job_full *j;
-    while ((j = queue_pop(q)) != NULL)
-        http_worker_full(j);
-    return NULL;
-}
-
-/* ============================================================================
- * Payload/param table loading
+ * Line loaders
  * ============================================================================ */
 
 static char **load_lines(const char *path, int *out_n) {
+    *out_n = 0;
     FILE *fp = fopen(path, "r");
-    if (!fp) { *out_n = 0; return NULL; }
+    if (!fp) return NULL;
 
     char **lines = NULL;
     int    n = 0;
@@ -598,208 +262,334 @@ static void free_lines(char **lines, int n) {
 }
 
 /* ============================================================================
- * XSS payload runner
+ * Find reflecting params
  * ============================================================================ */
 
-static void xss_payload_run(const char *tag,
-                            char *url, char *path,
-                            const char *payload_file,
-                            const char *out_file_name) {
-    char   param_file[4096];
-    char   valid_payloads_path[4096];
-    FILE  *fp, *found;
-    int    total_tested = 0, total_confirmed = 0;
-    int    chrome_initialized = 0;
-    chrome c;
+int find_param_reflecting(char *url, char *path) {
+    if (!url) { fprintf(stderr, "find_param_reflecting: url is NULL\n"); return 1; }
 
-    if (!url || !path) { fprintf(stderr, "[%s] invalid args\n", tag); return; }
+    const char *param_file = "/usr/share/sentinel/ghostquery/params.txt";
+    const char *output_dir = "ghostquery/xss";
+    char output_file[4096];
+
+    snprintf(output_file, sizeof(output_file), "%s/valid_params.txt", path);
+
+    if (ensure_directory(output_dir) != 0) {
+        fprintf(stderr, "find_param_reflecting: failed to create %s\n", output_dir);
+        return 1;
+    }
+    if (ensure_directory(path) != 0) {
+        fprintf(stderr, "find_param_reflecting: failed to create %s\n", path);
+        return 1;
+    }
+
+    int nparams = 0;
+    char **params = load_lines(param_file, &nparams);
+    if (nparams <= 0) {
+        fprintf(stderr, "find_param_reflecting: %s is empty or missing\n", param_file);
+        free_lines(params, nparams);
+        return 1;
+    }
+
+    FILE *fptr = fopen(output_file, "w");
+    if (!fptr) {
+        fprintf(stderr, "find_param_reflecting: cannot open %s\n", output_file);
+        free_lines(params, nparams);
+        return 1;
+    }
+
+    printf("[find_param_reflecting] probing %d params against %s\n", nparams, url);
+
+    struct mem_buf body = {0};
+    char full_url[MAX_URL_LEN];
+
+    for (int i = 0; i < nparams; i++) {
+        if (!build_param_url(full_url, sizeof(full_url), url, params[i], "asdasda")) {
+            fprintf(stderr, "[find_param_reflecting] URL too long for '%s'\n", params[i]);
+            continue;
+        }
+
+        request r = {0};
+        if (gq_http_send(&r, full_url, &body)) {
+            if (r.code >= 200 && r.code < 400 && body.data) {
+                if (strstr(body.data, "asdasda")) {
+                    fprintf(fptr, "%s\n", params[i]);
+                    fflush(fptr);
+                    printf("[find_param_reflecting] REFLECTS: %s (HTTP %d, %zu bytes)\n",
+                           params[i], r.code, body.len);
+                } else {
+                    printf("[find_param_reflecting] no reflection: %s (HTTP %d)\n",
+                           params[i], r.code);
+                }
+            } else {
+                printf("[find_param_reflecting] %s -> HTTP %d (skipped)\n",
+                       params[i], r.code);
+            }
+        } else {
+            printf("[find_param_reflecting] %s -> request failed\n", params[i]);
+        }
+    }
+
+    free(body.data);
+    fclose(fptr);
+    free_lines(params, nparams);
+    printf("find_param_reflecting: results written to %s\n", output_file);
+    return 0;
+}
+
+/* ============================================================================
+ * XSS payload runner — parallelized
+ * ============================================================================ */
+
+struct xss_ctx {
+    const char *tag;
+    const char *url;
+    char       *path;
+
+    /* shared, read-only across workers */
+    char      **params;      int nparams;
+    char      **payloads;    int npayloads;
+    char      **escaped;     /* URL-escaped payloads, one per payload */
+
+    /* shared output */
+    FILE           *found;
+    pthread_mutex_t found_lock;
+
+    int             total_tested;
+    int             total_confirmed;
+    pthread_mutex_t stat_lock;
+
+    /* chrome port base for this scan */
+    int             chrome_port_base;
+};
+
+struct worker_arg {
+    struct xss_ctx *ctx;
+    int             worker_id;    /* 0..WORKERS_PER_SCAN-1 */
+    int             start_param;  /* inclusive */
+    int             end_param;    /* exclusive */
+};
+
+static void *xss_worker(void *arg) {
+    struct worker_arg *wa = arg;
+    struct xss_ctx    *ctx = wa->ctx;
+
+    char   full_url[MAX_URL_LEN];
+    struct mem_buf body = {0};
+    chrome c;
+    int    chrome_ok = 0;
 
     memset(&c, 0, sizeof(c));
 
+    int port = ctx->chrome_port_base + wa->worker_id;
+    printf("[%s/w%d] Initializing Chrome (port %d)...\n", ctx->tag, wa->worker_id, port);
+    if (init_chrome(&c, port) == 0) {
+        chrome_ok = 1;
+        printf("[%s/w%d] Chrome initialized\n", ctx->tag, wa->worker_id);
+    } else {
+        printf("[%s/w%d] Chrome init failed — HTTP-only detection\n",
+               ctx->tag, wa->worker_id);
+    }
+
+    for (int pi = wa->start_param; pi < wa->end_param; pi++) {
+        const char *param = ctx->params[pi];
+
+        for (int k = 0; k < ctx->npayloads; k++) {
+            if (!ctx->escaped[k]) continue;
+
+            if (!build_param_url(full_url, sizeof(full_url),
+                                 ctx->url, param, ctx->escaped[k]))
+                continue;
+
+            int event_type = detect_payload_event_type(ctx->payloads[k]);
+
+            printf("[%s/w%d] Testing: %s=%s (event=%d, url_len=%zu)\n",
+                   ctx->tag, wa->worker_id, param, ctx->payloads[k],
+                   event_type, strlen(full_url));
+
+            int confirmed = 0;
+
+            if (chrome_ok) {
+                if (navigate_to(&c, full_url) == 0) {
+                    for (int a = 0; a < CHROME_POLL_ATTEMPTS; a++) {
+                        if (detect_xss(&c, 5, event_type) == 0) {
+                            confirmed = 1;
+                            break;
+                        }
+                        usleep(CHROME_POLL_INTERVAL_US);
+                    }
+                }
+            } else {
+                request r = {0};
+                if (gq_http_send(&r, full_url, &body) && r.code == 200 &&
+                    body_contains_payload(body.data, ctx->payloads[k], ctx->escaped[k])) {
+                    confirmed = 1;
+                }
+            }
+
+            pthread_mutex_lock(&ctx->stat_lock);
+            ctx->total_tested++;
+            if (confirmed) ctx->total_confirmed++;
+            pthread_mutex_unlock(&ctx->stat_lock);
+
+            if (confirmed) {
+                pthread_mutex_lock(&ctx->found_lock);
+                fprintf(ctx->found, "%s -> %s\n", param, ctx->payloads[k]);
+                fflush(ctx->found);
+                pthread_mutex_unlock(&ctx->found_lock);
+                printf("[%s/w%d] *** CONFIRMED: %s=%s ***\n",
+                       ctx->tag, wa->worker_id, param, ctx->payloads[k]);
+            }
+        }
+    }
+
+    free(body.data);
+    if (chrome_ok) close_chrome(&c);
+    return NULL;
+}
+
+/* Runs one scan type with WORKERS_PER_SCAN workers over the same param list. */
+static void xss_payload_run(const char *tag,
+                            char *url, char *path,
+                            const char *payload_file,
+                            const char *out_file_name,
+                            int chrome_port_base) {
+    if (!url || !path) { fprintf(stderr, "[%s] invalid args\n", tag); return; }
+
+    char param_file[4096];
+    char out_path[4096];
     snprintf(param_file, sizeof(param_file), "%s/valid_params.txt", path);
+    snprintf(out_path,   sizeof(out_path),   "%s/%s", path, out_file_name);
 
     if (ensure_directory(path) != 0) {
         fprintf(stderr, "[%s] failed to create %s\n", tag, path);
         return;
     }
 
-    snprintf(valid_payloads_path, sizeof(valid_payloads_path),
-             "%s/%s", path, out_file_name);
+    struct xss_ctx ctx;
+    memset(&ctx, 0, sizeof(ctx));
+    ctx.tag              = tag;
+    ctx.url              = url;
+    ctx.path             = path;
+    ctx.chrome_port_base = chrome_port_base;
 
-    /* ---- Load payloads once ---- */
-    int np = 0;
-    char **payloads = load_lines(payload_file, &np);
-    if (np <= 0) {
-        fprintf(stderr, "[%s] %s empty or missing\n", tag, payload_file);
-        free_lines(payloads, np);
+    ctx.payloads = load_lines(payload_file, &ctx.npayloads);
+    ctx.params   = load_lines(param_file,   &ctx.nparams);
+
+    if (ctx.npayloads <= 0 || ctx.nparams <= 0) {
+        fprintf(stderr, "[%s] %s (%d) or %s (%d) empty/missing\n",
+                tag, payload_file, ctx.npayloads, param_file, ctx.nparams);
+        free_lines(ctx.payloads, ctx.npayloads);
+        free_lines(ctx.params,   ctx.nparams);
         return;
     }
 
-    /* ---- Pre-escape payloads once ---- */
-    char **escaped = calloc((size_t)np, sizeof(char*));
-    for (int k = 0; k < np; k++)
-        escaped[k] = curl_easy_escape(NULL, payloads[k], 0);
+    /* Escape payloads once. */
+    ctx.escaped = calloc((size_t)ctx.npayloads, sizeof(char*));
+    for (int k = 0; k < ctx.npayloads; k++)
+        ctx.escaped[k] = curl_easy_escape(NULL, ctx.payloads[k], 0);
 
-    /* ---- Load params once ---- */
-    int np_params = 0;
-    char **params = load_lines(param_file, &np_params);
-    if (np_params <= 0) {
-        fprintf(stderr, "[%s] %s empty or missing\n", tag, param_file);
-        for (int k = 0; k < np; k++) { free(payloads[k]); if (escaped[k]) curl_free(escaped[k]); }
-        free(payloads); free(escaped); free_lines(params, np_params);
+    ctx.found = fopen(out_path, "w");
+    if (!ctx.found) {
+        fprintf(stderr, "[%s] cannot write %s\n", tag, out_path);
+        for (int k = 0; k < ctx.npayloads; k++)
+            if (ctx.escaped[k]) curl_free(ctx.escaped[k]);
+        free(ctx.escaped);
+        free_lines(ctx.payloads, ctx.npayloads);
+        free_lines(ctx.params,   ctx.nparams);
         return;
     }
 
-    found = fopen(valid_payloads_path, "w");
-    if (!found) {
-        fprintf(stderr, "[%s] cannot write %s\n", tag, valid_payloads_path);
-        for (int k = 0; k < np; k++) { free(payloads[k]); if (escaped[k]) curl_free(escaped[k]); }
-        free(payloads); free(escaped); free_lines(params, np_params);
-        return;
-    }
+    pthread_mutex_init(&ctx.found_lock, NULL);
+    pthread_mutex_init(&ctx.stat_lock,  NULL);
 
-    printf("[%s] Initializing Chrome (port %d)...\n", tag, CHROME_PORT);
-    if (init_chrome(&c, CHROME_PORT) == 0) {
-        chrome_initialized = 1;
-        printf("[%s] Chrome initialized\n", tag);
-    } else {
-        printf("[%s] Chrome init failed — HTTP-only detection\n", tag);
-    }
+    /* Split params evenly across workers. */
+    pthread_t         tids[WORKERS_PER_SCAN];
+    struct worker_arg wargs[WORKERS_PER_SCAN];
 
-    struct xss_shared shared;
-    memset(&shared, 0, sizeof(shared));
-    shared.payload_file = (char*)payload_file;
-    shared.found        = found;
-    shared.tag          = tag;
-    pthread_mutex_init(&shared.found_lock, NULL);
-    pthread_mutex_init(&shared.stat_lock, NULL);
+    int per = ctx.nparams / WORKERS_PER_SCAN;
+    int rem = ctx.nparams % WORKERS_PER_SCAN;
+    int cursor = 0;
 
-    if (chrome_initialized) {
-        /* -------- Serialized Chrome path -------- */
-        for (int pi = 0; pi < np_params; pi++) {
-            const char *param = params[pi];
-            for (int k = 0; k < np; k++) {
-                if (!escaped[k]) continue;
+    for (int w = 0; w < WORKERS_PER_SCAN; w++) {
+        int take = per + (w < rem ? 1 : 0);
+        wargs[w].ctx         = &ctx;
+        wargs[w].worker_id   = w;
+        wargs[w].start_param = cursor;
+        wargs[w].end_param   = cursor + take;
+        cursor += take;
 
-                char full_url[MAX_URL_LEN];
-                if (!build_param_url(full_url, sizeof(full_url), url, param, escaped[k]))
-                    continue;
-
-                int event_type = detect_payload_event_type(payloads[k]);
-
-                printf("[%s] Testing: %s=%s (event=%d, url_len=%zu)\n",
-                       tag, param, payloads[k], event_type, strlen(full_url));
-
-                struct xss_job j = {
-                    .param      = (char*)param,
-                    .payload    = payloads[k],
-                    .enc        = escaped[k],
-                    .full_url   = full_url,
-                    .event_type = event_type,
-                };
-
-                if (chrome_confirm(&c, &j, &shared))
-                    shared.total_confirmed++;
-                shared.total_tested++;
-            }
+        if (pthread_create(&tids[w], NULL, xss_worker, &wargs[w]) != 0) {
+            fprintf(stderr, "[%s] pthread_create failed for worker %d\n", tag, w);
+            /* Fall back: run this slice on the main thread. */
+            xss_worker(&wargs[w]);
+            tids[w] = 0;
         }
-    } else {
-        /* -------- Parallel HTTP path -------- */
-        struct job_queue q;
-        if (queue_init(&q, HTTP_WORKERS * 4) != 0) {
-            fprintf(stderr, "[%s] queue_init failed\n", tag);
-            goto cleanup;
-        }
-
-        pthread_t workers[HTTP_WORKERS];
-        for (int w = 0; w < HTTP_WORKERS; w++)
-            pthread_create(&workers[w], NULL, http_worker_loop, &q);
-
-        for (int pi = 0; pi < np_params; pi++) {
-            const char *param = params[pi];
-            for (int k = 0; k < np; k++) {
-                if (!escaped[k]) continue;
-
-                char *full_url = malloc(MAX_URL_LEN);
-                if (!full_url) continue;
-                if (!build_param_url(full_url, MAX_URL_LEN, url, param, escaped[k])) {
-                    free(full_url); continue;
-                }
-
-                struct xss_job_full *jf = calloc(1, sizeof(*jf));
-                if (!jf) { free(full_url); continue; }
-
-                jf->base.param      = strdup(param);
-                jf->base.payload    = strdup(payloads[k]);
-                jf->base.enc        = strdup(escaped[k]);
-                jf->base.full_url   = full_url;
-                jf->base.event_type = detect_payload_event_type(payloads[k]);
-                jf->shared          = &shared;
-
-                if (!jf->base.param || !jf->base.payload || !jf->base.enc) {
-                    free(jf->base.param); free(jf->base.payload);
-                    free(jf->base.enc);   free(full_url); free(jf);
-                    continue;
-                }
-
-                if (queue_push(&q, jf) != 0) {
-                    free(jf->base.param); free(jf->base.payload);
-                    free(jf->base.enc);   free(full_url); free(jf);
-                    break;
-                }
-            }
-        }
-
-        queue_shutdown(&q);
-        for (int w = 0; w < HTTP_WORKERS; w++)
-            pthread_join(workers[w], NULL);
-        queue_destroy(&q);
-
-        total_tested    = shared.total_tested;
-        total_confirmed = shared.total_confirmed;
     }
 
-cleanup:
-    if (chrome_initialized) close_chrome(&c);
-
-    pthread_mutex_destroy(&shared.found_lock);
-    pthread_mutex_destroy(&shared.stat_lock);
-
-    fclose(found);
-
-    for (int k = 0; k < np; k++) {
-        free(payloads[k]);
-        if (escaped[k]) curl_free(escaped[k]);
-    }
-    free(payloads);
-    free(escaped);
-    free_lines(params, np_params);
-
-    if (chrome_initialized) {
-        total_tested    = shared.total_tested;
-        total_confirmed = shared.total_confirmed;
+    for (int w = 0; w < WORKERS_PER_SCAN; w++) {
+        if (tids[w]) pthread_join(tids[w], NULL);
     }
 
     printf("[%s] Done. Tested %d, confirmed %d. Results: %s\n",
-           tag, total_tested, total_confirmed, valid_payloads_path);
+           tag, ctx.total_tested, ctx.total_confirmed, out_path);
+
+    fclose(ctx.found);
+    pthread_mutex_destroy(&ctx.found_lock);
+    pthread_mutex_destroy(&ctx.stat_lock);
+
+    for (int k = 0; k < ctx.npayloads; k++)
+        if (ctx.escaped[k]) curl_free(ctx.escaped[k]);
+    free(ctx.escaped);
+    free_lines(ctx.payloads, ctx.npayloads);
+    free_lines(ctx.params,   ctx.nparams);
 }
 
+/* ============================================================================
+ * Scan entrypoints — xss_generated and xss_custom now run in parallel
+ * ============================================================================ */
 
+struct scan_arg {
+    char *url;
+    char *path;
+    int   which;   /* 0 = generated, 1 = custom */
+};
+
+static void *scan_thread(void *arg) {
+    struct scan_arg *sa = arg;
+    if (sa->which == 0) {
+        xss_payload_run("xss_generated", sa->url, sa->path,
+                        "/usr/share/sentinel/ghostquery/xss/payloads.txt",
+                        "valid_payloads.txt",
+                        CHROME_BASE_PORT_GENERATED);
+    } else {
+        xss_payload_run("xss_custom", sa->url, sa->path,
+                        "/usr/share/sentinel/ghostquery/xss/custom.txt",
+                        "valid_payloads_custom.txt",
+                        CHROME_BASE_PORT_CUSTOM);
+    }
+    return NULL;
+}
+
+/* Keep the old function names around for any other caller. */
 void xss_generated(char *url, char *path) {
     xss_payload_run("xss_generated", url, path,
                     "/usr/share/sentinel/ghostquery/xss/payloads.txt",
-                    "valid_payloads.txt");
+                    "valid_payloads.txt",
+                    CHROME_BASE_PORT_GENERATED);
 }
 
 void xss_custom(char *url, char *path) {
     xss_payload_run("xss_custom", url, path,
                     "/usr/share/sentinel/ghostquery/xss/custom.txt",
-                    "valid_payloads_custom.txt");
+                    "valid_payloads_custom.txt",
+                    CHROME_BASE_PORT_CUSTOM);
 }
 
 /* ============================================================================
- * Mirror findings into <report_dir>/xss.txt
+ * Mirror findings
  * ============================================================================ */
+
 static void mirror_xss_findings(const char *path, const char *report_dir) {
     if (!path || !report_dir) return;
 
@@ -828,13 +618,12 @@ static void mirror_xss_findings(const char *path, const char *report_dir) {
 }
 
 /* ============================================================================
- * Main XSS Run Entry Point
+ * Entry point
  * ============================================================================ */
 
 int file_exists(const char *filename) {
     return access(filename, F_OK) == 0;
 }
-
 
 int xss_run(char *url, char *path, char *report_dir) {
     if (!url || !path) {
@@ -857,11 +646,15 @@ int xss_run(char *url, char *path, char *report_dir) {
     if (find_param_reflecting(url, path) != 0)
         fprintf(stderr, "warning: find_param_reflecting failed\n");
 
-    printf("[xss_run] Running generated payload scan...\n");
-    xss_generated(url, path);
+    printf("[xss_run] Launching generated + custom scans in parallel...\n");
+    struct scan_arg gen  = { url, path, 0 };
+    struct scan_arg cus  = { url, path, 1 };
+    pthread_t tgen = 0, tcus = 0;
 
-    printf("[xss_run] Running custom payload scan...\n");
-    xss_custom(url, path);
+    pthread_create(&tgen, NULL, scan_thread, &gen);
+    pthread_create(&tcus, NULL, scan_thread, &cus);
+    if (tgen) pthread_join(tgen, NULL);
+    if (tcus) pthread_join(tcus, NULL);
 
     printf("[xss_run] Mirroring findings into %s/xss.txt\n", report_dir);
     mirror_xss_findings(path, report_dir);
@@ -871,7 +664,7 @@ int xss_run(char *url, char *path, char *report_dir) {
 }
 
 /* ============================================================================
- * Nuclei on discovered params (with wordlist fallback)
+ * nuclei_run — unchanged
  * ============================================================================ */
 
 int nuclei_run(char *url, char *path) {
