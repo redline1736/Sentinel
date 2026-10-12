@@ -16,7 +16,6 @@
  * Internal helpers
  * ============================================================================ */
 
-/* growable response accumulator for libcurl callbacks */
 typedef struct {
     char  *buf;
     size_t len;
@@ -31,7 +30,7 @@ static size_t write_callback(char *ptr, size_t size, size_t nmemb, void *userdat
         size_t newcap = r->cap ? r->cap * 2 : 4096;
         while (newcap < r->len + total + 1) newcap *= 2;
         char *nb = realloc(r->buf, newcap);
-        if (!nb) return 0;   /* signal error */
+        if (!nb) return 0;
         r->buf = nb;
         r->cap = newcap;
     }
@@ -41,7 +40,6 @@ static size_t write_callback(char *ptr, size_t size, size_t nmemb, void *userdat
     return total;
 }
 
-/* JSON string escaper — writes into dst (may be dst==src for in-place). */
 static int json_escape(const char *src, char *dst, size_t dstsz) {
     size_t j = 0;
     for (size_t i = 0; src[i]; i++) {
@@ -78,14 +76,6 @@ static int json_escape(const char *src, char *dst, size_t dstsz) {
     return 1;
 }
 
-/* ----------------------------------------------------------------------------
- * Read WebSocket frames until we find one containing "id":<id> (optionally
- * also containing `needle`).  Drains and discards unrelated events.
- * Returns:
- *   1  -> found
- *   0  -> not found within budget
- *  -1  -> transport error
- * -------------------------------------------------------------------------- */
 static int recv_until_id(chrome *c, int id, const char *needle,
                          int max_frames, int per_frame_usleep)
 {
@@ -112,7 +102,6 @@ static int recv_until_id(chrome *c, int id, const char *needle,
     return 0;
 }
 
-/* Simple synchronous WS send helper. */
 static int ws_send(chrome *c, const char *data) {
     size_t sent = 0;
     size_t total = strlen(data);
@@ -215,7 +204,6 @@ int init_chrome(chrome *c, int port) {
     c->port = port;
     c->pid  = -1;
 
-    /* Fork+exec so we get a real PID for isolated kill. */
     char profile[128];
     snprintf(profile, sizeof(profile), "/tmp/remote-profile-%d", port);
 
@@ -228,14 +216,13 @@ int init_chrome(chrome *c, int port) {
         return -1;
     }
     if (pid == 0) {
-        /* child */
         int devnull = open("/dev/null", O_WRONLY);
         if (devnull >= 0) {
             dup2(devnull, STDOUT_FILENO);
             dup2(devnull, STDERR_FILENO);
             if (devnull > STDERR_FILENO) close(devnull);
         }
-        setsid();   /* detach from controlling terminal */
+        setsid();
 
         execlp("chromium", "chromium",
                port_opt,
@@ -248,7 +235,6 @@ int init_chrome(chrome *c, int port) {
                "--disable-extensions",
                (char *)NULL);
 
-        /* If chromium isn't found, try chrome / google-chrome. */
         execlp("google-chrome", "google-chrome",
                port_opt,
                "--user-data-dir", profile,
@@ -274,7 +260,6 @@ int init_chrome(chrome *c, int port) {
         _exit(127);
     }
 
-    /* parent */
     c->pid = pid;
 
     if (wait_for_port(port, 10) != 0) {
@@ -292,7 +277,6 @@ int init_chrome(chrome *c, int port) {
     c->curl = curl_easy_init();
     if (!c->curl) { close_chrome(c); return -1; }
 
-    /* Detect WS support. */
     curl_version_info_data *ver = curl_version_info(CURLVERSION_NOW);
     int ws_supported = 0;
 #ifdef CURL_VERSION_WEBSOCKETS
@@ -326,7 +310,6 @@ int init_chrome(chrome *c, int port) {
     c->use_websocket = 1;
     printf("[CDP] WebSocket connected\n");
 
-    /* --- Handshake: Page.enable, Runtime.enable, instrumentation --- */
     const char *enable_cmd = "{\"id\":1,\"method\":\"Page.enable\"}";
     const char *rt_cmd     = "{\"id\":2,\"method\":\"Runtime.enable\"}";
     if (ws_send(c, enable_cmd) != 0 || ws_send(c, rt_cmd) != 0) {
@@ -346,9 +329,8 @@ int init_chrome(chrome *c, int port) {
     }
     if (ws_send(c, instr) != 0) { close_chrome(c); return -1; }
 
-    /* Wait for all three ack IDs. */
     for (int id = 1; id <= 3; id++) {
-        if (recv_until_id(c, id, NULL, 100, 50000) != 1) {
+        if (recv_until_id(c, id, NULL, 100, 5000) != 1) {
             fprintf(stderr, "[CDP] timed out awaiting ack id=%d\n", id);
             close_chrome(c);
             return -1;
@@ -366,13 +348,11 @@ void close_chrome(chrome *c) {
     }
     if (c->pid > 0) {
         kill(c->pid, SIGTERM);
-        /* reap briefly */
         for (int i = 0; i < 20; i++) {
             pid_t r = waitpid(c->pid, NULL, WNOHANG);
             if (r == c->pid || (r < 0 && errno == ECHILD)) break;
             usleep(50000);
         }
-        /* escalate if still alive */
         if (kill(c->pid, 0) == 0) kill(c->pid, SIGKILL);
         c->pid = -1;
     }
@@ -386,7 +366,6 @@ int navigate_to(chrome *c, const char *url) {
     if (!c || !c->curl || !c->use_websocket) return -1;
     if (!url) return -1;
 
-    /* Escape url for JSON safety. */
     size_t ulen = strlen(url);
     char *esc = malloc(ulen * 6 + 1);
     if (!esc) return -1;
@@ -425,7 +404,7 @@ int send_cdp(chrome *c, const char *method, const char *params, int id) {
 }
 
 /* ============================================================================
- * Input simulation
+ * Input simulation (kept for API compatibility, not used by detect_xss)
  * ============================================================================ */
 
 int simulate_mouse_move(chrome *c, int x, int y) {
@@ -446,7 +425,7 @@ int simulate_click(chrome *c, int x, int y) {
     if (send_cdp(c, "Input.dispatchMouseEvent", press, 101) != 0)
         return -1;
 
-    usleep(50000);
+    usleep(20000);
 
     snprintf(release, sizeof(release),
         "{\"type\":\"mouseReleased\",\"x\":%d,\"y\":%d,"
@@ -456,7 +435,7 @@ int simulate_click(chrome *c, int x, int y) {
 }
 
 /* ============================================================================
- * Dialog + marker detection
+ * Dialog detection
  * ============================================================================ */
 
 int handle_dialogs(chrome *c, int max_polls) {
@@ -468,7 +447,7 @@ int handle_dialogs(chrome *c, int max_polls) {
         size_t n = 0;
         CURLcode rc = curl_ws_recv(c->curl, buf, sizeof(buf) - 1, &n, &meta);
 
-        if (rc == CURLE_AGAIN) { usleep(100000); continue; }
+        if (rc == CURLE_AGAIN) { usleep(20000); continue; }
         if (rc != CURLE_OK) break;
         if (n == 0) continue;
         buf[n] = '\0';
@@ -479,6 +458,9 @@ int handle_dialogs(chrome *c, int max_polls) {
                 "\"params\":{\"accept\":true}}";
             ws_send(c, handle_cmd);
             printf("[CDP] XSS DETECTED — dialog accepted\n");
+            return 0;
+        }
+        if (strstr(buf, "\"__gq_xss\"")) {
             return 0;
         }
     }
@@ -495,9 +477,40 @@ int probe_runtime_marker(chrome *c) {
 
     if (ws_send(c, cmd) != 0) return 1;
 
-    /* Look specifically for our id and a true value; skip other events. */
-    int found = recv_until_id(c, 77, "\"value\":true", 200, 30000);
+    int found = recv_until_id(c, 77, "\"value\":true", 200, 5000);
     return (found == 1) ? 0 : 1;
+}
+
+/* ============================================================================
+ * Event dispatch — one round trip instead of many mouse moves
+ * ============================================================================ */
+
+static int dispatch_events(chrome *c) {
+    if (!c || !c->use_websocket) return -1;
+
+    /* Dispatch mouseover/pointerenter/click/etc on window, document, and every
+     * element in the DOM.  One CDP call.  Any handler set by the payload will
+     * fire if the payload was actually injected as an element or attribute. */
+    const char *cmd =
+        "{\"id\":88,\"method\":\"Runtime.evaluate\",\"params\":{"
+        "\"expression\":\"(function(){"
+        "var evs=['mouseover','mouseenter','pointerenter','pointerover',"
+        "'mousemove','click','mousedown','mouseup','focus','error','load'];"
+        "function fire(t){"
+        "for(var i=0;i<evs.length;i++){"
+        "try{t.dispatchEvent(new MouseEvent(evs[i],{bubbles:true,cancelable:true,view:window}))}catch(e){}"
+        "}"
+        "}"
+        "fire(window);fire(document);"
+        "try{fire(document.body)}catch(e){}"
+        "var all=document.querySelectorAll('*');"
+        "for(var j=0;j<all.length&&j<500;j++){fire(all[j])}"
+        "})()\","
+        "\"returnByValue\":true}}";
+
+    if (ws_send(c, cmd) != 0) return -1;
+    recv_until_id(c, 88, NULL, 100, 5000);
+    return 0;
 }
 
 /* ============================================================================
@@ -533,30 +546,15 @@ int detect_payload_event_type(const char *payload) {
 int detect_xss(chrome *c, int max_polls, int interaction) {
     if (!c || !c->use_websocket) return 1;
 
-    if (interaction == XSS_INTERACT_MOUSE) {
-        for (int step = 0; step < 10; step++) {
-            simulate_mouse_move(c, step * 100 + 10, 50 + (step % 5) * 30);
-            usleep(80000);
-            if (handle_dialogs(c, 3) == 0) return 0;
-        }
-        if (handle_dialogs(c, max_polls) == 0) return 0;
-        return probe_runtime_marker(c);
-    }
-
-    if (interaction == XSS_INTERACT_CLICK) {
-        int positions[][2] = {
-            {100, 100}, {200, 150}, {300, 200},
-            {50,  50},  {400, 300}, {150, 250}
-        };
-        for (int i = 0; i < 6; i++) {
-            simulate_click(c, positions[i][0], positions[i][1]);
-            usleep(100000);
-            if (handle_dialogs(c, 3) == 0) return 0;
-        }
-        if (handle_dialogs(c, max_polls) == 0) return 0;
-        return probe_runtime_marker(c);
-    }
-
+    /* Passive check first: dialog fired or marker already set on load. */
     if (handle_dialogs(c, max_polls) == 0) return 0;
+
+    /* Active trigger for interaction-based payloads: one round-trip that
+     * dispatches events on every element in the DOM. */
+    if (interaction == XSS_INTERACT_MOUSE || interaction == XSS_INTERACT_CLICK) {
+        dispatch_events(c);
+        if (handle_dialogs(c, 5) == 0) return 0;
+    }
+
     return probe_runtime_marker(c);
 }

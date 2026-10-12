@@ -24,9 +24,6 @@
 #define CURL_TIMEOUT    10
 #define CURL_CONNECT_TIMEOUT 5
 
-#define CHROME_POLL_ATTEMPTS    10
-#define CHROME_POLL_INTERVAL_US 20000   /* 20 ms */
-
 #define WORKERS_PER_SCAN 4
 #define CHROME_BASE_PORT_GENERATED 9222
 #define CHROME_BASE_PORT_CUSTOM    9226
@@ -149,16 +146,12 @@ static int ensure_directory(const char *path) {
 }
 
 /* ============================================================================
- * Libcurl Write Callback
+ * Libcurl Write Callback + HTTP sender (only used to find reflecting params)
  * ============================================================================ */
 
 static size_t write_file(void *ptr, size_t size, size_t nmemb, void *stream) {
     return fwrite(ptr, size, nmemb, (FILE *)stream);
 }
-
-/* ============================================================================
- * HTTP Request Sender  — your original, unchanged
- * ============================================================================ */
 
 static int gq_http_send(request *r, const char *url) {
     CURL *curl;
@@ -229,19 +222,6 @@ static int gq_http_send(request *r, const char *url) {
 }
 
 /* ============================================================================
- * Reflection-body matcher
- * ============================================================================ */
-
-static int body_contains_payload(const char *body, const char *raw, const char *enc) {
-    if (!body || !raw || !*raw) return 0;
-    if (strstr(body, raw)) return 1;
-    if (enc && *enc && strcmp(enc, raw) != 0 && strstr(body, enc)) return 1;
-    if (raw[0] == '<' && raw[1] && strstr(body, "&lt;") && strstr(body, raw + 1))
-        return 1;
-    return 0;
-}
-
-/* ============================================================================
  * Read whole file into heap buffer
  * ============================================================================ */
 
@@ -296,7 +276,8 @@ static void free_lines(char **lines, int n) {
 }
 
 /* ============================================================================
- * Find Reflecting Parameters
+ * Find Reflecting Parameters  (HTTP only — this part is not XSS confirmation,
+ * it's just a pre-pass to shrink the param list.)
  * ============================================================================ */
 
 int find_param_reflecting(char *url, char *path) {
@@ -386,35 +367,34 @@ int find_param_reflecting(char *url, char *path) {
 }
 
 /* ============================================================================
- * XSS payload runner — parallelized
+ * XSS payload runner — Chrome-only confirmation
  * ============================================================================ */
 
 struct xss_ctx {
     const char *tag;
     const char *url;
-    char *path;
+    char       *path;
 
-    char **params;      
-    int nparams;
-    char **payloads;    
-    int npayloads;
-    char **escaped;
+    char      **params;      int nparams;
+    char      **payloads;    int npayloads;
+    char      **escaped;
+    int        *event_types;
 
-    FILE *found;
+    FILE           *found;
     pthread_mutex_t found_lock;
 
-    int total_tested;
-    int total_confirmed;
+    int             total_tested;
+    int             total_confirmed;
     pthread_mutex_t stat_lock;
 
-    int chrome_port_base;
+    int             chrome_port_base;
 };
 
 struct worker_arg {
     struct xss_ctx *ctx;
-    int worker_id;
-    int start_param;
-    int end_param;
+    int             worker_id;
+    int             start_param;
+    int             end_param;
 };
 
 static void *xss_worker(void *arg) {
@@ -433,8 +413,9 @@ static void *xss_worker(void *arg) {
         chrome_ok = 1;
         printf("[%s/w%d] Chrome initialized\n", ctx->tag, wa->worker_id);
     } else {
-        printf("[%s/w%d] Chrome init failed — HTTP-only detection\n",
+        printf("[%s/w%d] Chrome init FAILED — worker aborting (no HTTP fallback)\n",
                ctx->tag, wa->worker_id);
+        return NULL;
     }
 
     for (int pi = wa->start_param; pi < wa->end_param; pi++) {
@@ -447,35 +428,13 @@ static void *xss_worker(void *arg) {
                                  ctx->url, param, ctx->escaped[k]))
                 continue;
 
-            int event_type = detect_payload_event_type(ctx->payloads[k]);
-
-            printf("[%s/w%d] Testing: %s=%s (event=%d, url_len=%zu)\n",
-                   ctx->tag, wa->worker_id, param, ctx->payloads[k],
-                   event_type, strlen(full_url));
+            int event_type = ctx->event_types[k];
 
             int confirmed = 0;
-
-            if (chrome_ok) {
-                if (navigate_to(&c, full_url) == 0) {
-                    for (int a = 0; a < CHROME_POLL_ATTEMPTS; a++) {
-                        if (detect_xss(&c, 5, event_type) == 0) {
-                            confirmed = 1;
-                            break;
-                        }
-                        usleep(CHROME_POLL_INTERVAL_US);
-                    }
-                }
-            } else {
-                request r = {0};
-                if (gq_http_send(&r, full_url) && r.code == 200 && r.filename[0]) {
-                    char *body = slurp_file(r.filename, NULL);
-                    if (body) {
-                        if (body_contains_payload(body, ctx->payloads[k], ctx->escaped[k]))
-                            confirmed = 1;
-                        free(body);
-                    }
-                    safe_remove(r.filename);
-                }
+            if (navigate_to(&c, full_url) == 0) {
+                /* Chrome drives the detection; no HTTP fallback. */
+                if (detect_xss(&c, 5, event_type) == 0)
+                    confirmed = 1;
             }
 
             pthread_mutex_lock(&ctx->stat_lock);
@@ -494,7 +453,7 @@ static void *xss_worker(void *arg) {
         }
     }
 
-    if (chrome_ok) close_chrome(&c);
+    close_chrome(&c);
     return NULL;
 }
 
@@ -533,9 +492,12 @@ static void xss_payload_run(const char *tag,
         return;
     }
 
-    ctx.escaped = calloc((size_t)ctx.npayloads, sizeof(char*));
-    for (int k = 0; k < ctx.npayloads; k++)
-        ctx.escaped[k] = curl_easy_escape(NULL, ctx.payloads[k], 0);
+    ctx.escaped     = calloc((size_t)ctx.npayloads, sizeof(char*));
+    ctx.event_types = calloc((size_t)ctx.npayloads, sizeof(int));
+    for (int k = 0; k < ctx.npayloads; k++) {
+        ctx.escaped[k]     = curl_easy_escape(NULL, ctx.payloads[k], 0);
+        ctx.event_types[k] = detect_payload_event_type(ctx.payloads[k]);
+    }
 
     ctx.found = fopen(out_path, "w");
     if (!ctx.found) {
@@ -543,6 +505,7 @@ static void xss_payload_run(const char *tag,
         for (int k = 0; k < ctx.npayloads; k++)
             if (ctx.escaped[k]) curl_free(ctx.escaped[k]);
         free(ctx.escaped);
+        free(ctx.event_types);
         free_lines(ctx.payloads, ctx.npayloads);
         free_lines(ctx.params,   ctx.nparams);
         return;
@@ -587,6 +550,7 @@ static void xss_payload_run(const char *tag,
     for (int k = 0; k < ctx.npayloads; k++)
         if (ctx.escaped[k]) curl_free(ctx.escaped[k]);
     free(ctx.escaped);
+    free(ctx.event_types);
     free_lines(ctx.payloads, ctx.npayloads);
     free_lines(ctx.params,   ctx.nparams);
 }
@@ -617,7 +581,19 @@ static void *scan_thread(void *arg) {
     return NULL;
 }
 
+void xss_generated(char *url, char *path) {
+    xss_payload_run("xss_generated", url, path,
+                    "/usr/share/sentinel/ghostquery/xss/payloads.txt",
+                    "valid_payloads.txt",
+                    CHROME_BASE_PORT_GENERATED);
+}
 
+void xss_custom(char *url, char *path) {
+    xss_payload_run("xss_custom", url, path,
+                    "/usr/share/sentinel/ghostquery/xss/custom.txt",
+                    "valid_payloads_custom.txt",
+                    CHROME_BASE_PORT_CUSTOM);
+}
 
 /* ============================================================================
  * Mirror findings
