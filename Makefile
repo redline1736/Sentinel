@@ -5,7 +5,7 @@ CFLAGS  += -Wall -Wextra -O2 -D_GNU_SOURCE -pthread \
            -Wno-format-truncation -Wno-sign-compare
 LIBS    := -lcurl -lpthread -lcjson
 
-SRCS = src/main.c src/util/util.c src/prox/prox.c src/scan/scan.c src/chrome/chrome.c \
+SRCS = src/main.c src/util/util.c src/prox/prox.c src/scan/scan.c src/chrome/chrome.c src/http/http.c\
        src/deepblue/deepblue.c \
        src/atlas/sub.c \
        src/glassworm/gw.c src/glassworm/graphql/gq.c  src/glassworm/sock/sock.c src/glassworm/csrf/csrf.c \
