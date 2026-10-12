@@ -1,8 +1,8 @@
 #include "../global.h"
 #include "graphql/gq.h"
 #include "sock/sock.h"
-#include "util/util.h"
-#include "http/http.h"
+#include "../util/util.h"
+#include "../http/http.h"
 #include "csrf/csrf.h"
 
 int graphql(char *path, bool gobuster, char *target_url) {
