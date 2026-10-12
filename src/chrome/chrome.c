@@ -184,6 +184,9 @@ int discover_ws_url(chrome *c, int port) {
 
 /* ============================================================================
  * Instrumentation JS
+ *
+ * window.__gq_xss is set BEFORE the real function is called, so even if the
+ * real alert()/confirm() blocks the JS thread, the marker is already set.
  * ============================================================================ */
 
 static const char *INSTRUMENT_JS =
@@ -461,11 +464,17 @@ int simulate_click(chrome *c, int x, int y) {
 }
 
 /* ============================================================================
- * Dialog detection — dialogs only; marker check is done by probe_runtime_marker
+ * Dialog detection
+ *
+ * If a Page.javascriptDialogOpening event is seen, accept it immediately so
+ * the JS thread unblocks.  Also drains the ack for handleJavaScriptDialog so
+ * it doesn't linger in the WebSocket buffer and confuse the next probe.
  * ============================================================================ */
 
 int handle_dialogs(chrome *c, int max_polls) {
     if (!c || !c->curl || !c->use_websocket) return 1;
+
+    int saw_dialog = 0;
 
     for (int i = 0; i < max_polls; i++) {
         const struct curl_ws_frame *meta = NULL;
@@ -484,11 +493,27 @@ int handle_dialogs(chrome *c, int max_polls) {
                 "\"params\":{\"accept\":true}}";
             ws_send(c, handle_cmd);
             printf("[CDP] XSS DETECTED — dialog accepted\n");
-            return 0;
+            saw_dialog = 1;
+
+            /* Drain the ack (and anything else queued) so the next
+             * Runtime.evaluate probe sees its own response first. */
+            for (int j = 0; j < 3; j++) {
+                const struct curl_ws_frame *m2 = NULL;
+                char b2[2048];
+                size_t n2 = 0;
+                CURLcode rc2 = curl_ws_recv(c->curl, b2, sizeof(b2) - 1, &n2, &m2);
+                if (rc2 != CURLE_OK) break;
+                if (n2 == 0) break;
+            }
+            break;
         }
     }
-    return 1;
+    return saw_dialog ? 0 : 1;
 }
+
+/* ============================================================================
+ * Marker probe — must be called AFTER any pending dialog is dismissed.
+ * ============================================================================ */
 
 int probe_runtime_marker(chrome *c) {
     if (!c || !c->curl || !c->use_websocket) return 1;
@@ -500,7 +525,8 @@ int probe_runtime_marker(chrome *c) {
 
     if (ws_send(c, cmd) != 0) return 1;
 
-    int found = recv_until_id(c, 77, "\"value\":true", 200, 5000);
+    /* 500 frames × 5ms = 2.5s ceiling; returns as soon as the ack arrives. */
+    int found = recv_until_id(c, 77, "\"value\":true", 500, 5000);
     return (found == 1) ? 0 : 1;
 }
 
@@ -561,19 +587,51 @@ int detect_payload_event_type(const char *payload) {
 
 /* ============================================================================
  * Combined XSS detection
+ *
+ * Order matters:
+ *   1. Unconditionally send Page.handleJavaScriptDialog{accept:true}.  If a
+ *      dialog is blocking the JS thread, this unblocks it.  If nothing is
+ *      pending, Chrome replies with an error which we ignore.
+ *   2. Read any Page.javascriptDialogOpening frames that were queued before
+ *      we sent the accept command.
+ *   3. Ask the page for window.__gq_xss.  The JS thread is free now, so
+ *      Runtime.evaluate returns immediately instead of queuing behind a
+ *      blocked alert()/confirm().
+ *   4. For event-driven payloads, dispatch synthetic events, then run the
+ *      same dismiss-then-probe sequence again.
  * ============================================================================ */
 
 int detect_xss(chrome *c, int max_polls, int interaction) {
     if (!c || !c->use_websocket) return 1;
 
-    /* Passive check: did a dialog fire on load? */
+    /* Step 1 — unconditionally dismiss any pending dialog. */
+    ws_send(c,
+        "{\"id\":98,\"method\":\"Page.handleJavaScriptDialog\","
+        "\"params\":{\"accept\":true}}");
+
+    /* Give Chrome a moment to unblock the JS thread if a dialog was open. */
+    usleep(30000);
+
+    /* Step 2 — read any dialog-opening frames that are queued. */
     if (handle_dialogs(c, max_polls) == 0) return 0;
 
-    /* Active trigger for interaction-based payloads. */
+    /* Step 3 — marker check. */
+    if (probe_runtime_marker(c) == 0) return 0;
+
+    /* Step 4 — for event-driven payloads, trigger and retry. */
     if (interaction == XSS_INTERACT_MOUSE || interaction == XSS_INTERACT_CLICK) {
         dispatch_events(c);
-        if (handle_dialogs(c, 5) == 0) return 0;
+        usleep(50000);
+
+        /* Dismiss anything the dispatched events triggered. */
+        ws_send(c,
+            "{\"id\":98,\"method\":\"Page.handleJavaScriptDialog\","
+            "\"params\":{\"accept\":true}}");
+        usleep(30000);
+
+        if (handle_dialogs(c, 10) == 0) return 0;
+        if (probe_runtime_marker(c) == 0) return 0;
     }
 
-    return probe_runtime_marker(c);
+    return 1;
 }

