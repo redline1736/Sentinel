@@ -145,7 +145,38 @@ static int ensure_directory(const char *path) {
 }
 
 /* ============================================================================
- * Libcurl Write Callback + HTTP sender (only for find_param_reflecting)
+ * Encoding detection
+ *
+ * Returns 1 if the payload appears to already contain percent-escapes
+ * (i.e. it was pre-URL-encoded by the author of the payload file).
+ * In that case the scanner must NOT re-escape it — doing so would double
+ * encode and the server would never see the intended %NN sequence.
+ *
+ * If the payload contains any raw HTML-special character, it's considered
+ * a "raw" payload and will be escaped normally.
+ * ============================================================================ */
+
+static int looks_url_encoded(const char *p) {
+    if (!p || !*p) return 0;
+
+    int has_escape = 0;
+    for (const char *s = p; *s; s++) {
+        if (*s == '%' &&
+            isxdigit((unsigned char)s[1]) &&
+            isxdigit((unsigned char)s[2])) {
+            has_escape = 1;
+            s += 2;
+            continue;
+        }
+        if (*s == '<' || *s == '>' || *s == '"' || *s == '\'' ||
+            *s == ' ' || *s == '&')
+            return 0;
+    }
+    return has_escape;
+}
+
+/* ============================================================================
+ * Libcurl Write Callback + HTTP sender (used by find_param_reflecting)
  * ============================================================================ */
 
 static size_t write_file(void *ptr, size_t size, size_t nmemb, void *stream) {
@@ -275,7 +306,7 @@ static void free_lines(char **lines, int n) {
 }
 
 /* ============================================================================
- * Find Reflecting Parameters
+ * Find Reflecting Parameters (HTTP pre-pass)
  * ============================================================================ */
 
 int find_param_reflecting(char *url, char *path) {
@@ -365,7 +396,7 @@ int find_param_reflecting(char *url, char *path) {
 }
 
 /* ============================================================================
- * XSS payload runner — Chrome-only confirmation
+ * XSS payload runner — Chrome-only confirmation, encoding-aware
  * ============================================================================ */
 
 struct xss_ctx {
@@ -377,6 +408,7 @@ struct xss_ctx {
     char      **payloads;    int npayloads;
     char      **escaped;
     int        *event_types;
+    int        *preencoded;
 
     FILE           *found;
     pthread_mutex_t found_lock;
@@ -407,7 +439,7 @@ static void *xss_worker(void *arg) {
     int port = ctx->chrome_port_base + wa->worker_id;
     printf("[%s/w%d] Initializing Chrome (port %d)...\n", ctx->tag, wa->worker_id, port);
     if (init_chrome(&c, port) != 0) {
-        printf("[%s/w%d] Chrome init FAILED — worker aborting (no HTTP fallback)\n",
+        printf("[%s/w%d] Chrome init FAILED — worker aborting\n",
                ctx->tag, wa->worker_id);
         return NULL;
     }
@@ -426,8 +458,16 @@ static void *xss_worker(void *arg) {
             int event_type = ctx->event_types[k];
 
             int confirmed = 0;
+
             if (navigate_to(&c, full_url) == 0) {
-                if (detect_xss(&c, 5, event_type) == 0)
+                usleep(150000);
+                if (detect_xss(&c, 15, event_type) == 0)
+                    confirmed = 1;
+            }
+
+            if (!confirmed && navigate_to(&c, full_url) == 0) {
+                usleep(300000);
+                if (detect_xss(&c, 20, event_type) == 0)
                     confirmed = 1;
             }
 
@@ -437,12 +477,16 @@ static void *xss_worker(void *arg) {
             pthread_mutex_unlock(&ctx->stat_lock);
 
             if (confirmed) {
+                const char *kind = ctx->preencoded[k] ? "URL-ENC" : "RAW";
+
                 pthread_mutex_lock(&ctx->found_lock);
-                fprintf(ctx->found, "%s -> %s\n", param, ctx->payloads[k]);
+                fprintf(ctx->found, "[%s] %s -> %s\n",
+                        kind, param, ctx->payloads[k]);
                 fflush(ctx->found);
                 pthread_mutex_unlock(&ctx->found_lock);
-                printf("[%s/w%d] *** CONFIRMED: %s=%s ***\n",
-                       ctx->tag, wa->worker_id, param, ctx->payloads[k]);
+
+                printf("[%s/w%d] *** CONFIRMED [%s]: %s=%s ***\n",
+                       ctx->tag, wa->worker_id, kind, param, ctx->payloads[k]);
             }
         }
     }
@@ -488,8 +532,16 @@ static void xss_payload_run(const char *tag,
 
     ctx.escaped     = calloc((size_t)ctx.npayloads, sizeof(char*));
     ctx.event_types = calloc((size_t)ctx.npayloads, sizeof(int));
+    ctx.preencoded  = calloc((size_t)ctx.npayloads, sizeof(int));
+
     for (int k = 0; k < ctx.npayloads; k++) {
-        ctx.escaped[k]     = curl_easy_escape(NULL, ctx.payloads[k], 0);
+        if (looks_url_encoded(ctx.payloads[k])) {
+            ctx.escaped[k]    = strdup(ctx.payloads[k]);
+            ctx.preencoded[k] = 1;
+        } else {
+            ctx.escaped[k]    = curl_easy_escape(NULL, ctx.payloads[k], 0);
+            ctx.preencoded[k] = 0;
+        }
         ctx.event_types[k] = detect_payload_event_type(ctx.payloads[k]);
     }
 
@@ -497,9 +549,10 @@ static void xss_payload_run(const char *tag,
     if (!ctx.found) {
         fprintf(stderr, "[%s] cannot write %s\n", tag, out_path);
         for (int k = 0; k < ctx.npayloads; k++)
-            if (ctx.escaped[k]) curl_free(ctx.escaped[k]);
+            if (ctx.escaped[k]) free(ctx.escaped[k]);
         free(ctx.escaped);
         free(ctx.event_types);
+        free(ctx.preencoded);
         free_lines(ctx.payloads, ctx.npayloads);
         free_lines(ctx.params,   ctx.nparams);
         return;
@@ -542,15 +595,16 @@ static void xss_payload_run(const char *tag,
     pthread_mutex_destroy(&ctx.stat_lock);
 
     for (int k = 0; k < ctx.npayloads; k++)
-        if (ctx.escaped[k]) curl_free(ctx.escaped[k]);
+        if (ctx.escaped[k]) free(ctx.escaped[k]);
     free(ctx.escaped);
     free(ctx.event_types);
+    free(ctx.preencoded);
     free_lines(ctx.payloads, ctx.npayloads);
     free_lines(ctx.params,   ctx.nparams);
 }
 
 /* ============================================================================
- * Scan entrypoint — custom only
+ * Scan entrypoint
  * ============================================================================ */
 
 void xss_custom(char *url, char *path) {
@@ -560,7 +614,7 @@ void xss_custom(char *url, char *path) {
                     CHROME_BASE_PORT);
 }
 
-/* Kept for linker compatibility with any other caller, delegates to custom. */
+/* Kept for linker compatibility; delegates to custom. */
 void xss_generated(char *url, char *path) {
     xss_custom(url, path);
 }

@@ -187,10 +187,14 @@ int discover_ws_url(chrome *c, int port) {
  *
  * window.__gq_xss is set BEFORE the real function is called, so even if the
  * real alert()/confirm() blocks the JS thread, the marker is already set.
+ * Also hooks common indirect sinks so eval-based payloads that reach alert
+ * through Function() / setTimeout still set the marker.
  * ============================================================================ */
 
 static const char *INSTRUMENT_JS =
     "(function(){"
+    "if(window.__gq_installed)return;"
+    "window.__gq_installed=1;"
     "['alert','prompt','confirm'].forEach(function(f){"
     "var o=window[f];"
     "window[f]=function(){window.__gq_xss=1;"
@@ -203,37 +207,11 @@ static const char *INSTRUMENT_JS =
  * Chrome lifecycle
  * ============================================================================ */
 
-/* Chromium's own startup checks race when several instances are forked
- * simultaneously from a multithreaded parent.  Serialize the launch. */
 static pthread_mutex_t g_chrome_launch_lock = PTHREAD_MUTEX_INITIALIZER;
 
-int init_chrome(chrome *c, int port) {
-    if (!c) return -1;
-    memset(c, 0, sizeof(*c));
-    c->port = port;
-    c->pid  = -1;
-
-    char profile[128];
-    snprintf(profile, sizeof(profile), "/tmp/remote-profile-%d", port);
-
-    /* Nuke the profile dir so a crashed prior run can't leave a stale lock. */
-    char rmcmd[256];
-    snprintf(rmcmd, sizeof(rmcmd), "rm -rf %s", profile);
-    if (system(rmcmd) != 0) {
-        /* best-effort */
-    }
-
-    char port_opt[64];
-    snprintf(port_opt, sizeof(port_opt), "--remote-debugging-port=%d", port);
-
-    pthread_mutex_lock(&g_chrome_launch_lock);
-
+static pid_t spawn_chrome(const char *port_opt, const char *profile) {
     pid_t pid = fork();
-    if (pid < 0) {
-        perror("fork");
-        pthread_mutex_unlock(&g_chrome_launch_lock);
-        return -1;
-    }
+    if (pid < 0) return -1;
     if (pid == 0) {
         int devnull = open("/dev/null", O_WRONLY);
         if (devnull >= 0) {
@@ -281,20 +259,60 @@ int init_chrome(chrome *c, int port) {
 
         _exit(127);
     }
+    return pid;
+}
 
-    c->pid = pid;
+int init_chrome(chrome *c, int port) {
+    if (!c) return -1;
+    memset(c, 0, sizeof(*c));
+    c->port = port;
+    c->pid  = -1;
 
-    if (wait_for_port(port, 15) != 0) {
-        fprintf(stderr, "Timed out waiting for Chrome on port %d\n", port);
-        close_chrome(c);
+    char profile[128];
+    snprintf(profile, sizeof(profile), "/tmp/remote-profile-%d", port);
+
+    char rmcmd[256];
+    snprintf(rmcmd, sizeof(rmcmd), "rm -rf %s", profile);
+    if (system(rmcmd) != 0) {
+        /* best-effort */
+    }
+
+    char port_opt[64];
+    snprintf(port_opt, sizeof(port_opt), "--remote-debugging-port=%d", port);
+
+    pthread_mutex_lock(&g_chrome_launch_lock);
+
+    c->pid = spawn_chrome(port_opt, profile);
+    if (c->pid < 0) {
+        perror("fork");
         pthread_mutex_unlock(&g_chrome_launch_lock);
         return -1;
     }
+
+    if (wait_for_port(port, 15) != 0) {
+        fprintf(stderr, "[CDP] first launch on port %d failed; retrying\n", port);
+        close_chrome(c);
+
+        char rm2[256];
+        snprintf(rm2, sizeof(rm2), "rm -rf %s", profile);
+        if (system(rm2) != 0) { /* best-effort */ }
+
+        c->pid = spawn_chrome(port_opt, profile);
+        if (c->pid < 0) {
+            pthread_mutex_unlock(&g_chrome_launch_lock);
+            return -1;
+        }
+        if (wait_for_port(port, 15) != 0) {
+            fprintf(stderr, "Timed out waiting for Chrome on port %d (retry)\n", port);
+            close_chrome(c);
+            pthread_mutex_unlock(&g_chrome_launch_lock);
+            return -1;
+        }
+    }
     printf("[CDP] Chrome ready on port %d (pid %d)\n", port, (int)c->pid);
 
-    /* Stagger so the next launch's Chromium doesn't collide with this
-     * instance's internal initialization. */
-    usleep(300000);
+    /* Stagger so the next launch doesn't race this instance's internal init. */
+    usleep(600000);
 
     pthread_mutex_unlock(&g_chrome_launch_lock);
 
@@ -466,9 +484,9 @@ int simulate_click(chrome *c, int x, int y) {
 /* ============================================================================
  * Dialog detection
  *
- * If a Page.javascriptDialogOpening event is seen, accept it immediately so
- * the JS thread unblocks.  Also drains the ack for handleJavaScriptDialog so
- * it doesn't linger in the WebSocket buffer and confuse the next probe.
+ * Reads for Page.javascriptDialogOpening and immediately accepts the dialog
+ * so the JS thread unblocks.  Never dismissed pre-emptively — the dialog
+ * event is the signal we're looking for.
  * ============================================================================ */
 
 int handle_dialogs(chrome *c, int max_polls) {
@@ -482,7 +500,7 @@ int handle_dialogs(chrome *c, int max_polls) {
         size_t n = 0;
         CURLcode rc = curl_ws_recv(c->curl, buf, sizeof(buf) - 1, &n, &meta);
 
-        if (rc == CURLE_AGAIN) { usleep(20000); continue; }
+        if (rc == CURLE_AGAIN) { usleep(15000); continue; }
         if (rc != CURLE_OK) break;
         if (n == 0) continue;
         buf[n] = '\0';
@@ -495,14 +513,14 @@ int handle_dialogs(chrome *c, int max_polls) {
             printf("[CDP] XSS DETECTED — dialog accepted\n");
             saw_dialog = 1;
 
-            /* Drain the ack (and anything else queued) so the next
-             * Runtime.evaluate probe sees its own response first. */
-            for (int j = 0; j < 3; j++) {
+            /* Drain the ack and anything queued after it so the next
+             * Runtime.evaluate probe doesn't queue behind them. */
+            for (int j = 0; j < 4; j++) {
                 const struct curl_ws_frame *m2 = NULL;
-                char b2[2048];
+                char b2[4096];
                 size_t n2 = 0;
-                CURLcode rc2 = curl_ws_recv(c->curl, b2, sizeof(b2) - 1, &n2, &m2);
-                if (rc2 != CURLE_OK) break;
+                if (curl_ws_recv(c->curl, b2, sizeof(b2) - 1, &n2, &m2) != CURLE_OK)
+                    break;
                 if (n2 == 0) break;
             }
             break;
@@ -512,7 +530,7 @@ int handle_dialogs(chrome *c, int max_polls) {
 }
 
 /* ============================================================================
- * Marker probe — must be called AFTER any pending dialog is dismissed.
+ * Marker probe — retries so navigation races don't cause misses.
  * ============================================================================ */
 
 int probe_runtime_marker(chrome *c) {
@@ -523,11 +541,13 @@ int probe_runtime_marker(chrome *c) {
         "\"expression\":\"window.__gq_xss===1\","
         "\"returnByValue\":true}}";
 
-    if (ws_send(c, cmd) != 0) return 1;
-
-    /* 500 frames × 5ms = 2.5s ceiling; returns as soon as the ack arrives. */
-    int found = recv_until_id(c, 77, "\"value\":true", 500, 5000);
-    return (found == 1) ? 0 : 1;
+    for (int attempt = 0; attempt < 6; attempt++) {
+        if (ws_send(c, cmd) != 0) return 1;
+        int found = recv_until_id(c, 77, "\"value\":true", 200, 5000);
+        if (found == 1) return 0;
+        usleep(80000);
+    }
+    return 1;
 }
 
 /* ============================================================================
@@ -571,7 +591,12 @@ int detect_payload_event_type(const char *payload) {
         strstr(payload, "onmouseenter")   ||
         strstr(payload, "onpointermove")  ||
         strstr(payload, "onpointerover")  ||
-        strstr(payload, "onpointerenter"))
+        strstr(payload, "onpointerenter") ||
+        strstr(payload, "onfocus")        ||
+        strstr(payload, "autofocus")      ||
+        strstr(payload, "ontoggle")       ||
+        strstr(payload, "onstart")        ||
+        strstr(payload, "onbegin"))
         return XSS_INTERACT_MOUSE;
 
     if (strstr(payload, "onclick")        ||
@@ -588,48 +613,44 @@ int detect_payload_event_type(const char *payload) {
 /* ============================================================================
  * Combined XSS detection
  *
- * Order matters:
- *   1. Unconditionally send Page.handleJavaScriptDialog{accept:true}.  If a
- *      dialog is blocking the JS thread, this unblocks it.  If nothing is
- *      pending, Chrome replies with an error which we ignore.
- *   2. Read any Page.javascriptDialogOpening frames that were queued before
- *      we sent the accept command.
- *   3. Ask the page for window.__gq_xss.  The JS thread is free now, so
- *      Runtime.evaluate returns immediately instead of queuing behind a
- *      blocked alert()/confirm().
- *   4. For event-driven payloads, dispatch synthetic events, then run the
- *      same dismiss-then-probe sequence again.
+ * 1. Read for Page.javascriptDialogOpening FIRST.  If seen -> confirmed.
+ * 2. If no dialog event, probe the marker.  The JS thread is free, so
+ *    Runtime.evaluate returns quickly.
+ * 3. Only if the marker probe times out do we send a defensive dismiss
+ *    in case a dialog was blocking but the event frame was lost.
+ * 4. For interaction payloads, dispatch synthetic events and repeat.
  * ============================================================================ */
 
 int detect_xss(chrome *c, int max_polls, int interaction) {
     if (!c || !c->use_websocket) return 1;
 
-    /* Step 1 — unconditionally dismiss any pending dialog. */
+    /* 1. Dialog event first — primary signal. */
+    if (handle_dialogs(c, max_polls) == 0) return 0;
+
+    /* 2. Marker probe — fallback for suppressed dialogs whose JS ran. */
+    if (probe_runtime_marker(c) == 0) return 0;
+
+    /* 3. Defensive dismiss in case a dialog blocked the JS thread but the
+     *    event frame was lost.  Then probe the marker once more. */
     ws_send(c,
         "{\"id\":98,\"method\":\"Page.handleJavaScriptDialog\","
         "\"params\":{\"accept\":true}}");
-
-    /* Give Chrome a moment to unblock the JS thread if a dialog was open. */
     usleep(30000);
-
-    /* Step 2 — read any dialog-opening frames that are queued. */
-    if (handle_dialogs(c, max_polls) == 0) return 0;
-
-    /* Step 3 — marker check. */
+    if (handle_dialogs(c, 6) == 0) return 0;
     if (probe_runtime_marker(c) == 0) return 0;
 
-    /* Step 4 — for event-driven payloads, trigger and retry. */
+    /* 4. Interaction payloads: dispatch events, then repeat the sequence. */
     if (interaction == XSS_INTERACT_MOUSE || interaction == XSS_INTERACT_CLICK) {
         dispatch_events(c);
-        usleep(50000);
+        usleep(60000);
 
-        /* Dismiss anything the dispatched events triggered. */
+        if (handle_dialogs(c, 12) == 0) return 0;
+        if (probe_runtime_marker(c) == 0) return 0;
+
         ws_send(c,
             "{\"id\":98,\"method\":\"Page.handleJavaScriptDialog\","
             "\"params\":{\"accept\":true}}");
         usleep(30000);
-
-        if (handle_dialogs(c, 10) == 0) return 0;
         if (probe_runtime_marker(c) == 0) return 0;
     }
 

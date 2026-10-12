@@ -185,7 +185,6 @@ if [[ "${MODE}" == "install" ]]; then
     hdr "Verifying critical data files"
     for f in \
         "ghostquery/params.txt" \
-        "ghostquery/xss/payloads.txt" \
         "ghostquery/xss/custom.txt" \
         "deepblue/module.dvr"
     do
