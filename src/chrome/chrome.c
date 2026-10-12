@@ -5,9 +5,11 @@
 #include <sys/socket.h>
 #include <sys/wait.h>
 #include <sys/types.h>
+#include <sys/stat.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
 #include <curl/curl.h>
+#include <pthread.h>
 
 #include "chrome.h"
 #include "../global.h"
@@ -198,6 +200,10 @@ static const char *INSTRUMENT_JS =
  * Chrome lifecycle
  * ============================================================================ */
 
+/* Chromium's own startup checks race when several instances are forked
+ * simultaneously from a multithreaded parent.  Serialize the launch. */
+static pthread_mutex_t g_chrome_launch_lock = PTHREAD_MUTEX_INITIALIZER;
+
 int init_chrome(chrome *c, int port) {
     if (!c) return -1;
     memset(c, 0, sizeof(*c));
@@ -207,12 +213,22 @@ int init_chrome(chrome *c, int port) {
     char profile[128];
     snprintf(profile, sizeof(profile), "/tmp/remote-profile-%d", port);
 
+    /* Nuke the profile dir so a crashed prior run can't leave a stale lock. */
+    char rmcmd[256];
+    snprintf(rmcmd, sizeof(rmcmd), "rm -rf %s", profile);
+    if (system(rmcmd) != 0) {
+        /* best-effort */
+    }
+
     char port_opt[64];
     snprintf(port_opt, sizeof(port_opt), "--remote-debugging-port=%d", port);
+
+    pthread_mutex_lock(&g_chrome_launch_lock);
 
     pid_t pid = fork();
     if (pid < 0) {
         perror("fork");
+        pthread_mutex_unlock(&g_chrome_launch_lock);
         return -1;
     }
     if (pid == 0) {
@@ -233,6 +249,7 @@ int init_chrome(chrome *c, int port) {
                "--no-first-run",
                "--no-default-browser-check",
                "--disable-extensions",
+               "--disable-dev-shm-usage",
                (char *)NULL);
 
         execlp("google-chrome", "google-chrome",
@@ -244,6 +261,7 @@ int init_chrome(chrome *c, int port) {
                "--no-first-run",
                "--no-default-browser-check",
                "--disable-extensions",
+               "--disable-dev-shm-usage",
                (char *)NULL);
 
         execlp("chromium-browser", "chromium-browser",
@@ -255,6 +273,7 @@ int init_chrome(chrome *c, int port) {
                "--no-first-run",
                "--no-default-browser-check",
                "--disable-extensions",
+               "--disable-dev-shm-usage",
                (char *)NULL);
 
         _exit(127);
@@ -262,12 +281,19 @@ int init_chrome(chrome *c, int port) {
 
     c->pid = pid;
 
-    if (wait_for_port(port, 10) != 0) {
+    if (wait_for_port(port, 15) != 0) {
         fprintf(stderr, "Timed out waiting for Chrome on port %d\n", port);
         close_chrome(c);
+        pthread_mutex_unlock(&g_chrome_launch_lock);
         return -1;
     }
     printf("[CDP] Chrome ready on port %d (pid %d)\n", port, (int)c->pid);
+
+    /* Stagger so the next launch's Chromium doesn't collide with this
+     * instance's internal initialization. */
+    usleep(300000);
+
+    pthread_mutex_unlock(&g_chrome_launch_lock);
 
     if (discover_ws_url(c, port) != 0) {
         close_chrome(c);
@@ -435,7 +461,7 @@ int simulate_click(chrome *c, int x, int y) {
 }
 
 /* ============================================================================
- * Dialog detection
+ * Dialog detection — dialogs only; marker check is done by probe_runtime_marker
  * ============================================================================ */
 
 int handle_dialogs(chrome *c, int max_polls) {
@@ -458,9 +484,6 @@ int handle_dialogs(chrome *c, int max_polls) {
                 "\"params\":{\"accept\":true}}";
             ws_send(c, handle_cmd);
             printf("[CDP] XSS DETECTED — dialog accepted\n");
-            return 0;
-        }
-        if (strstr(buf, "\"__gq_xss\"")) {
             return 0;
         }
     }
@@ -488,9 +511,6 @@ int probe_runtime_marker(chrome *c) {
 static int dispatch_events(chrome *c) {
     if (!c || !c->use_websocket) return -1;
 
-    /* Dispatch mouseover/pointerenter/click/etc on window, document, and every
-     * element in the DOM.  One CDP call.  Any handler set by the payload will
-     * fire if the payload was actually injected as an element or attribute. */
     const char *cmd =
         "{\"id\":88,\"method\":\"Runtime.evaluate\",\"params\":{"
         "\"expression\":\"(function(){"
@@ -546,11 +566,10 @@ int detect_payload_event_type(const char *payload) {
 int detect_xss(chrome *c, int max_polls, int interaction) {
     if (!c || !c->use_websocket) return 1;
 
-    /* Passive check first: dialog fired or marker already set on load. */
+    /* Passive check: did a dialog fire on load? */
     if (handle_dialogs(c, max_polls) == 0) return 0;
 
-    /* Active trigger for interaction-based payloads: one round-trip that
-     * dispatches events on every element in the DOM. */
+    /* Active trigger for interaction-based payloads. */
     if (interaction == XSS_INTERACT_MOUSE || interaction == XSS_INTERACT_CLICK) {
         dispatch_events(c);
         if (handle_dialogs(c, 5) == 0) return 0;

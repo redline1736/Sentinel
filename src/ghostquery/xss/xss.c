@@ -21,8 +21,8 @@
 #define MAX_URL_LEN     32768
 #define MAX_PARAM_LEN   256
 #define MAX_PAYLOAD_LEN 32768
-#define CURL_TIMEOUT    10
-#define CURL_CONNECT_TIMEOUT 5
+#define CURL_TIMEOUT         10L
+#define CURL_CONNECT_TIMEOUT 5L
 
 #define WORKERS_PER_SCAN 4
 #define CHROME_BASE_PORT_GENERATED 9222
@@ -403,20 +403,17 @@ static void *xss_worker(void *arg) {
 
     char   full_url[MAX_URL_LEN];
     chrome c;
-    int    chrome_ok = 0;
 
     memset(&c, 0, sizeof(c));
 
     int port = ctx->chrome_port_base + wa->worker_id;
     printf("[%s/w%d] Initializing Chrome (port %d)...\n", ctx->tag, wa->worker_id, port);
-    if (init_chrome(&c, port) == 0) {
-        chrome_ok = 1;
-        printf("[%s/w%d] Chrome initialized\n", ctx->tag, wa->worker_id);
-    } else {
+    if (init_chrome(&c, port) != 0) {
         printf("[%s/w%d] Chrome init FAILED — worker aborting (no HTTP fallback)\n",
                ctx->tag, wa->worker_id);
         return NULL;
     }
+    printf("[%s/w%d] Chrome initialized\n", ctx->tag, wa->worker_id);
 
     for (int pi = wa->start_param; pi < wa->end_param; pi++) {
         const char *param = ctx->params[pi];
@@ -432,7 +429,6 @@ static void *xss_worker(void *arg) {
 
             int confirmed = 0;
             if (navigate_to(&c, full_url) == 0) {
-                /* Chrome drives the detection; no HTTP fallback. */
                 if (detect_xss(&c, 5, event_type) == 0)
                     confirmed = 1;
             }
