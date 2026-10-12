@@ -28,10 +28,6 @@ static const char* detect_content_type(const char *filename) {
     return "application/octet-stream";
 }
 
-
-void curl_http_init(void)      { curl_global_init(CURL_GLOBAL_ALL); }
-void curl_http_cleanup(void)   { curl_global_cleanup(); }
-
 static bool setup_curl(CURL *curl, const char *url, FILE *fp) {
     if (!curl || !url || !fp) return false;
 
