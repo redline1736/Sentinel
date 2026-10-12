@@ -11,6 +11,7 @@
 #include "prox/prox.h"
 #include "scan/scan.h"
 #include "ghostquery/xss/xss.h"
+#include "glassworm/gw.h"
 #include "global.h"
 
 static void print_usage(const char *prog) {
@@ -21,6 +22,12 @@ static void print_usage(const char *prog) {
     printf("  %s <outdir> -sub        <domain> [flags]\n", prog);
     printf("  %s <outdir> --full-scan <domain> [flags]\n", prog);
     printf("  %s <outdir> --fast-scan <domain> [flags]\n", prog);
+     printf("  modes:\n");
+    printf("    <outdir> --url <target_url>        scan a single GraphQL endpoint (output written to ./)\n");
+    printf("    <outdir> --gobuster <gobuster_dir>  analyze gobuster.txt already in <gobuster_dir>\n");
+    printf("Examples:\n");
+    printf("  %s <outdir> --url https://example.com/graphql\n", prog);
+    printf("  %s <outdir> --gobuster ~/gobuster/\n", prog);
     printf("\n");
     printf("  proxy flags (default: direct, no proxy):\n");
     printf("        --tor           route through a pool of local Tor SOCKS5 instances\n");
@@ -229,6 +236,13 @@ int main(int argc, char *argv[]) {
         g.full = true;
         write_live(g.domain);
         run(NULL);
+    } else if (strcmp(mode, "--url") == 0) {
+        char *target_url = argv[3];
+        return graphql(".", false, target_url);
+    }
+    else if (strcmp(mode, "--gobuster") == 0) {
+        char *gobuster_dir = argv[3];
+        return graphql(gobuster_dir, true, NULL);
     }
 
     proxy_shutdown();

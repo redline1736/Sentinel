@@ -8,6 +8,7 @@ LIBS    := -lcurl -lpthread -lcjson
 SRCS = src/main.c src/util/util.c src/prox/prox.c src/scan/scan.c src/chrome/chrome.c \
        src/deepblue/deepblue.c \
        src/atlas/sub.c \
+       src/glassworm/gw.c src/glassworm/graphql/gq.c  src/glassworm/sock/sock.c src/glassworm/csrf/csrf.c \
        src/ghostquery/gq.c  src/ghostquery/sql/sql.c src/ghostquery/xss/xss.c src/ghostquery/openredirect/oprt.c
        
        
