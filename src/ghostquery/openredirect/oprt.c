@@ -6,6 +6,7 @@
 #include "../../chrome/chrome.h"
 #include "../../util/util.h"
 #include "../../prox/prox.h"
+#include "../../global.h"
 #include "oprt.h"
 
 /* ============================================================================
