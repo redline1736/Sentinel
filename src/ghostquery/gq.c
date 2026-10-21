@@ -38,3 +38,8 @@ int ghostquery_full(char *url, char *path, char *report_dir) {
     openredirect_run(url, path);
     return 0;                              /* <-- add this */
 }
+void *ghostquery_run(void *arg) {
+    ghostquery_t *gq_args = (ghostquery_t *)arg;
+    ghostquery_full(gq_args->url, gq_args->path, gq_args->report_dir);
+    return NULL;
+}

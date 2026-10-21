@@ -30,6 +30,7 @@ jobs:
             chromium-browser chromium libcjson-dev ruby ruby-dev zlib1g-dev \
             procps file tor proxychains4 nikto \
             perl libnet-ssleay-perl libwww-perl \
+            libsdl3-dev libsdl3-ttf-dev \
             libssl-dev build-essential
 
       - name: Setup Go

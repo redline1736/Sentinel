@@ -9,128 +9,39 @@
 #include <curl/curl.h>
 
 #include "scan.h"
+// Global includes
 #include "../util/util.h"
-#include "../prox/prox.h"
-#include "../deepblue/deepblue.h"
-#include "../ghostquery/gq.h"
 #include "../global.h"
-#include "../http/http.h"
-#include "../atlas/sub.h"
 
+// Extra includes for scanning
+#include "../prox/prox.h"
+#include "../http/http.h"
+#include "../deepblue/deepblue.h"
+
+// Hacking Related Includes
+#include "../ghostquery/gq.h"
+#include "../atlas/sub.h"
+#include "../headers/hdr.h"
+#include "../glassworm/gw.h"
 /* ---------- rate-limit tunables (declared extern in scan.h) ---------- */
 
 int g_rate = 1;
 double g_retry_minutes = 0.0;
 
 /* ---------- HTTP wrapper (replaces the old run_request-based hack) ---------- */
-
-static size_t body_cb(void *ptr, size_t size, size_t nmemb, void *stream) {
-    return fwrite(ptr, size, nmemb, (FILE *)stream);
-}
-
-typedef struct { char retry_after[64]; } retry_ctx;
-
-static size_t retry_header_cb(char *buf, size_t size, size_t nmemb, void *ud) {
-    size_t n = size * nmemb;
-    retry_ctx *ctx = ud;
-    if (n > 12 && strncasecmp(buf, "Retry-After:", 12) == 0) {
-        const char *v = buf + 12;
-        while (isspace((unsigned char)*v)) v++;
-        size_t vlen = n - (size_t)(v - buf);
-        if (vlen >= sizeof(ctx->retry_after))
-            vlen = sizeof(ctx->retry_after) - 1;
-        memcpy(ctx->retry_after, v, vlen);
-        ctx->retry_after[vlen] = '\0';
-        size_t l = strlen(ctx->retry_after);
-        while (l && (ctx->retry_after[l-1] == '\r' || ctx->retry_after[l-1] == '\n'))
-            ctx->retry_after[--l] = '\0';
-    }
-    return n;
-}
-
-/* GET/HEAD through the current proxy; body + "HTTP_CODE:%ld" go to `file`.
- * Returns HTTP status (>=100) on success, -1 on transport error.
- * On 429/503 it parses Retry-After, sets g_retry_minutes, burns+rotates. */
-int http_send(const char *url, const char *method, const char *file) {
-    FILE *out = fopen(file, "w");
-    if (!out) {
-        fprintf(stderr, "[-] Cannot open output: %s\n", file);
-        return -1;
-    }
-
-    CURL *curl = curl_easy_init();
-    if (!curl) {
-        fclose(out);
-        return -1;
-    }
-
-    retry_ctx rctx = {0};
-    long code = 0;
-
-    const char *proxy_str = proxy_get_socks();
-    if (proxy_str)
-        curl_easy_setopt(curl, CURLOPT_PROXY, proxy_str);
-
-    curl_easy_setopt(curl, CURLOPT_URL, url);
-    curl_easy_setopt(curl, CURLOPT_WRITEDATA, out);
-    curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, body_cb);
-    curl_easy_setopt(curl, CURLOPT_HEADERFUNCTION, retry_header_cb);
-    curl_easy_setopt(curl, CURLOPT_HEADERDATA, &rctx);
-    curl_easy_setopt(curl, CURLOPT_FOLLOWLOCATION, 1L);
-    curl_easy_setopt(curl, CURLOPT_MAXREDIRS, 3L);
-    curl_easy_setopt(curl, CURLOPT_TIMEOUT, 15L);
-    curl_easy_setopt(curl, CURLOPT_CONNECTTIMEOUT, 5L);
-    curl_easy_setopt(curl, CURLOPT_USERAGENT, "Sentinel-scan/1.0");
-    curl_easy_setopt(curl, CURLOPT_NOSIGNAL, 1L);
-    if (method && strcmp(method, "HEAD") == 0)
-        curl_easy_setopt(curl, CURLOPT_NOBODY, 1L);
-    else
-        curl_easy_setopt(curl, CURLOPT_HTTPGET, 1L);
-
-    CURLcode res = curl_easy_perform(curl);
-    if (res == CURLE_OK) {
-        curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &code);
-        fprintf(out, "\nHTTP_CODE:%ld\n", code);
-    } else {
-        fprintf(stderr, "[-] Request failed: %s\n", curl_easy_strerror(res));
-    }
-
-    curl_easy_cleanup(curl);
-    fclose(out);
-
-    if (res != CURLE_OK)
-        return -1;
-
-    if ((code == 429 || code == 503) && rctx.retry_after[0]) {
-        if (isdigit((unsigned char)rctx.retry_after[0])) {
-            g_retry_minutes = atoi(rctx.retry_after) / 60.0;
-        } else {
-            struct tm tm = {0};
-            if (strptime(rctx.retry_after, "%a, %d %b %Y %H:%M:%S GMT", &tm)) {
-                time_t target = timegm(&tm);
-                time_t now = time(NULL);
-                double diff = difftime(target, now);
-                g_retry_minutes = (diff > 0 ? diff : 0) / 60.0;
-            }
-        }
-        printf("[!] Rate limited (HTTP %ld) — burning proxy and rotating\n", code);
-        burn_rotate();
-    }
-    return (int)code;
-}
-
 void enumerate_rate(const char *url, const char *method, const char *file) {
-    int code = http_send(url, method, file);
+    request r = {0};
+    http_send_post(&r, url, false, NULL, false, NULL);
     if (g_retry_minutes > 0) {
         printf("[!] Rate limited — retrying after %.0f minutes...\n", g_retry_minutes);
         sleep((int)(g_retry_minutes * 60) + 1);
         g_retry_minutes = 0;
-        http_send(url, method, file);
-    } else if (code < 100) {
+        http_send_post(&r, url, false, NULL, false, NULL);
+    } else if (r.code < 100) {
         int delay = g_rate > 0 ? g_rate : 1;
-        printf("[!] Request failed (HTTP %d) — retrying in %ds\n", code, delay);
+        printf("[!] Request failed (HTTP %d) — retrying in %ds\n", r.code, delay);
         sleep(delay);
-        http_send(url, method, file);
+        http_send_post(&r, url, false, NULL, false, NULL);
     }
 }
 
@@ -199,7 +110,7 @@ static void dedupe_file(const char *path) {
         free(lines[i]);
     free(lines);
 }
-
+s
 /* ---------- subdomain enumeration ---------- */
 
 void subdomain() {
@@ -282,7 +193,7 @@ static void url_to_dirname(const char *url, char *out, size_t outsz) {
 
 void scanning(char *target_url) {
     printf("[+] Starting targeted scanning...\n");
-
+    // Live.txt Paths
     char path[2048];
     if (snprintf(path, sizeof(path), "%s/live.txt", g.dir) >= (int)sizeof(path)) {
         fprintf(stderr, "[-] live.txt path too long\n");
@@ -295,8 +206,13 @@ void scanning(char *target_url) {
         return;
     }
 
-    char buffer[512];
+    char live_txt_content[512];
     char hostdir[2048];
+
+    pthread_t[5] threads;
+    
+    headers_t hdr_args;
+    ghostquery_t gq_args;
 
     const char *wl = "/usr/share/seclists/Discovery/Web-Content/common.txt";
 
@@ -310,20 +226,20 @@ void scanning(char *target_url) {
         }
     }
 
-    while (fgets(buffer, sizeof(buffer), fp)) {
-        buffer[strcspn(buffer, "\r\n")] = 0;
-        if (strlen(buffer) == 0) continue;
+    while (fgets(live_txt_content, sizeof(live_txt_content), fp)) {
+        live_txt_content[strcspn(live_txt_content, "\r\n")] = 0;
+        if (strlen(live_txt_content) == 0) continue;
 
-        if (strchr(buffer, '/') != NULL) {
-            printf("[!] Skipping invalid host entry: %s\n", buffer);
+        if (strchr(live_txt_content, '/') != NULL) {
+            printf("[!] Skipping invalid host entry: %s\n", live_txt_content);
             continue;
         }
 
-        printf("[*] Scanning: %s\n", buffer);
+        printf("[*] Scanning: %s\n", live_txt_content);
 
-        if (snprintf(hostdir, sizeof(hostdir), "%s/%s", g.dir, buffer)
+        if (snprintf(hostdir, sizeof(hostdir), "%s/%s", g.dir, live_txt_content)
             >= (int)sizeof(hostdir)) {
-            fprintf(stderr, "[-] hostdir path too long for %s\n", buffer);
+            fprintf(stderr, "[-] hostdir path too long for %s\n", live_txt_content);
             continue;
         }
 
@@ -339,22 +255,22 @@ void scanning(char *target_url) {
             while (fgets(sig, sizeof(sig), sg)) {
                 sig[strcspn(sig, "\r\n")] = 0;
                 if (strlen(sig) == 0) continue;
-                if (strncmp(buffer, sig, strlen(sig)) == 0) {
+                if (strncmp(live_txt_content, sig, strlen(sig)) == 0) {
                     printf("[+] Signature match: %s\n", sig);
                     found = 1;
                     break;
                 }
             }
             if (!found) {
-                printf("[!] No signature match for %s, skipping scanning\n", buffer);
+                printf("[!] No signature match for %s, skipping scanning\n", live_txt_content);
                 continue;
             }
         }
 
         char url[1024];
-        if (snprintf(url, sizeof(url), "https://%s", buffer)
+        if (snprintf(url, sizeof(url), "https://%s", live_txt_content)
             >= (int)sizeof(url)) {
-            fprintf(stderr, "[-] URL too long for %s\n", buffer);
+            fprintf(stderr, "[-] URL too long for %s\n", live_txt_content);
             continue;
         }
 
@@ -386,7 +302,7 @@ void scanning(char *target_url) {
             };
             rc = run_tool(gb_args);
             if (rc != 0)
-                printf("[!] gobuster failed on %s with code %d\n", buffer, rc);
+                printf("[!] gobuster failed on %s with code %d\n", live_txt_content, rc);
 
             /* ---- 2. build general nuclei target list ---- */
             char targets[4096];
@@ -418,7 +334,7 @@ void scanning(char *target_url) {
                         char *space = strchr(p, ' ');
                         if (space) *space = '\0';
 
-                        fprintf(nt, "https://%s%s\n", buffer, p);
+                        fprintf(nt, "https://%s%s\n", live_txt_content, p);
                     }
                     fclose(gb);
                 } else {
@@ -447,7 +363,7 @@ void scanning(char *target_url) {
             };
             rc = run_tool(nuclei_args);
             if (rc != 0)
-                printf("[!] general nuclei failed on %s with code %d\n", buffer, rc);
+                printf("[!] general nuclei failed on %s with code %d\n", live_txt_content, rc);
 
             /* ---- 4. Per-URL deep pass: XSS scan + param nuclei ---- */
             FILE *tf = fopen(targets, "r");
@@ -502,14 +418,23 @@ void scanning(char *target_url) {
                     if (rc != 0)
                         printf("[!] per-URL nuclei failed on %s with code %d\n",
                                tline, rc);
+                    
+                    hdr_args.host = target
+                    hdr_args.outdir = hostdir;
 
+                    gq_args.url = tline;
+                    gq_args.path = subdir;
+                    gq_args.report_dir = hostdir;
+
+                    pthread_create(&thread[1], NULL, ghostquery_run, &gq_args);
+                    pthread_create(&thread[2], NULL, header_scan, &hdr_args);
+            
                     ghostquery_full(tline, subdir, hostdir);
                 }
                 fclose(tf);
             }
 
         } else {
-            /* ---- non-sitescan: single target_url, no gobuster ---- */
 
             /* General nuclei on the bare URL (no -dast) */
             char *nuclei_args[] = {
@@ -517,8 +442,7 @@ void scanning(char *target_url) {
                 "-u", target_url,
                 "-o", nuclei_out,
                 "-silent",
-                "-tags", "xss,sqli,ssrf,lfi,rce,redirect,exposure,"
-                         "misconfig,auth-bypass,default-login",
+                "-tags", "misconfig,auth-bypass,default-login",
                 "-severity", "critical,high,medium,low",
                 "-type", "http",
                 "-etags", "dos,intrusive",
@@ -528,7 +452,7 @@ void scanning(char *target_url) {
             };
             rc = run_tool(nuclei_args);
             if (rc != 0)
-                printf("[!] nuclei failed on %s with code %d\n", buffer, rc);
+                printf("[!] nuclei failed on %s with code %d\n", live_txt_content, rc);
 
             /* XSS scanner finds params on target_url */
             char *xss_args[] = {
@@ -539,10 +463,18 @@ void scanning(char *target_url) {
             };
             int xrc = run_tool(xss_args);
             if (xrc != 0)
-                printf("[!] xss pipeline failed on %s with code %d\n", buffer, xrc);
+                printf("[!] xss pipeline failed on %s with code %d\n", live_txt_content, xrc);
 
-            /* FIX: was buffer, must be target_url */
-            ghostquery_full(target_url, hostdir, hostdir);  /* param-driven nuclei (valid_params.txt) */
+            hdr_args.host = target
+            hdr_args.outdir = hostdir;
+
+            gq_args.url = target_url;
+            gq_args.path = hostdir;
+            gq_args.report_dir = hostdir;
+
+            pthread_create(&thread[1], NULL, ghostquery_run, &gq_args);
+            pthread_create(&thread[2], NULL, header_scan, &hdr_args);
+            
         }
     }
 
@@ -724,9 +656,9 @@ void run(char *url) {
             char target[512];
             snprintf(target, sizeof(target), "https://%s", entry->d_name);
             request r = {0};
-            if(http_send_post(&r, target, false, NULL, false, NULL) < 0) {
-                printf("[!] Failed to send request to %s\n", target);
-                continue;
+            if (http_send_post(&r, target, false, NULL, false, NULL) < 0) {
+                snprintf(target, sizeof(target), "http://%s", entry->d_name);
+                if (http_send_post(&r, target, false, NULL, false, NULL) < 0) continue;
             }
 
             FILE *fp = fopen(r.filename, "r");

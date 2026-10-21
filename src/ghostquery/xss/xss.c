@@ -608,47 +608,24 @@ static void xss_payload_run(const char *tag,
  * ============================================================================ */
 
 void xss_custom(char *url, char *path) {
-    xss_payload_run("xss_custom", url, path,
-                    "/usr/share/sentinel/ghostquery/xss/custom.txt",
-                    "valid_payloads_custom.txt",
-                    CHROME_BASE_PORT);
+    if (!full){
+        xss_payload_run("xss_custom", url, path,
+                        "/usr/share/sentinel/ghostquery/xss/new.txt",
+                        "xss.txt",
+                        CHROME_BASE_PORT);
+    }else {
+        xss_payload_run("xss_custom", url, path,
+                        "/usr/share/sentinel/ghostquery/xss/custom.txt",
+                        "xss.txt",
+                        CHROME_BASE_PORT);
+    }
 }
 
-/* Kept for linker compatibility; delegates to custom. */
-void xss_generated(char *url, char *path) {
-    xss_custom(url, path);
-}
 
 /* ============================================================================
  * Mirror findings
  * ============================================================================ */
 
-static void mirror_xss_findings(const char *path, const char *report_dir) {
-    if (!path || !report_dir) return;
-
-    char mirror[4096];
-    if (snprintf(mirror, sizeof(mirror), "%s/xss.txt", report_dir)
-        >= (int)sizeof(mirror))
-        return;
-
-    FILE *out = fopen(mirror, "w");
-    if (!out) return;
-
-    const char *files[] = { "valid_payloads_custom.txt", NULL };
-    for (int k = 0; files[k]; k++) {
-        char src[4096];
-        if (snprintf(src, sizeof(src), "%s/%s", path, files[k])
-            >= (int)sizeof(src))
-            continue;
-        FILE *in = fopen(src, "r");
-        if (!in) continue;
-        char line[4096];
-        while (fgets(line, sizeof(line), in))
-            fprintf(out, "%s:%s", path, line);
-        fclose(in);
-    }
-    fclose(out);
-}
 
 /* ============================================================================
  * Entry point
