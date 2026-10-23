@@ -4,6 +4,7 @@
 #include <time.h>
 #include <fcntl.h>
 #include <ctype.h>
+#include <stdlib.h>
 #include <pthread.h>
 #include <sys/wait.h>
 #include <sys/stat.h>
@@ -716,7 +717,7 @@ static bool tool_uses_http(const char *tool_name) {
         "ffuf", "gobuster", "dirb", "dirsearch", "hydra", "medusa",
         "whatweb", "wafw00f", NULL
     };
-    
+
     for (int i = 0; http_tools[i] != NULL; i++) {
         if (strstr(tool_name, http_tools[i]) != NULL) {
             return true;
@@ -732,7 +733,7 @@ static bool tool_skip_proxy(const char *tool_name) {
         "dns", "nmap", "masscan", "dnsrecon", "dnsenum", "fierce",
         "amass", "knock", "dnsx", "puredns", "shuffledns", NULL
     };
-    
+
     for (int i = 0; skip_tools[i] != NULL; i++) {
         if (strstr(tool_name, skip_tools[i]) != NULL) {
             return true;
@@ -783,29 +784,22 @@ static int proxy_preflight(const char *url) {
     return (int)code;
 }
 
-/* ---------------- tool execution using popen ---------------- */
-static int run_tool_impl(char *const argv[], const char *out_path, bool append)
-{ 
-    char cmd[4096] = {0};
-    int pos = 0;
-    
-    if (g.proxy){
-        char conf_path[512] = {0};
-        bool proxied    = false;
-        bool skip_proxy = false;
-        bool uses_http  = false;
+/* ---------------- tool execution (fork/execvp — no shell, no injection) ---------------- */
 
-        const char *tool_name = argv[0];
-        if (tool_name) {
-            skip_proxy = tool_skip_proxy(tool_name);
-            uses_http  = tool_uses_http(tool_name);
-        }
+static int run_tool_impl(char *const argv[], const char *out_path, bool append)
+{
+    if (!argv || !argv[0]) return -1;
+
+    const char *cur_uri = NULL;
+    bool proxied = false;
+
+    if (g.proxy) {
+        bool skip_proxy = tool_skip_proxy(argv[0]);
+        bool uses_http  = tool_uses_http(argv[0]);
 
         /* Snapshot mode + current proxy URI under the lock (may rotate below). */
-        int mode;
-        const char *cur_uri = NULL;
         lock_acquire();
-        mode = pool_mode;
+        int mode = pool_mode;
         if (mode != PROXY_NONE && pool_count > 0 && !skip_proxy) {
             for (int i = 0; i < pool_count; i++) {
                 if (pool[i].current && pool[i].ready && !pool[i].burned) {
@@ -842,7 +836,7 @@ static int run_tool_impl(char *const argv[], const char *out_path, bool append)
                             if (pool[j].current && pool[j].ready && !pool[j].burned) {
                                 cur_uri = pool[j].uri;
                                 break;
-                        }
+                            }
                         }
                         lock_release();
                         if (!cur_uri) {
@@ -852,61 +846,54 @@ static int run_tool_impl(char *const argv[], const char *out_path, bool append)
                     }
                 }
             }
-
-            if (write_proxychains_conf(cur_uri, conf_path, sizeof(conf_path)) != 0)
-                return -1;
-        }
-
-    /* Build the shell command string. */
-
-
-        if (proxied) {
-            pos += snprintf(cmd + pos, sizeof(cmd) - pos,
-                            "proxychains4 -f %s ", conf_path);
         }
     }
-    
-    
-    for (int i = 0; argv[i] != NULL && pos < (int)sizeof(cmd) - 1; i++) {
-        if (strchr(argv[i], ' '))
-            pos += snprintf(cmd + pos, sizeof(cmd) - pos, "\"%s\" ", argv[i]);
-        else
-            pos += snprintf(cmd + pos, sizeof(cmd) - pos, "%s ", argv[i]);
+
+    /* Build the exec argv: [proxychains4 -f <conf>, tool, args...] */
+    char conf_path[512] = {0};
+    char *exec_argv[512];
+    int n = 0;
+
+    if (proxied) {
+        if (write_proxychains_conf(cur_uri, conf_path, sizeof(conf_path)) != 0)
+            return -1;
+        exec_argv[n++] = (char *)"proxychains4";
+        exec_argv[n++] = (char *)"-f";
+        exec_argv[n++] = conf_path;
     }
+    for (int i = 0; argv[i] != NULL && n < 511; i++)
+        exec_argv[n++] = argv[i];
+    exec_argv[n] = NULL;
 
-    /* Trim the trailing space WITHOUT leaving pos past the terminator. */
-    if (pos > 0 && cmd[pos - 1] == ' ')
-        cmd[--pos] = '\0';
-    else if (pos < (int)sizeof(cmd))
-        cmd[pos] = '\0';
-
-    /* If out_path is set, redirect stdout+stderr into it from the shell. */
-    if (out_path && out_path[0] != '\0') {
-        size_t used = strlen(cmd);
-        snprintf(cmd + used, sizeof(cmd) - used,
-                 " %s %s 2>&1", append ? ">>" : ">", out_path);
-    }
-
-    printf("[DEBUG] popen: %s\n", cmd);
-
-
-    FILE *fp = popen(cmd, "r");
-    if (!fp) {
-        fprintf(stderr, "[-] popen failed: %s\n", strerror(errno));
+    pid_t pid = fork();
+    if (pid < 0) {
+        fprintf(stderr, "[-] fork failed: %s\n", strerror(errno));
         return -1;
     }
 
-    /* Drain the pipe. When redirected to a file the shell sends nothing
-     * here, so this loop is a no-op in that case. */
-    char buf[4096];
-    while (fgets(buf, sizeof(buf), fp) != NULL)
-        fputs(buf, stdout);
+    if (pid == 0) {
+        /* Child: redirect stdout+stderr into out_path if requested. */
+        if (out_path && out_path[0] != '\0') {
+            int fd = open(out_path,
+                          append ? (O_WRONLY | O_CREAT | O_APPEND)
+                                 : (O_WRONLY | O_CREAT | O_TRUNC),
+                          0644);
+            if (fd < 0) _exit(127);
+            dup2(fd, STDOUT_FILENO);
+            dup2(fd, STDERR_FILENO);
+            if (fd != STDOUT_FILENO && fd != STDERR_FILENO)
+                close(fd);
+        }
+        execvp(exec_argv[0], exec_argv);
+        _exit(127);   /* exec failed */
+    }
 
-    int status = pclose(fp);
-    if (WIFEXITED(status))
-        return WEXITSTATUS(status);
-    if (WIFSIGNALED(status))
-        return 128 + WTERMSIG(status);
+    int status = 0;
+    while (waitpid(pid, &status, 0) < 0 && errno == EINTR)
+        ;
+
+    if (WIFEXITED(status))   return WEXITSTATUS(status);
+    if (WIFSIGNALED(status)) return 128 + WTERMSIG(status);
     return 1;
 }
 

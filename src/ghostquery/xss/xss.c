@@ -17,7 +17,6 @@
 #include "../../http/http.h"
 #include "../../global.h"
 
-
 #define MAX_URL_LEN     32768
 #define MAX_PARAM_LEN   256
 #define MAX_PAYLOAD_LEN 32768
@@ -602,30 +601,17 @@ static void xss_payload_run(const char *tag,
     free_lines(ctx.payloads, ctx.npayloads);
     free_lines(ctx.params,   ctx.nparams);
 }
-
 /* ============================================================================
  * Scan entrypoint
  * ============================================================================ */
 
 void xss_custom(char *url, char *path) {
-    if (!full){
-        xss_payload_run("xss_custom", url, path,
-                        "/usr/share/sentinel/ghostquery/xss/new.txt",
-                        "xss.txt",
-                        CHROME_BASE_PORT);
-    }else {
-        xss_payload_run("xss_custom", url, path,
-                        "/usr/share/sentinel/ghostquery/xss/custom.txt",
-                        "xss.txt",
-                        CHROME_BASE_PORT);
-    }
+    char wordlist[512];
+    data_path(full ? "ghostquery/xss/custom.txt" : "ghostquery/xss/new.txt",
+              wordlist, sizeof(wordlist));
+    xss_payload_run("xss_custom", url, path, wordlist, "xss.txt",
+                    CHROME_BASE_PORT);
 }
-
-
-/* ============================================================================
- * Mirror findings
- * ============================================================================ */
-
 
 /* ============================================================================
  * Entry point
@@ -657,7 +643,8 @@ int xss_run(char *url, char *path, char *report_dir) {
 }
 
 /* ============================================================================
- * nuclei_run — unchanged
+ * nuclei_run — run_tool() now fork/execs directly (no shell), so args are
+ * passed verbatim; no escaping or quoting is needed or wanted here.
  * ============================================================================ */
 
 int nuclei_run(char *url, char *path) {
@@ -670,6 +657,7 @@ int nuclei_run(char *url, char *path) {
     char targets_path[4096];
     char nuclei_out[4096];
     char nuclei_merged[4096];
+    char fallback_wl[512];
 
     if (snprintf(param_file, sizeof(param_file),
                  "%s/valid_params.txt", path) >= (int)sizeof(param_file) ||
@@ -708,9 +696,10 @@ int nuclei_run(char *url, char *path) {
 
     if (ntargets == 0) {
         printf("[nuclei_run] no reflecting params — falling back to params.txt\n");
-        FILE *wf = fopen("/usr/share/sentinel/ghostquery/params.txt", "r");
+        data_path("ghostquery/params.txt", fallback_wl, sizeof(fallback_wl));
+        FILE *wf = fopen(fallback_wl, "r");
         if (!wf) {
-            fprintf(stderr, "[nuclei_run] fallback wordlist missing\n");
+            fprintf(stderr, "[nuclei_run] fallback wordlist missing (%s)\n", fallback_wl);
             fclose(tl);
             return 1;
         }
@@ -718,7 +707,7 @@ int nuclei_run(char *url, char *path) {
         while (fgets(wparam, sizeof(wparam), wf)) {
             size_t l = strlen(wparam);
             while (l && (wparam[l-1] == '\n' || wparam[l-1] == '\r'))
-                wparam[--l] = '\0';
+                param[--l] = '\0', wparam[--l] = '\0';
             if (l == 0 || wparam[0] == '#') continue;
 
             fprintf(tl, "%s%c%s=test\n",

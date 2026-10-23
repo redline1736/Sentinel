@@ -48,6 +48,22 @@ int find_string_in_file(const char *file, const char *string) {
     fclose(fp);
     return found;
 }
+int get_value_from_file(const char *file, char* parse, char* svalue, int ivalue) {
+    FILE *fp = fopen(file, "rb");
+    char buffer[1024];
+    if (!fp) return 0;
+    int found = 1;
+    while (fgets(buffer, sizeof(buffer), fp)) {
+        if (contains(buffer, value)){
+            if (svalue == NULL) sscanf(buffer, parse, svalue);
+            else sscanf(buffer, parse, &ivalue);
+            found = 0; // Mark as found
+            break;
+        }
+    }
+    fclose(fp);
+    return found;
+}
 bool contains(const char *haystack, const char *needle) {
     return strstr(haystack, needle) != NULL;
 }

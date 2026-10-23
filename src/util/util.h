@@ -1,6 +1,7 @@
 #ifndef UTIL_H
 #define UTIL_H
-#include <stdbool.h>’
+#include <stdbool.h>
+
 void curl_http_init(void);
 void curl_http_cleanup(void);
 void delete_file(const char *file);

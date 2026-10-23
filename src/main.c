@@ -256,13 +256,6 @@ int main(int argc, char *argv[]) {
         g.full = true;
         write_live(g.domain);
         run(NULL);
-    } else if (strcmp(mode, "--url") == 0) {
-        char *target_url = argv[3];
-        return graphql(".", false, target_url);
-    }
-    else if (strcmp(mode, "--gobuster") == 0) {
-        char *gobuster_dir = argv[3];
-        return graphql(gobuster_dir, true, NULL);
     }
 
     proxy_shutdown();
