@@ -24,13 +24,14 @@ jobs:
         run: |
           set -euo pipefail
           sudo apt-get update -qq
+          # NOTE: SDL packages removed — nothing in src/ links SDL anymore
+          # (Makefile LIBS = -lcurl -lpthread -lcjson -lm only).
           sudo apt-get install -y --no-install-recommends \
             ca-certificates curl git gcc make pkg-config \
             libcurl4-openssl-dev python3 python3-pip python3-venv \
-            chromium-browser chromium libcjson-dev ruby ruby-dev zlib1g-dev \
+            chromium libcjson-dev ruby ruby-dev zlib1g-dev \
             procps file tor proxychains4 nikto \
             perl libnet-ssleay-perl libwww-perl \
-            libsdl3-dev libsdl3-ttf-dev \
             libssl-dev build-essential
 
       - name: Setup Go
@@ -63,7 +64,10 @@ jobs:
       GOBIN: "/usr/local/bin"
       GOPATH: "${{ github.workspace }}/go"
       SECLISTS: "/usr/share/seclists"
+      CHROME_BIN: "/usr/bin/chromium"
       DEBIAN_FRONTEND: "noninteractive"
+    outputs:
+      failed_tests: ${{ steps.summary.outputs.failed_tests }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -72,10 +76,12 @@ jobs:
         run: |
           set -euo pipefail
           sudo apt-get update -qq
+          # chromium-browser dropped (snap-transition package, unreliable on
+          # runners); Playwright's managed Chromium is the test browser.
           sudo apt-get install -y --no-install-recommends \
             ca-certificates curl git gcc make pkg-config \
             libcurl4-openssl-dev python3 python3-pip python3-venv \
-            chromium-browser chromium libcjson-dev ruby ruby-dev zlib1g-dev \
+            chromium libcjson-dev ruby ruby-dev zlib1g-dev \
             procps file tor proxychains4 nikto dnsutils \
             perl libnet-ssleay-perl libwww-perl
           pip install playwright
@@ -130,43 +136,87 @@ jobs:
       - name: Make binary executable
         run: chmod +x sentinel
 
+      # ------------------------------------------------------------------
+      # IMPORTANT: main.c parses argv as:  sentinel <outdir> <mode> <arg>
+      # so every invocation is <outdir> first, mode second, target last.
+      # The old calls passed the URL first, which main.c treated as the
+      # mode and failed with "Unknown mode". All fixed below.
+      # Each test writes a pass/fail marker into $GITHUB_STEP_SUMMARY so
+      # the summary step can report real coverage instead of silently
+      # "passing" everything under continue-on-error.
+      # ------------------------------------------------------------------
       - name: Run Subdomain test
         continue-on-error: true
+        id: test_sub
         run: |
           export PATH="$(ruby -e 'puts Gem.user_dir')/bin:$PATH"
-          # Run tests for sentinel
-          ./sentinel rapyd.org test_sub -sub
+          if ./sentinel test_sub -sub rapyd.org; then
+            echo "SUB=pass" >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "SUB=fail" >> "$GITHUB_STEP_SUMMARY"
+            exit 1
+          fi
 
-      - name: Run Scan URL test
+      - name: Run Scan URL tests
         continue-on-error: true
+        id: test_scanurl
         run: |
-          ./sentinel https://thegod.pythonanywhere.com/echo testscanurlecho \
-            --scan-url 
-
-          ./sentinel https://thegod.pythonanywhere.com/preview testscanurlpreview \
-            --scan-url 
-
-          ./sentinel https://thegod.pythonanywhere.com/search testscanurlsearch \
-            --scan-url 
-
-          ./sentinel https://thegod.pythonanywhere.com/user testscanurluser \
-            --scan-url
+          status=0
+          for pair in "echo testscanurlecho" "preview testscanurlpreview" \
+                      "search testscanurlsearch" "user testscanurluser"; do
+            set -- $pair
+            path="$1"; outdir="$2"
+            if ./sentinel "$outdir" --scan-url "https://thegod.pythonanywhere.com/$path"; then
+              echo "SCANURL-$path=pass" >> "$GITHUB_STEP_SUMMARY"
+            else
+              echo "SCANURL-$path=fail" >> "$GITHUB_STEP_SUMMARY"
+              status=1
+            fi
+          done
+          exit $status
 
       - name: Run Scan Site test
         continue-on-error: true
+        id: test_scansite
         run: |
-          ./sentinel https://thegod.pythonanywhere.com/ testscansite \
-            --scan-site 
+          if ./sentinel testscansite --scan-site https://thegod.pythonanywhere.com/; then
+            echo "SCANSITE=pass" >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "SCANSITE=fail" >> "$GITHUB_STEP_SUMMARY"
+            exit 1
+          fi
 
-      - name: Run XSS test
+      - name: Run XSS tests
         continue-on-error: true
+        id: test_xss
         run: |
           echo "=== XSS TEST ==="
-          ./sentinel https://thegod.pythonanywhere.com/xss testxss \
-            --xss-only 
+          status=0
+          for pair in "xss testxss" "nuclei-xss testnucleixss"; do
+            set -- $pair
+            path="$1"; outdir="$2"
+            if ./sentinel "$outdir" --xss-only "https://thegod.pythonanywhere.com/$path"; then
+              echo "XSS-$path=pass" >> "$GITHUB_STEP_SUMMARY"
+            else
+              echo "XSS-$path=fail" >> "$GITHUB_STEP_SUMMARY"
+              status=1
+            fi
+          done
+          exit $status
 
-          ./sentinel https://thegod.pythonanywhere.com/nuclei-xss testnucleixss \
-            --xss-only 
+      - name: Test summary
+        id: summary
+        if: always()
+        run: |
+          failed=$(grep -c "=fail" "$GITHUB_STEP_SUMMARY" || true)
+          passed=$(grep -c "=pass" "$GITHUB_STEP_SUMMARY" || true)
+          echo "failed_tests=$failed" >> "$GITHUB_OUTPUT"
+          echo "### CI Test Results" >> "$GITHUB_STEP_SUMMARY"
+          echo "Passed: $passed  Failed: $failed" >> "$GITHUB_STEP_SUMMARY"
+          # Don't fail the job on flaky external targets, but make the
+          # count visible. Flip this to `exit 1` once the test targets
+          # are self-hosted and stable.
+          [ "$failed" -eq 0 ] || echo "::warning::${failed} test(s) failed"
 
       - name: Upload all test output directories
         if: always()
