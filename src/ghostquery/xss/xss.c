@@ -528,7 +528,7 @@ static void xss_payload_run(const char *tag,
         free_lines(ctx.params,   ctx.nparams);
         return;
     }
-
+se
     ctx.escaped     = calloc((size_t)ctx.npayloads, sizeof(char*));
     ctx.event_types = calloc((size_t)ctx.npayloads, sizeof(int));
     ctx.preencoded  = calloc((size_t)ctx.npayloads, sizeof(int));

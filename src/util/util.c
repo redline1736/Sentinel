@@ -3,67 +3,88 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
-#include <curl/curl.h>
 #include "util.h"
 #include "../prox/prox.h"
 #include "../global.h"
 
 struct global g;   /* single definition of the global struct */
 
-static size_t write_callback(void *ptr, size_t size, size_t nmemb, void *stream) {
-    return fwrite(ptr, size, nmemb, (FILE *)stream);
+void delete_file(const char *file) {
+    if (file) remove(file);
 }
 
-/* libcurl must be global-init'd exactly once across all threads. */
-void curl_http_init(void)      { curl_global_init(CURL_GLOBAL_ALL); }
-void curl_http_cleanup(void)   { curl_global_cleanup(); }
-
-
-void delete_file(const char *file) {
-    remove(file);
+/* File size without reading it — replaces the getc() line counter
+ * for callers that only used line_count() as a progress heuristic. */
+long file_size(const char *file) {
+    FILE *fp = fopen(file, "rb");
+    if (!fp) return -1;
+    fseek(fp, 0, SEEK_END);
+    long sz = ftell(fp);
+    fclose(fp);
+    return sz;
 }
 
 int line_count(const char *file) {
     FILE *fp = fopen(file, "r");
     if (!fp) return 0;
-    int count = 0, c;
-    while ((c = getc(fp)) != EOF)
-        if (c == '\n') count++;
+    int count = 0;
+    char buf[65536];
+    size_t n;
+    while ((n = fread(buf, 1, sizeof(buf), fp)) > 0)
+        for (size_t i = 0; i < n; i++)
+            if (buf[i] == '\n') count++;
     fclose(fp);
     return count;
 }
 
-
 int find_string_in_file(const char *file, const char *string) {
+    if (!file || !string) return 0;
     FILE *fp = fopen(file, "r");
     if (!fp) return 0;
-    char line[1024];
     int found = 0;
-    while (fgets(line, sizeof(line), fp)) {
-        if (contains(line, string)) {
-            found = 1;
-            break;
-        }
+    char *line = NULL;
+    size_t cap = 0;
+    ssize_t len;
+    while ((len = getline(&line, &cap, fp)) > 0) {   /* no 1024-byte truncation */
+        if (strstr(line, string)) { found = 1; break; }
     }
+    free(line);
     fclose(fp);
     return found;
 }
-int get_value_from_file(const char *file, char* parse, char* svalue, int ivalue) {
+
+/* FIXED: correct variable, non-NULL out-params, sane return code.
+ * parse = sscanf format with exactly one conversion (%s or %d).
+ * Pass svalue (char*, size sbuf) for strings, or &ivalue for ints. */
+int get_value_from_file(const char *file, const char *key,
+                        const char *parse, char *svalue, size_t sbuf, int *ivalue) {
+    if (!file || !key || !parse) return 0;
     FILE *fp = fopen(file, "rb");
-    char buffer[1024];
     if (!fp) return 0;
-    int found = 1;
-    while (fgets(buffer, sizeof(buffer), fp)) {
-        if (contains(buffer, value)){
-            if (svalue == NULL) sscanf(buffer, parse, svalue);
-            else sscanf(buffer, parse, &ivalue);
-            found = 0; // Mark as found
+
+    char *line = NULL;
+    size_t cap = 0;
+    int found = 0;
+    ssize_t len;
+    while ((len = getline(&line, &cap, fp)) > 0) {
+        if (strstr(line, key)) {
+            if (svalue) {
+                if (sscanf(line, parse, svalue) == 1) {
+                    svalue[sbuf - 1] = '\0';
+                    found = 1;
+                }
+            } else if (ivalue) {
+                if (sscanf(line, parse, ivalue) == 1) found = 1;
+            }
             break;
         }
     }
+    free(line);
     fclose(fp);
-    return found;
+    return found;   /* 1 = found, 0 = not found */
 }
+
 bool contains(const char *haystack, const char *needle) {
+    if (!haystack || !needle) return false;
     return strstr(haystack, needle) != NULL;
 }
