@@ -61,12 +61,18 @@ static void dedupe_file(const char *path) {
             lines = nl;
         }
         lines[n] = strdup(buf);
-        if (lines[n])
-            n++;
+        if (!lines[n]) {                 /* FIXED: was leaving a hole -> NULL deref in qsort */
+            fclose(fp);
+            for (size_t i = 0; i < n; i++) free(lines[i]);
+            free(lines);
+            return;
+        }
+        n++;
     }
     fclose(fp);
 
-    qsort(lines, n, sizeof(*lines), cmp_str);
+    if (n > 1)                           /* FIXED: qsort(NULL, 0, ...) is UB */
+        qsort(lines, n, sizeof(*lines), cmp_str);
 
     fp = fopen(path, "w");
     if (!fp) {
@@ -131,18 +137,7 @@ static void *wpscan_thread(void *arg) {
     return NULL;
 }
 
-/* --------------------------------------------------------------------------
- * scanning() — per-host tool pipeline.
- *
- * For every enumerated host it creates <g.dir>/<host>/ and fills it with:
- *   subzy.txt  subjack.txt  nuclei.txt  xss.txt
- * which analyze() and run() later aggregate.
- *
- * NOTE: rebuilt. If your original scanning() had different tool flags,
- * port them here — the surrounding structure is the contract with
- * analyze()/run().
- * ------------------------------------------------------------------------ */
-
+/* builds <g.dir>/<host>/ and runs the per-host tool pipeline */
 static void scan_one_host(const char *host, const char *hostdir) {
     char base_url[512];
     char outfile[2048];
@@ -191,6 +186,16 @@ static void scan_one_host(const char *host, const char *hostdir) {
     printf("[+] Host scan complete: %s -> %s/\n", host, hostdir);
 }
 
+/* safe join of g.dir + host; returns 0 on success, -1 on overflow */
+static int make_hostdir(const char *host, char *hostdir, size_t hostdirsz) {
+    int n = snprintf(hostdir, hostdirsz, "%s/%s", g.dir, host);
+    if (n < 0 || (size_t)n >= hostdirsz) {
+        fprintf(stderr, "[!] path too long for host %s\n", host);
+        return -1;
+    }
+    return 0;
+}
+
 void scanning(char *url) {
     /* --scan-url mode: a single URL target, results in <g.dir>/<domain>/ */
     if (url && url[0]) {
@@ -201,7 +206,8 @@ void scanning(char *url) {
             host_of_url(url, host, sizeof(host));
 
         char hostdir[1600];
-        snprintf(hostdir, sizeof(hostdir), "%s/%s", g.dir, host);
+        if (make_hostdir(host, hostdir, sizeof(hostdir)) != 0)
+            return;
         ensure_dir(hostdir);
         scan_one_host(host, hostdir);
         return;
@@ -226,7 +232,8 @@ void scanning(char *url) {
             continue;
 
         char hostdir[1600];
-        snprintf(hostdir, sizeof(hostdir), "%s/%s", g.dir, host);
+        if (make_hostdir(host, hostdir, sizeof(hostdir)) != 0)
+            continue;
         ensure_dir(hostdir);
         scan_one_host(host, hostdir);
     }
@@ -272,6 +279,7 @@ void analyze(void) {
 
         int findings = 0;
         char line[4096];
+        int takeover_found = 0;   /* FIXED: dedupe subzy vs subjack confirmation */
 
         FILE *fp = fopen(nuclei, "r");
         if (fp) {
@@ -321,22 +329,27 @@ void analyze(void) {
                 {
                     fprintf(out, "[TAKEOVER] %s", line);
                     findings++;
+                    takeover_found = 1;
                 }
             }
             fclose(fp);
         }
 
-        fp = fopen(subjack, "r");
-        if (fp) {
-            while (fgets(line, sizeof(line), fp)) {
-                if (strstr(line, entry->d_name) &&
-                    strstr(line, "[VULNERABLE]"))
-                {
-                    fprintf(out, "[TAKEOVER] %s", line);
-                    findings++;
+        /* only run subjack pass if subzy found nothing for this host,
+         * otherwise the same takeover is reported twice */
+        if (!takeover_found) {
+            fp = fopen(subjack, "r");
+            if (fp) {
+                while (fgets(line, sizeof(line), fp)) {
+                    if (strstr(line, entry->d_name) &&
+                        strstr(line, "[VULNERABLE]"))
+                    {
+                        fprintf(out, "[TAKEOVER] %s", line);
+                        findings++;
+                    }
                 }
+                fclose(fp);
             }
-            fclose(fp);
         }
 
         fclose(out);
@@ -352,7 +365,7 @@ void analyze(void) {
  * run() — the full pipeline
  * ------------------------------------------------------------------------ */
 
-void run(char *url) {
+int run(char *url) {   /* FIXED: returns int so main() can propagate exit code */
     printf("\n========================================\n");
     printf("  VectorOps — Automated Pentest Pipeline\n");
     printf("  Target : %s\n", g.domain);
@@ -362,82 +375,84 @@ void run(char *url) {
     if (g.proxy)
         start_proxies();
 
-    if (!g.urlscan)          /* --scan-url: main pre-seeds live.txt */
+    if (!g.urlscan)          /* --scan-url/--scan-site: main() pre-seeds live.txt */
         subdomain();
 
     scanning(url);
 
-    /* dedupe the enumeration output before the WP pass reads it */
     char live[1600];
     snprintf(live, sizeof(live), "%s/live.txt", g.dir);
-    dedupe_file(live);
+    struct stat lst;
+    if (stat(live, &lst) == 0)
+        dedupe_file(live);
+
+    int rc = 0;
 
     pthread_t threads[256];
     int thread_count = 0;
 
     DIR *dir = opendir(g.dir);
-    if (dir) {
-        struct dirent *entry;
+    if (!dir) {
+        fprintf(stderr, "[-] run: opendir %s failed: %s\n", g.dir, strerror(errno));
+        rc = -1;
+        goto out;
+    }
 
-        while ((entry = readdir(dir))) {
-            if (!is_result_dir(entry))
+    struct dirent *entry;
+
+    while ((entry = readdir(dir))) {
+        if (!is_result_dir(entry))
+            continue;
+
+
+        char target[512];
+        snprintf(target, sizeof(target), "https://%s", entry->d_name);
+        request r = {0};
+        if (!http_send_get(&r, target)) {
+            snprintf(target, sizeof(target), "http://%s", entry->d_name);
+            if (!http_send_get(&r, target)) {
+                free(r.body);
+                r.body = NULL;
                 continue;
-
-            char target[512];
-            snprintf(target, sizeof(target), "https://%s", entry->d_name);
-            request r = {0};
-            if (http_send_post(&r, target, false, NULL, false, NULL) < 0) {
-                snprintf(target, sizeof(target), "http://%s", entry->d_name);
-                if (http_send_post(&r, target, false, NULL, false, NULL) < 0)
-                    continue;
-            }
-
-            FILE *fp = fopen(r.filename, "r");
-            if (!fp)
-                continue;
-
-            bool wordpress = false;
-            char buf[1024];
-
-            /* Harder-to-spoof fingerprints: plain "WordPress" appears in
-             * arbitrary page text; wp-content/ and /wp-json are WP infra. */
-            while (fgets(buf, sizeof(buf), fp)) {
-                if (strstr(buf, "wp-content/") ||
-                    strstr(buf, "/wp-json")    ||
-                    strstr(buf, "WordPress")) {
-                    wordpress = true;
-                    break;
-                }
-            }
-            fclose(fp);
-
-            remove(r.filename);   /* don't leak curl_*.tmp response files */
-
-            if (!wordpress)
-                continue;
-
-            printf("[+] WordPress detected on %s\n", entry->d_name);
-
-            char *host = strdup(entry->d_name);
-            if (!host)
-                continue;
-
-            if (thread_count < 256) {
-                if (pthread_create(&threads[thread_count], NULL,
-                                   wpscan_thread, host) == 0) {
-                    thread_count++;
-                } else {
-                    free(host);
-                }
-            } else {
-                fprintf(stderr, "[!] thread cap (256) reached — "
-                                "skipping wpscan on %s\n", entry->d_name);
-                free(host);
             }
         }
 
-        closedir(dir);
+        bool wordpress = false;
+        if (r.body) {
+            if (strstr(r.body, "wp-content/") ||
+                strstr(r.body, "/wp-json") ||
+                strstr(r.body, "Generator: WordPress"))
+                wordpress = true;
+
+            free(r.body);        /* ownership: caller frees, even on failure */
+            r.body = NULL;
+            r.body_len = 0;
+        }
+
+        if (!wordpress)
+            continue;
+
+        printf("[+] WordPress detected on %s\n", entry->d_name);
+
+        char *host = strdup(entry->d_name);
+        if (!host)
+            continue;
+
+        if (thread_count < 256) {
+            if (pthread_create(&threads[thread_count], NULL,
+                               wpscan_thread, host) == 0) {
+                thread_count++;
+            } else {
+                free(host);
+            }
+        } else {
+            fprintf(stderr, "[!] thread cap (256) reached — "
+                            "skipping wpscan on %s\n", entry->d_name);
+            free(host);
+        }
     }
+
+    closedir(dir);
 
     for (int i = 0; i < thread_count; i++)
         pthread_join(threads[i], NULL);
@@ -447,10 +462,11 @@ void run(char *url) {
     if (g.deepblue)
         deepblue_run();
 
-    if (g.proxy)
-        proxy_shutdown();
+out:
+    /* NOTE: proxy shutdown lives in main() now — single shutdown point */
 
     printf("\n========================================\n");
     printf("      Pipeline Complete\n");
     printf("========================================\n");
+    return rc;
 }
