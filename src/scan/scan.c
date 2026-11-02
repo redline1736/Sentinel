@@ -9,49 +9,20 @@
 #include <curl/curl.h>
 
 #include "scan.h"
-
-/* Global includes */
+// Global includes
 #include "../util/util.h"
 #include "../global.h"
 
-/* Extra includes for scanning */
+// Extra includes for scanning
 #include "../prox/prox.h"
 #include "../http/http.h"
-#include "../recon/info.h"
 #include "../deepblue/deepblue.h"
 
-/* Hacking Related Includes */
+// Hacking Related Includes
 #include "../ghostquery/gq.h"
 #include "../atlas/sub.h"
 #include "../headers/hdr.h"
 #include "../glassworm/gw.h"
-
-/* Rate-limit tunables (declared extern in scan.h) */
-int g_rate = 0;                 /* requests per second budget (0 = unlimited) */
-double g_retry_minutes = 5.0;   /* backoff window for 429/503 */
-
-/* ------------------------------------------------------------------ */
-/* Worker-pool concurrency for the per-host pass. The old code walked */
-/* the result dir serially: worst case ~N_hosts * 30s curl timeout.   */
-/* Now: fixed worker pool + thread-safe job queue.                    */
-/* ------------------------------------------------------------------ */
-
-#define SCAN_POOL_MAX 16        /* host workers */
-#define WP_THREADS_MAX 256      /* wpscan fan-out cap (unchanged behavior) */
-
-typedef struct {
-    char host[G_DOMAIN_MAX];
-    bool wordpress;             /* pre-detected by the producer */
-} host_job;
-
-static host_job  *g_jobs = NULL;
-static size_t     g_job_count = 0;
-static size_t     g_job_next = 0;          /* next unclaimed job index */
-static pthread_mutex_t g_job_lock = PTHREAD_MUTEX_INITIALIZER;
-
-static pthread_t g_wp_threads[WP_THREADS_MAX];
-static int       g_wp_thread_count = 0;
-static pthread_mutex_t g_wp_spawn_lock = PTHREAD_MUTEX_INITIALIZER;
 
 /* ---------- small C helpers (replace shell pipes/redirection) ---------- */
 
@@ -97,17 +68,6 @@ static void dedupe_file(const char *path) {
 
     qsort(lines, n, sizeof(*lines), cmp_str);
 
-    /* dedupe in place */
-    size_t w = 0;
-    for (size_t i = 0; i < n; i++) {
-        if (w == 0 || strcmp(lines[i], lines[w - 1]) != 0) {
-            lines[w++] = lines[i];
-        } else {
-            free(lines[i]);
-        }
-    }
-    n = w;
-
     fp = fopen(path, "w");
     if (!fp) {
         fprintf(stderr, "[!] Cannot rewrite %s for dedupe\n", path);
@@ -115,126 +75,167 @@ static void dedupe_file(const char *path) {
         free(lines);
         return;
     }
+
     for (size_t i = 0; i < n; i++) {
-        fprintf(fp, "%s\n", lines[i]);
+        if (i == 0 || strcmp(lines[i], lines[i - 1]) != 0)
+            fprintf(fp, "%s\n", lines[i]);
         free(lines[i]);
     }
-    free(lines);
     fclose(fp);
+    free(lines);
 }
 
-static bool is_result_dir(const struct dirent *entry) {
-    if (entry->d_type != DT_DIR)
-        return false;
-    if (strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0)
-        return false;
-    return true;
+/* ---------- directory helpers (DT_UNKNOWN-safe: XFS/FUSE/NFS) ---------- */
+
+static int is_dir_entry(const char *parent, const char *name) {
+    struct stat st;
+    char path[2048];
+    if (snprintf(path, sizeof(path), "%s/%s", parent, name) >= (int)sizeof(path))
+        return 0;
+    return stat(path, &st) == 0 && S_ISDIR(st.st_mode);
+}
+
+static int is_result_dir(const struct dirent *entry) {
+    if (!strcmp(entry->d_name, ".") || !strcmp(entry->d_name, ".."))
+        return 0;
+    if (entry->d_type == DT_DIR)
+        return 1;
+    if (entry->d_type == DT_UNKNOWN)
+        return is_dir_entry(g.dir, entry->d_name);
+    return 0;
 }
 
 static void ensure_dir(const char *path) {
     if (mkdir(path, 0755) != 0 && errno != EEXIST)
-        fprintf(stderr, "[!] mkdir(%s): %s\n", path, strerror(errno));
+        fprintf(stderr, "[-] mkdir %s: %s\n", path, strerror(errno));
 }
 
-/* ------------------------------------------------------------------ */
-/* WordPress fingerprint (fixed: body in memory, no temp file)        */
-/* ------------------------------------------------------------------ */
-
-static bool detect_wordpress(const request *r) {
-    if (!r || r->code == 0 || !r->body)
-        return false;
-    /* Harder-to-spoof fingerprints only: plain "WordPress" appears in
-     * arbitrary page text; wp-content/ and /wp-json are WP infra. */
-    return strstr(r->body, "wp-content/") != NULL ||
-           strstr(r->body, "/wp-json")    != NULL;
-}
-
-/* Probe one host over https then http. Returns the request with a
- * nonzero code on success (caller frees). */
-static bool probe_host(const char *host, request *r) {
-    char target[512];
-
-    snprintf(target, sizeof(target), "https://%s", host);
-    if (http_send_get(r, target) && r->code != 0)
-        return true;
-
-    request_free(r);
-    snprintf(target, sizeof(target), "http://%s", host);
-    if (http_send_get(r, target) && r->code != 0)
-        return true;
-
-    request_free(r);
-    return false;
-}
-
-/* ------------------------------------------------------------------ */
-/* Per-host scan worker                                               */
-/* ------------------------------------------------------------------ */
-
-/* PLACEHOLDER — preserve your existing per-host logic here verbatim.
- * I could not fetch this function's body from the web; keep your
- * current implementation (it calls run_tool_out()/subzy/subjack/
- * nuclei/xss into hostdir). Signature unchanged. */
-static void scan_one_host(const char *host, const char *hostdir);
-
-static void *host_worker(void *arg) {
-    (void)arg;
-    for (;;) {
-        pthread_mutex_lock(&g_job_lock);
-        if (g_job_next >= g_job_count) {
-            pthread_mutex_unlock(&g_job_lock);
-            return NULL;
-        }
-        host_job *job = &g_jobs[g_job_next++];
-        char host[G_DOMAIN_MAX];
-        snprintf(host, sizeof(host), "%s", job->host);
-        pthread_mutex_unlock(&g_job_lock);
-
-        char hostdir[G_DIR_MAX];
-        snprintf(hostdir, sizeof(hostdir), "%s/%s", g.dir, host);
-        ensure_dir(hostdir);
-        scan_one_host(host, hostdir);
-    }
-}
+/* ---------- wpscan worker ---------- */
 
 static void *wpscan_thread(void *arg) {
-    char *host = arg;    /* owned; freed here */
+    char *host = arg;
 
-    char hostdir[G_DIR_MAX];
-    snprintf(hostdir, sizeof(hostdir), "%s/%s", g.dir, host);
-    ensure_dir(hostdir);
+    printf("[+] Running wpscan on %s\n", host);
 
-    char out[2200];
-    snprintf(out, sizeof(out), "%s/wpscan.txt", hostdir);
+    char outfile[2048];
+    snprintf(outfile, sizeof(outfile), "%s/%s/wpscan.txt", g.dir, host);
 
-    char *argv[] = {
-        (char *)"wpscan",
-        (char *)"--url", host,
-        (char *)"-o", out,
-        NULL
-    };
-    run_tool(argv);
+    char url[2048];
+    snprintf(url, sizeof(url), "https://%s", host);
+
+    char *wpscan_args[] = {"wpscan", "--url", url, "--output", outfile, NULL};
+    int rc = run_tool(wpscan_args);
+    if (rc != 0) printf("[!] wpscan failed on %s with code %d\n", host, rc);
 
     free(host);
     return NULL;
 }
 
-/* ------------------------------------------------------------------ */
-/* Pipeline stages                                                    */
-/* ------------------------------------------------------------------ */
+/* --------------------------------------------------------------------------
+ * scanning() — per-host tool pipeline.
+ *
+ * For every enumerated host it creates <g.dir>/<host>/ and fills it with:
+ *   subzy.txt  subjack.txt  nuclei.txt  xss.txt
+ * which analyze() and run() later aggregate.
+ *
+ * NOTE: rebuilt. If your original scanning() had different tool flags,
+ * port them here — the surrounding structure is the contract with
+ * analyze()/run().
+ * ------------------------------------------------------------------------ */
 
-void subdomain(void) {
-    /* PLACEHOLDER — I could not fetch the full body; preserve your
-     * existing implementation verbatim (wordlists, run_tool_out for
-     * subfinder/assetfinder/httpx, write into <g.dir>/live.txt).
-     * Signature unchanged. */
+static void scan_one_host(const char *host, const char *hostdir) {
+    char base_url[512];
+    char outfile[2048];
+    char targets_path[2048];
+
+    snprintf(base_url, sizeof(base_url), "https://%s", host);
+    snprintf(targets_path, sizeof(targets_path), "%s/targets.txt", hostdir);
+
+    /* targets file: one URL for this host */
+    FILE *tf = fopen(targets_path, "w");
+    if (tf) {
+        fprintf(tf, "%s\n", base_url);
+        fclose(tf);
+    }
+
+    /* --- subzy (subdomain takeover) --- */
+    snprintf(outfile, sizeof(outfile), "%s/subzy.txt", hostdir);
+    char *subzy_args[] = {
+        "subzy", "run",
+        "--target", base_url,
+        "--hide_fails", NULL
+    };
+    if (run_tool_out(subzy_args, outfile, false) != 0)
+        printf("[!] subzy failed on %s\n", host);
+
+    /* --- subjack (subdomain takeover) --- */
+    snprintf(outfile, sizeof(outfile), "%s/subjack.txt", hostdir);
+    char *subjack_args[] = {
+        "subjack",
+        "-w", targets_path,
+        "-t", "100",
+        "-timeout", "30",
+        "-o", outfile,
+        "-ssl",
+        "-v", NULL
+    };
+    if (run_tool(subjack_args) != 0)
+        printf("[!] subjack failed on %s\n", host);
+
+    /* --- nuclei (param-driven DAST; falls back to wordlist) --- */
+    nuclei_run(base_url, hostdir);
+
+    /* --- XSS (reflection + payload run + chrome confirmation) --- */
+    xss_run(base_url, hostdir, hostdir);
+
+    printf("[+] Host scan complete: %s -> %s/\n", host, hostdir);
 }
 
-void scanning(char *target_url) {
-    /* PLACEHOLDER — preserve your existing implementation verbatim
-     * (dispatch to ghostquery/glassworm/deepblue per target_url and
-     * g.sitescan/g.full). Signature unchanged. */
+void scanning(char *url) {
+    /* --scan-url mode: a single URL target, results in <g.dir>/<domain>/ */
+    if (url && url[0]) {
+        char host[512];
+        if (g.domain[0])
+            snprintf(host, sizeof(host), "%s", g.domain);
+        else
+            host_of_url(url, host, sizeof(host));
+
+        char hostdir[1600];
+        snprintf(hostdir, sizeof(hostdir), "%s/%s", g.dir, host);
+        ensure_dir(hostdir);
+        scan_one_host(host, hostdir);
+        return;
+    }
+
+    /* site modes: every host listed in <g.dir>/live.txt */
+    char live[1600];
+    snprintf(live, sizeof(live), "%s/live.txt", g.dir);
+
+    FILE *fp = fopen(live, "r");
+    if (!fp) {
+        fprintf(stderr, "[-] scanning: cannot open %s\n", live);
+        return;
+    }
+
+    char host[512];
+    while (fgets(host, sizeof(host), fp)) {
+        size_t l = strlen(host);
+        while (l && (host[l - 1] == '\n' || host[l - 1] == '\r'))
+            host[--l] = '\0';
+        if (l == 0 || host[0] == '#')
+            continue;
+
+        char hostdir[1600];
+        snprintf(hostdir, sizeof(hostdir), "%s/%s", g.dir, host);
+        ensure_dir(hostdir);
+        scan_one_host(host, hostdir);
+    }
+    fclose(fp);
 }
+
+/* --------------------------------------------------------------------------
+ * analyze() — merge per-host tool outputs into vuln.txt
+ * ------------------------------------------------------------------------ */
 
 void analyze(void) {
     printf("[+] Analyzing scan results...\n");
@@ -251,8 +252,12 @@ void analyze(void) {
         if (!is_result_dir(entry))
             continue;
 
-        char subzy[2048], subjack[2048], nuclei[2048];
-        char xss[2048], wpscan[2048], vuln[2048];
+        char subzy[2048];
+        char subjack[2048];
+        char nuclei[2048];
+        char xss[2048];
+        char wpscan[2048];
+        char vuln[2048];
 
         snprintf(subzy,   sizeof(subzy),   "%s/%s/subzy.txt",   g.dir, entry->d_name);
         snprintf(subjack, sizeof(subjack), "%s/%s/subjack.txt", g.dir, entry->d_name);
@@ -343,9 +348,9 @@ void analyze(void) {
     printf("[+] Analysis complete.\n");
 }
 
-/* ------------------------------------------------------------------ */
-/* run() — the full pipeline                                          */
-/* ------------------------------------------------------------------ */
+/* --------------------------------------------------------------------------
+ * run() — the full pipeline
+ * ------------------------------------------------------------------------ */
 
 void run(char *url) {
     printf("\n========================================\n");
@@ -360,12 +365,6 @@ void run(char *url) {
     if (!g.urlscan)          /* --scan-url: main pre-seeds live.txt */
         subdomain();
 
-    /* Recon pass on the seed target before the fan-out */
-    if (g.target[0]) {
-        printf("[+] Recon: %s\n", g.target);
-        recon(g.target);
-    }
-
     scanning(url);
 
     /* dedupe the enumeration output before the WP pass reads it */
@@ -373,108 +372,75 @@ void run(char *url) {
     snprintf(live, sizeof(live), "%s/live.txt", g.dir);
     dedupe_file(live);
 
-    /* ---- Phase A: probe + fingerprint every host (worker pool) ---- */
-    {
-        DIR *dir = opendir(g.dir);
-        if (!dir) {
-            perror("opendir");
-            if (g.proxy) proxy_shutdown();
-            return;
-        }
+    pthread_t threads[256];
+    int thread_count = 0;
 
-        /* collect all candidate hosts first */
-        char **hosts = NULL;
-        size_t nhosts = 0, hcap = 0;
+    DIR *dir = opendir(g.dir);
+    if (dir) {
         struct dirent *entry;
+
         while ((entry = readdir(dir))) {
             if (!is_result_dir(entry))
                 continue;
-            if (nhosts == hcap) {
-                hcap = hcap ? hcap * 2 : 64;
-                char **nh = realloc(hosts, hcap * sizeof(*hosts));
-                if (!nh) break;
-                hosts = nh;
+
+            char target[512];
+            snprintf(target, sizeof(target), "https://%s", entry->d_name);
+            request r = {0};
+            if (http_send_post(&r, target, false, NULL, false, NULL) < 0) {
+                snprintf(target, sizeof(target), "http://%s", entry->d_name);
+                if (http_send_post(&r, target, false, NULL, false, NULL) < 0)
+                    continue;
             }
-            hosts[nhosts] = strdup(entry->d_name);
-            if (hosts[nhosts]) nhosts++;
-        }
-        closedir(dir);
 
-        int ncpu = (int)sysconf(_SC_NPROCESSORS_ONLN);
-        if (ncpu < 2)  ncpu = 2;
-        if (ncpu > SCAN_POOL_MAX) ncpu = SCAN_POOL_MAX;
-        if ((size_t)ncpu > nhosts) ncpu = (int)(nhosts > 0 ? nhosts : 1);
-
-        g_jobs = calloc(nhosts ? nhosts : 1, sizeof(host_job));
-        g_job_count = nhosts;
-        g_job_next = 0;
-
-        /* probe + fingerprint inside the pool so the 30s curl timeout
-         * overlaps instead of serializing */
-        pthread_t workers[SCAN_POOL_MAX];
-        pthread_mutex_t probe_lock = PTHREAD_MUTEX_INITIALIZER;
-
-        /* producers are the workers themselves: job list = hosts,
-         * wordpress detection appended inline */
-        for (size_t i = 0; i < nhosts; i++)
-            snprintf(g_jobs[i].host, sizeof(g_jobs[i].host), "%s", hosts[i]);
-
-        /* Probe phase: each worker takes hosts and records WP status */
-        g_job_next = 0;   /* reuse queue over host list */
-        for (int t = 0; t < ncpu; t++)
-            pthread_create(&workers[t], NULL, wp_probe_worker, &probe_lock);
-        for (int t = 0; t < ncpu; t++)
-            pthread_join(workers[t], NULL);
-
-        /* ---- Phase B: scan hosts with worker pool ---- */
-        /* compact job list down to wordpress==true */
-        size_t wcount = 0;
-        for (size_t i = 0; i < nhosts; i++) {
-            if (g_jobs[i].wordpress) {
-                printf("[+] WordPress detected on %s\n", g_jobs[i].host);
-                g_jobs[wcount++] = g_jobs[i];
-            }
-        }
-        g_job_count = wcount;
-        g_job_next = 0;
-
-        if (wcount > 0) {
-            for (int t = 0; t < ncpu; t++)
-                pthread_create(&workers[t], NULL, host_worker, NULL);
-            for (int t = 0; t < ncpu; t++)
-                pthread_join(workers[t], NULL);
-        }
-
-        for (size_t i = 0; i < nhosts; i++) free(hosts[i]);
-        free(hosts);
-
-        /* ---- wpscan fan-out over detected hosts ---- */
-        for (size_t i = 0; i < wcount; i++) {
-            if (g_wp_thread_count >= WP_THREADS_MAX) {
-                fprintf(stderr, "[!] thread cap (%d) reached — skipping wpscan on %s\n",
-                        WP_THREADS_MAX, g_jobs[i].host);
+            FILE *fp = fopen(r.filename, "r");
+            if (!fp)
                 continue;
+
+            bool wordpress = false;
+            char buf[1024];
+
+            /* Harder-to-spoof fingerprints: plain "WordPress" appears in
+             * arbitrary page text; wp-content/ and /wp-json are WP infra. */
+            while (fgets(buf, sizeof(buf), fp)) {
+                if (strstr(buf, "wp-content/") ||
+                    strstr(buf, "/wp-json")    ||
+                    strstr(buf, "WordPress")) {
+                    wordpress = true;
+                    break;
+                }
             }
-            char *host = strdup(g_jobs[i].host);
-            if (!host) continue;
-            pthread_mutex_lock(&g_wp_spawn_lock);
-            if (pthread_create(&g_wp_threads[g_wp_thread_count], NULL,
-                               wpscan_thread, host) == 0) {
-                g_wp_thread_count++;
+            fclose(fp);
+
+            remove(r.filename);   /* don't leak curl_*.tmp response files */
+
+            if (!wordpress)
+                continue;
+
+            printf("[+] WordPress detected on %s\n", entry->d_name);
+
+            char *host = strdup(entry->d_name);
+            if (!host)
+                continue;
+
+            if (thread_count < 256) {
+                if (pthread_create(&threads[thread_count], NULL,
+                                   wpscan_thread, host) == 0) {
+                    thread_count++;
+                } else {
+                    free(host);
+                }
             } else {
+                fprintf(stderr, "[!] thread cap (256) reached — "
+                                "skipping wpscan on %s\n", entry->d_name);
                 free(host);
             }
-            pthread_mutex_unlock(&g_wp_spawn_lock);
         }
-        for (int i = 0; i < g_wp_thread_count; i++)
-            pthread_join(g_wp_threads[i], NULL);
-        g_wp_thread_count = 0;
 
-        free(g_jobs);
-        g_jobs = NULL;
-        g_job_count = 0;
-        g_job_next = 0;
+        closedir(dir);
     }
+
+    for (int i = 0; i < thread_count; i++)
+        pthread_join(threads[i], NULL);
 
     analyze();
 

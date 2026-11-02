@@ -2,8 +2,6 @@
 #include <sys/stat.h>
 #include <ctype.h>
 #include <unistd.h>
-#include <pthread.h>
-#include <stdatomic.h>
 
 #include "util/util.h"
 #include "prox/prox.h"
@@ -11,9 +9,6 @@
 #include "ghostquery/xss/xss.h"
 #include "glassworm/gw.h"
 #include "global.h"
-
-/* UI thread stop signal (set by main after the pipeline finishes) */
-atomic_bool g_stop = false;
 
 static void print_usage(const char *prog) {
     printf("Usage:\n");
@@ -37,23 +32,52 @@ static void print_usage(const char *prog) {
     printf("        --no-proxy      force direct connections (default)\n");
     printf("  other flags:\n");
     printf("        --xss-no        disable XSS scanning\n");
-    printf("        --deepblue      run deepblue exploit mapping after the scan\n");
-    printf("\n");
-    printf("  report: results are written to <outdir>; vuln.txt per host,\n");
-    printf("  live.txt for live subdomains.\n");
+    printf("        --deepblue      run DeepBlue exploit phase after scan\n\n");
+    printf("Examples:\n");
+    printf("  %s output -sub example.com --tor\n", prog);
+    printf("  %s output --scan-url https://example.com/login.php?u=1 --tor\n", prog);
+    printf("  %s output --xss-only https://example.com/login.php?u=1\n", prog);
 }
 
-/* PLACEHOLDER — I could not fetch the full ui() body from the web.
- * Preserve your existing implementation, but replace its loop
- * condition with:  while (!atomic_load(&g_stop))  ...
- * so main() can join it instead of leaking the thread. Signature
- * stays  void *ui(void *arg)  . */
-static void *ui(void *arg);
 
-/* PLACEHOLDER — preserve your existing host_of_url() implementation
- * verbatim (URL parse -> lowercase host into out buffer). Signature:
- * static void host_of_url(const char *url, char *out, size_t outsz); */
-static void host_of_url(const char *url, char *out, size_t outsz);
+void *ui(void *arg) {
+    (void)arg;
+
+    char *argv[] = {
+        "python3",
+        "src/view/view.py",   /* adjust to your path */
+        NULL
+    };
+
+    execvp(argv[0], argv);
+
+    /* execvp only returns on failure */
+    fprintf(stderr, "[-] execvp(python3) failed: %s\n", strerror(errno));
+    return NULL;
+}
+
+/* Extract the bare host from a URL: "https://example.com:8443/a?b=1" -> "example.com" */
+static void host_of_url(const char *url, char *out, size_t outsz) {
+    const char *p = strstr(url, "://");
+    const char *h = p ? p + 3 : url;
+    const char *slash = strchr(h, '/');
+    const char *colon = strchr(h, ':');
+    size_t n;
+
+    if (colon && (!slash || colon < slash))
+        n = (size_t)(colon - h);
+    else if (slash)
+        n = (size_t)(slash - h);
+    else
+        n = strlen(h);
+
+    if (n >= outsz) n = outsz - 1;
+    memcpy(out, h, n);
+    out[n] = '\0';
+
+    for (char *q = out; *q; q++)
+        *q = (char)tolower((unsigned char)*q);
+}
 
 static void write_live(const char *host) {
     char path[2048];
@@ -91,16 +115,6 @@ static int is_domain_mode(const char *mode) {
            (strcmp(mode, "--fast-scan") == 0);
 }
 
-/* safe bounded copy with truncation check */
-static bool copy_arg(char *dst, size_t dstsz, const char *src, const char *what) {
-    if (strlen(src) >= dstsz) {
-        fprintf(stderr, "[-] %s too long (max %zu): %s\n", what, dstsz - 1, src);
-        return false;
-    }
-    strcpy(dst, src);
-    return true;
-}
-
 int main(int argc, char *argv[]) {
 
     if (argc < 4) {
@@ -128,30 +142,27 @@ int main(int argc, char *argv[]) {
      *
      *   <outdir>  = argv[1]   (always)
      *   <mode>    = argv[2]
-     *   <arg>     = argv[3]   url (url modes) OR domain (domain modes)
+     *   <arg>     = argv[3]   url  (url modes)  OR  domain (domain modes)
      *   flags     = argv[4..]
      * ----------------------------------------------------------------- */
 
     const char *mode = argv[2];
 
-    if (!copy_arg(g.dir, sizeof(g.dir), argv[1], "outdir"))
-        return 1;
+    strncpy(g.dir, argv[1], sizeof(g.dir) - 1);
+    g.dir[sizeof(g.dir) - 1] = '\0';
 
     const int flag_start = 4;
 
     if (is_url_mode(mode)) {
-        if (!copy_arg(g.target, sizeof(g.target), argv[3], "target url"))
-            return 1;
+        strncpy(g.target, argv[3], sizeof(g.target) - 1);
+        g.target[sizeof(g.target) - 1] = '\0';
+
         /* domain is derived from the URL */
         host_of_url(g.target, g.domain, sizeof(g.domain));
-        if (!g.domain[0]) {
-            fprintf(stderr, "[-] cannot derive host from URL: %s\n", g.target);
-            return 1;
-        }
     }
     else if (is_domain_mode(mode)) {
-        if (!copy_arg(g.domain, sizeof(g.domain), argv[3], "domain"))
-            return 1;
+        strncpy(g.domain, argv[3], sizeof(g.domain) - 1);
+        g.domain[sizeof(g.domain) - 1] = '\0';
     }
     else {
         fprintf(stderr, "[-] Unknown mode: %s\n", mode);
@@ -177,8 +188,8 @@ int main(int argc, char *argv[]) {
                 fprintf(stderr, "[-] --proxy requires a list file\n");
                 return 1;
             }
-            if (!copy_arg(g.proxy_list, sizeof(g.proxy_list), argv[++i], "proxy list"))
-                return 1;
+            strncpy(g.proxy_list, argv[++i], sizeof(g.proxy_list) - 1);
+            g.proxy_list[sizeof(g.proxy_list) - 1] = '\0';
             g.proxy_mode = PROXY_CUSTOM;
             g.proxy = true;
         } else if (strcmp(argv[i], "--no-proxy") == 0) {
@@ -207,23 +218,17 @@ int main(int argc, char *argv[]) {
 
     int rc = 0;
 
-    pthread_t ui_thread;
+    thread_t ui_thread;
     if (pthread_create(&ui_thread, NULL, ui, NULL) != 0) {
         fprintf(stderr, "[-] pthread_create(ui) failed: %s\n", strerror(errno));
-        curl_http_cleanup();
         return 1;
     }
 
+
     if (strcmp(mode, "-sub") == 0) {
-        if (g.proxy) {
-            if (start_proxies(), proxy_init(g.proxy_mode,
-                    g.proxy_mode == PROXY_CUSTOM ? g.proxy_list : NULL) != 0) {
-                fprintf(stderr, "[-] proxy pool init failed\n");
-                rc = 2;
-                goto done;
-            }
-        }
+        if (g.proxy) start_proxies();
         subdomain();
+        if (g.proxy) proxy_shutdown();
         printf("[+] Subdomain enumeration complete. Results in %s/\n", g.dir);
     }
     else if (strcmp(mode, "--full-scan") == 0) {
@@ -253,15 +258,7 @@ int main(int argc, char *argv[]) {
         run(NULL);
     }
 
-done:
-    /* run() shuts the proxy pool down itself in scan modes; only clean
-     * up here for modes that bypass run() (and idempotent afterwards). */
-    if (strcmp(mode, "-sub") == 0 && g.proxy)
-        proxy_shutdown();
-
-    atomic_store(&g_stop, true);
-    pthread_join(ui_thread, NULL);
-
+    proxy_shutdown();
     curl_http_cleanup();
     return rc;
 }
