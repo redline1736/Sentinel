@@ -218,7 +218,7 @@ int main(int argc, char *argv[]) {
 
     int rc = 0;
 
-    printf ui_thread;
+    pthread_t ui_thread;
     if (pthread_create(&ui_thread, NULL, ui, NULL) != 0) {
         fprintf(stderr, "[-] pthread_create(ui) failed: %s\n", strerror(errno));
         return 1;
