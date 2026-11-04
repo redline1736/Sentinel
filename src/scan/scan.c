@@ -23,6 +23,7 @@
 #include "../atlas/sub.h"
 #include "../headers/hdr.h"
 #include "../glassworm/gw.h"
+#include "../ghostquery/xss/xss.h"
 
 /* ---------- small C helpers (replace shell pipes/redirection) ---------- */
 
@@ -89,6 +90,28 @@ static void dedupe_file(const char *path) {
     }
     fclose(fp);
     free(lines);
+}
+
+static void host_of_url(const char *url, char *out, size_t outsz) {
+    const char *p = strstr(url, "://");
+    const char *h = p ? p + 3 : url;
+    const char *slash = strchr(h, '/');
+    const char *colon = strchr(h, ':');
+    size_t n;
+
+    if (colon && (!slash || colon < slash))
+        n = (size_t)(colon - h);
+    else if (slash)
+        n = (size_t)(slash - h);
+    else
+        n = strlen(h);
+
+    if (n >= outsz) n = outsz - 1;
+    memcpy(out, h, n);
+    out[n] = '\0';
+
+    for (char *q = out; *q; q++)
+        *q = (char)tolower((unsigned char)*q);
 }
 
 /* ---------- directory helpers (DT_UNKNOWN-safe: XFS/FUSE/NFS) ---------- */

@@ -2,6 +2,7 @@
 #include <sys/stat.h>
 #include <ctype.h>
 #include <unistd.h>
+#include <pthread.h>
 
 #include "util/util.h"
 #include "prox/prox.h"

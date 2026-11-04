@@ -5,6 +5,6 @@
 #include "../global.h"
 #include "../http/http.h"
 
-void check_api(request* r[2], char* target_url);
+int recon(const char *target_url);
 
 #endif /* INFO_H */

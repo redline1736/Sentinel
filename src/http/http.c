@@ -8,6 +8,7 @@
 #include <pthread.h>
 
 #include "http.h"
+#include "../prox/prox.h"
 
 /* ------------------------------------------------------------------ */
 /* Shared connection/DNS cache: the single biggest speed win.        */
