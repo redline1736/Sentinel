@@ -234,12 +234,12 @@ int main(int argc, char *argv[]) {
     else if (strcmp(mode, "--full-scan") == 0) {
         g.sitescan = true;
         g.full = true;
-        run(NULL);
+        rc = run(NULL);
     }
     else if (strcmp(mode, "--fast-scan") == 0) {
         g.sitescan = true;
         g.full = false;
-        run(NULL);
+        rc = run(NULL);
     }
     else if (strcmp(mode, "--xss-only") == 0) {
         xss_run(g.target, g.dir, g.dir);
@@ -248,14 +248,14 @@ int main(int argc, char *argv[]) {
         g.urlscan = true;
         g.full = true;
         write_live(g.domain);
-        run(g.target);
+        rc = run(g.target);
     }
     else if (strcmp(mode, "--scan-site") == 0) {
         g.sitescan = true;
         g.urlscan = true;
         g.full = true;
         write_live(g.domain);
-        run(NULL);
+        rc = run(NULL);
     }
 
     proxy_shutdown();
