@@ -19,6 +19,7 @@
 #include "../deepblue/deepblue.h"
 
 // Hacking Related Includes
+#include "../recon/info.h"
 #include "../ghostquery/gq.h"
 #include "../atlas/sub.h"
 #include "../headers/hdr.h"
