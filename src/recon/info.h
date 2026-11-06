@@ -5,6 +5,6 @@
 #include "../global.h"
 #include "../http/http.h"
 
-int recon(const char *target_url);
+int recon(const char *target_url, char * output);
 
 #endif /* INFO_H */

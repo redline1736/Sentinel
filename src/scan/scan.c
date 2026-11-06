@@ -224,15 +224,10 @@ void scanning(char *url) {
     if (url && url[0]) {
         char host[512];
         if (g.domain[0])
-            snprintf(host, sizeof(host), "%s", g.domain);
-        else
-            host_of_url(url, host, sizeof(host));
+            snprintf(hostdir sizeof(hostdir), "%s", g.domain);
 
-        char hostdir[1600];
-        if (make_hostdir(host, hostdir, sizeof(hostdir)) != 0)
-            return;
         ensure_dir(hostdir);
-        scan_one_host(host, hostdir);
+        scan_one_host(url, hostdir);
         return;
     }
 
@@ -246,17 +241,24 @@ void scanning(char *url) {
         return;
     }
 
+
     char host[512];
+
     while (fgets(host, sizeof(host), fp)) {
         size_t l = strlen(host);
         while (l && (host[l - 1] == '\n' || host[l - 1] == '\r'))
             host[--l] = '\0';
         if (l == 0 || host[0] == '#')
             continue;
+        request root = {0};
+
+        int ok_root = http_send_get(&root, host);
+        if (check_api(&root, host, g.domain) == 1){
+            continue;
+        }
+        request_free(&root);
 
         char hostdir[1600];
-        if (make_hostdir(host, hostdir, sizeof(hostdir)) != 0)
-            continue;
         ensure_dir(hostdir);
         scan_one_host(host, hostdir);
     }
