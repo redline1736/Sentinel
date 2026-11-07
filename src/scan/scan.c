@@ -161,111 +161,132 @@ static void *wpscan_thread(void *arg) {
     return NULL;
 }
 
-/* builds <g.dir>/<host>/ and runs the per-host tool pipeline */
-static void scan_one_host(const char *host, const char *hostdir) {
-    char base_url[512];
-    char outfile[2048];
-    char targets_path[2048];
+/* ---------- URL/host helpers ---------- */
 
-    snprintf(base_url, sizeof(base_url), "https://%s", host);
-    snprintf(targets_path, sizeof(targets_path), "%s/targets.txt", hostdir);
+/* Pull the authority out of a URL or bare host:
+ *   https://user:pw@Example.COM:8443/path -> example.com
+ * Handles IPv6 literals: https://[::1]:8080/ -> ::1
+ * Writes "" when nothing usable is found. */
+static void url_to_host(const char *url, char *out, size_t outsz)
+{
+    const char *p = strstr(url, "://");
+    p = p ? p + 3 : url;
 
-    /* targets file: one URL for this host */
-    FILE *tf = fopen(targets_path, "w");
-    if (tf) {
-        fprintf(tf, "%s\n", base_url);
-        fclose(tf);
-    }
-
-    /* --- subzy (subdomain takeover) --- */
-    snprintf(outfile, sizeof(outfile), "%s/subzy.txt", hostdir);
-    char *subzy_args[] = {
-        "subzy", "run",
-        "--target", base_url,
-        "--hide_fails", NULL
-    };
-    if (run_tool_out(subzy_args, outfile, false) != 0)
-        printf("[!] subzy failed on %s\n", host);
-
-    /* --- subjack (subdomain takeover) --- */
-    snprintf(outfile, sizeof(outfile), "%s/subjack.txt", hostdir);
-    char *subjack_args[] = {
-        "subjack",
-        "-w", targets_path,
-        "-t", "100",
-        "-timeout", "30",
-        "-o", outfile,
-        "-ssl",
-        "-v", NULL
-    };
-    if (run_tool(subjack_args) != 0)
-        printf("[!] subjack failed on %s\n", host);
-
-    /* --- nuclei (param-driven DAST; falls back to wordlist) --- */
-    nuclei_run(base_url, hostdir);
-
-    /* --- XSS (reflection + payload run + chrome confirmation) --- */
-    xss_run(base_url, hostdir, hostdir);
-
-    printf("[+] Host scan complete: %s -> %s/\n", host, hostdir);
-}
-
-/* safe join of g.dir + host; returns 0 on success, -1 on overflow */
-static int make_hostdir(const char *host, char *hostdir, size_t hostdirsz) {
-    int n = snprintf(hostdir, hostdirsz, "%s/%s", g.dir, host);
-    if (n < 0 || (size_t)n >= hostdirsz) {
-        fprintf(stderr, "[!] path too long for host %s\n", host);
-        return -1;
-    }
-    return 0;
-}
-
-void scanning(char *url) {
-    /* --scan-url mode: a single URL target, results in <g.dir>/<domain>/ */
-    if (url && url[0]) {
-        char host[512];
-        if (g.domain[0])
-            snprintf(hostdir sizeof(hostdir), "%s", g.domain);
-
-        ensure_dir(hostdir);
-        scan_one_host(url, hostdir);
+    size_t n = strcspn(p, "/?#");
+    if (n == 0 || n >= outsz) {
+        out[0] = '\0';
         return;
     }
+    memcpy(out, p, n);
+    out[n] = '\0';
 
-    /* site modes: every host listed in <g.dir>/live.txt */
+    /* drop userinfo */
+    char *at = strrchr(out, '@');
+    if (at)
+        memmove(out, at + 1, strlen(at + 1) + 1);
+
+    /* drop :port, but only outside IPv6 brackets */
+    char *colon  = strrchr(out, ':');
+    char *bracket = strrchr(out, ']');
+    if (colon && (!bracket || colon > bracket))
+        *colon = '\0';
+
+    /* unwrap [::1] -> ::1 so it is safe as a directory name */
+    if (out[0] == '[') {
+        char *rb = strchr(out, ']');
+        if (rb) {
+            size_t l = (size_t)(rb - out) - 1;
+            memmove(out, out + 1, l);
+            out[l] = '\0';
+        }
+    }
+
+    for (char *q = out; *q; q++)
+        *q = (char)tolower((unsigned char)*q);
+}
+
+/* ---------- per-host scan ---------- */
+
+static void scan_one_host(const char *base_url, const char *hostdir)
+{
+    printf("[*] scanning %s\n", base_url);
+
+    nuclei_run(base_url, hostdir);
+    sql_run(base_url, hostdir);
+    openredirect_run(base_url, hostdir);
+    header(base_url, hostdir);
+}
+
+/* ---------- live.txt driver ---------- */
+
+void scanning(char *target_url)
+{
     char live[1600];
     snprintf(live, sizeof(live), "%s/live.txt", g.dir);
 
     FILE *fp = fopen(live, "r");
     if (!fp) {
-        fprintf(stderr, "[-] scanning: cannot open %s\n", live);
+        fprintf(stderr, "[-] scanning: cannot open %s: %s\n",
+                live, strerror(errno));
         return;
     }
 
+    char line[4096];
 
-    char host[512];
-
-    while (fgets(host, sizeof(host), fp)) {
-        size_t l = strlen(host);
-        while (l && (host[l - 1] == '\n' || host[l - 1] == '\r'))
-            host[--l] = '\0';
-        if (l == 0 || host[0] == '#')
+    while (fgets(line, sizeof(line), fp)) {
+        size_t l = strlen(line);
+        while (l && (line[l - 1] == '\n' || line[l - 1] == '\r'))
+            line[--l] = '\0';
+        if (l == 0)
             continue;
-        request root = {0};
 
-        int ok_root = http_send_get(&root, host);
-        if (check_api(&root, host, g.domain) == 1){
+        char host[512];
+        url_to_host(line, host, sizeof(host));
+        if (!host[0])
+            continue;
+
+        char hostdir[1024];
+        snprintf(hostdir, sizeof(hostdir), "%s/%s", g.dir, host);
+        if (mkdir(hostdir, 0755) != 0 && errno != EEXIST) {
+            fprintf(stderr, "[!] mkdir %s: %s\n", hostdir, strerror(errno));
             continue;
         }
-        request_free(&root);
 
-        char hostdir[1600];
-        ensure_dir(hostdir);
-        scan_one_host(host, hostdir);
+        /* probe https, fall back to http */
+        char base_url[2048];
+        snprintf(base_url, sizeof(base_url), "https://%s", host);
+
+        request root = {0};
+        if (!http_send_get(&root, base_url)) {
+            snprintf(base_url, sizeof(base_url), "http://%s", host);
+            if (!http_send_get(&root, base_url)) {
+                request_free(&root);   /* dead host: never feed a NULL body onward */
+                continue;
+            }
+        }
+
+        int is_api = check_api(&root, host, g.domain);
+        request_free(&root);          /* freed on both paths — no leak */
+
+        scan_one_host(base_url, hostdir);
+
+        if (is_api == 1) {
+            /* NOTE: reconstructed branch — restore your original action
+             * (endpoint dump / report entry) here. */
+            char apifile[1200];
+            snprintf(apifile, sizeof(apifile), "%s/api.txt", hostdir);
+            FILE *af = fopen(apifile, "a");
+            if (af) {
+                fprintf(af, "%s\n", base_url);
+                fclose(af);
+            }
+            printf("[+] API endpoint: %s\n", base_url);
+        }
     }
-    fclose(fp);
-}
 
+    fclose(fp);
+    (void)target_url;   /* driver reads live.txt; keep arg for ABI/header compat */
+}
 /* --------------------------------------------------------------------------
  * analyze() — merge per-host tool outputs into vuln.txt
  * ------------------------------------------------------------------------ */

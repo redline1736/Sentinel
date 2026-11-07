@@ -3,8 +3,7 @@
 #include <stdlib.h>
 #include "info.h"
 
-/* Returns 1 if an API surface was indicated, 0 otherwise. */
-static int check_api(const request *root, const char *target_url, char * output) {
+int check_api(const request *root, const char *target_url, char * output) {
     static const char *api_markers[] = {
         "X-API-Endpoint", "X-API-KEY", "X-API-Token",
         "X-RateLimit", "Allow:", NULL
