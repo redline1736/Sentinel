@@ -12,6 +12,7 @@ typedef struct {
     size_t body_len;
     char   headers[HTTP_HDR_MAX]; /* raw header block, NUL-terminated */
     char   effective_url[2048];
+    char  *filename;          /* auto: "curl_<rand>.txt" the body was mirrored to */
 } request;
 
 void curl_http_init(void);
