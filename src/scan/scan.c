@@ -151,7 +151,7 @@ static void *wpscan_thread(void *arg) {
 
     printf("[+] Running wpscan on %s\n", host);
 
-    char outfile[2048];
+    char outfile[2600];
     snprintf(outfile, sizeof(outfile), "%s/wpscan.txt", g.dir);
     /* wpscan output lives beside the host's gobuster results */
 
@@ -402,8 +402,8 @@ void subdomain(void) {
  * every valid discovered path is also written as an absolute URL to
  * gobuster_urls.txt — one URL folder will be created per line. */
 static void gobuster_run(const char *base_url, const char *hostdir) {
-    char rawfile[2048];
-    char urlfile[2048];
+    char rawfile[2600];
+    char urlfile[2600];
 
     snprintf(rawfile, sizeof(rawfile), "%s/gobuster.txt",      hostdir);
     snprintf(urlfile, sizeof(urlfile), "%s/gobuster_urls.txt", hostdir);
@@ -499,7 +499,7 @@ static void scan_one_host(const char *base_url, const char *hostdir)
     scan_url(base_url, rootdir);
 
     /* 3. Loop: every gobuster URL gets its own folder + scan results. */
-    char urls_path[2048];
+    char urls_path[2600];
     snprintf(urls_path, sizeof(urls_path), "%s/gobuster_urls.txt", hostdir);
 
     FILE *fp = fopen(urls_path, "r");
@@ -622,7 +622,7 @@ void scanning(char *target_url)
         scan_one_host(base_url, hostdir);
 
         if (is_api == 1) {
-            char apifile[2400];
+            char apifile[2600];
             snprintf(apifile, sizeof(apifile), "%s/api.txt", hostdir);
             FILE *af = fopen(apifile, "a");
             if (af) {

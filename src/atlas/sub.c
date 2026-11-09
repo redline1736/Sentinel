@@ -161,7 +161,7 @@ static int get_cname_chain(const char *domain, char *out, size_t outsz) {
     int found = 0;
 
     /* 1. dig +short CNAME (primary — this is what subzy uses) */
-    char cmd[512];
+    char cmd[1024];
     snprintf(cmd, sizeof(cmd), "dig +short CNAME %s 2>/dev/null", domain);
     FILE *fp = popen(cmd, "r");
     if (fp) {
