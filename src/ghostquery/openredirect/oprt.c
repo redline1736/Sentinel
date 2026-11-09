@@ -307,7 +307,7 @@ static int chrome_probe_open_redirect(chrome *c,
  * Driver
  * ============================================================================ */
 
-int openredirect_run(char *url, char *path) {
+int openredirect_run(const char *url, char *path) {
     if (!url || !path) {
         fprintf(stderr, "[openredirect] invalid arguments\n");
         return 1;

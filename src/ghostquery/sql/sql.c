@@ -100,7 +100,7 @@ static int sqlmap_line_is_finding(const char *line) {
     return 0;
 }
 
-int sql_run(char *url, char *path) {
+int sql_run(const char *url, char *path) {
     char param_file[4096];
     char targets_path[4096];
     char sqlmap_out[4096];
