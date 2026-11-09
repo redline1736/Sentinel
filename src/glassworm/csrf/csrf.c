@@ -1,3 +1,5 @@
+#include <stdio.h>
+#include <string.h>
 #include "csrf.h"
 #include "../../global.h"
 #include "../../http/http.h"
@@ -60,35 +62,33 @@ int csrf_token_exists(char *target_url) {
 
     if (!http_send_post(&r, target_url, false, NULL, false, NULL)) {
         fprintf(stderr, "HTTP POST failed for %s\n", target_url);
+        request_free(&r);
         return -1;
     }
 
     int found = 0;
 
-    /* Cookie names may appear in Set-Cookie lines of the raw response */
-    for (int i = 0; CSRF_COOKIE_NAMES[i] && !found; i++) {
-        if (find_string_in_file(r.filename, CSRF_COOKIE_NAMES[i]))
-            found = 1;
-    }
+    /* All markers are looked up in the mirrored response file. */
+    if (r.filename && r.filename[0]) {
+        for (int i = 0; CSRF_COOKIE_NAMES[i] && !found; i++)
+            if (find_string_in_file(r.filename, CSRF_COOKIE_NAMES[i]))
+                found = 1;
 
-    /* Meta tags and hidden form fields live in the HTML body */
-    for (int i = 0; CSRF_META_NAMES[i] && !found; i++) {
-        if (find_string_in_file(r.filename, CSRF_META_NAMES[i]))
-            found = 1;
-    }
-    for (int i = 0; CSRF_FORM_FIELDS[i] && !found; i++) {
-        if (find_string_in_file(r.filename, CSRF_FORM_FIELDS[i]))
-            found = 1;
-    }
+        for (int i = 0; CSRF_META_NAMES[i] && !found; i++)
+            if (find_string_in_file(r.filename, CSRF_META_NAMES[i]))
+                found = 1;
 
-    /* Error phrases confirm a token check is actually enforced */
-    for (int i = 0; CSRF_ERROR_PHRASES[i] && !found; i++) {
-        if (find_string_in_file(r.filename, CSRF_ERROR_PHRASES[i]))
-            found = 1;
-    }
+        for (int i = 0; CSRF_FORM_FIELDS[i] && !found; i++)
+            if (find_string_in_file(r.filename, CSRF_FORM_FIELDS[i]))
+                found = 1;
 
-    if (r.filename[0])
+        for (int i = 0; CSRF_ERROR_PHRASES[i] && !found; i++)
+            if (find_string_in_file(r.filename, CSRF_ERROR_PHRASES[i]))
+                found = 1;
+
         remove(r.filename);
+    }
 
+    request_free(&r);
     return found;
 }

@@ -53,6 +53,29 @@ int find_string_in_file(const char *file, const char *string) {
     return found;
 }
 
+void data_path(const char *rel, char *dst, size_t dstsz) {
+    static const char *bases[] = {
+        "/usr/share/sentinel/",
+        "",                    /* run from repo root: ./ghostquery/params.txt */
+        NULL
+    };
+
+    if (!rel || !dst || dstsz == 0) return;
+
+    for (int i = 0; bases[i]; i++) {
+        char cand[1024];
+        if (snprintf(cand, sizeof(cand), "%s%s", bases[i], rel)
+                >= (int)sizeof(cand))
+            continue;
+        if (access(cand, F_OK) == 0) {
+            snprintf(dst, dstsz, "%s", cand);
+            return;
+        }
+    }
+    /* fallback even if missing, so error messages show a sane path */
+    snprintf(dst, dstsz, "/usr/share/sentinel/%s", rel);
+}
+
 /* FIXED: correct variable, non-NULL out-params, sane return code.
  * parse = sscanf format with exactly one conversion (%s or %d).
  * Pass svalue (char*, size sbuf) for strings, or &ivalue for ints. */

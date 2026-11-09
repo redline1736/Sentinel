@@ -7,8 +7,11 @@ typedef struct {
     char *report_dir;
 } ghostquery_t;
 
-/* Function prototypes */
-int ghostquery_full(char *url, char *path, char *report_dir);
+/* Run every ghostquery stage against one URL:
+ * xss -> nuclei -> sql -> openredirect. Results in `path`. */
+int   ghostquery_full(char *url, char *path, char *report_dir);
+
+/* Thread entry point: arg is a ghostquery_t*. */
 void *ghostquery_run(void *arg);
 
 #endif /* GQ_H */

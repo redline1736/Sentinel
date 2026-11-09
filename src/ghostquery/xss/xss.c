@@ -26,6 +26,8 @@
 #define WORKERS_PER_SCAN   4
 #define CHROME_BASE_PORT   9222
 
+/* Size of the request.filename mirror path we allocate. */
+#define GQ_FILENAME_SZ     128
 
 /* ============================================================================
  * Safe Path Utilities
@@ -123,6 +125,7 @@ static int build_param_url(char *dst, size_t dstsz,
 
 static int ensure_directory(const char *path) {
     if (!path) return -1;
+
     struct stat st;
     if (stat(path, &st) == 0)
         return S_ISDIR(st.st_mode) ? 0 : (errno = ENOTDIR, -1);
@@ -183,12 +186,12 @@ static size_t write_file(void *ptr, size_t size, size_t nmemb, void *stream) {
 }
 
 static int gq_http_send(request *r, const char *url) {
-    CURL *curl;
-    CURLcode result;
-    FILE *fp;
-    char filename[128];
+    CURL       *curl;
+    CURLcode    result;
+    FILE       *fp;
+    char        filename[GQ_FILENAME_SZ];
     const char *proxy = NULL;
-    long http_code = 0;
+    long        http_code = 0;
 
     if (!r || !url) {
         fprintf(stderr, "gq_http_send: invalid arguments\n");
@@ -196,6 +199,16 @@ static int gq_http_send(request *r, const char *url) {
     }
 
     r->code = -1;
+
+    /* FIXED: request.filename is a char *, not an array. calloc()'d
+     * requests have it NULL — allocate the mirror buffer before use. */
+    if (!r->filename) {
+        r->filename = malloc(GQ_FILENAME_SZ);
+        if (!r->filename) {
+            fprintf(stderr, "gq_http_send: out of memory\n");
+            return 0;
+        }
+    }
     r->filename[0] = '\0';
 
     if (g.proxy) {
@@ -211,17 +224,20 @@ static int gq_http_send(request *r, const char *url) {
 
     fp = safe_fopen_exclusive(filename, "wb");
     if (!fp) { perror("gq_http_send: fopen"); return 0; }
-    snprintf(r->filename, sizeof(r->filename), "%s", filename);
+
+    /* FIXED: explicit length — sizeof(r->filename) would be pointer size. */
+    snprintf(r->filename, GQ_FILENAME_SZ, "%s", filename);
 
     curl = curl_easy_init();
     if (!curl) {
-        fclose(fp); safe_remove(filename); r->filename[0] = '\0';
+        fclose(fp);
+        safe_remove(filename);
+        r->filename[0] = '\0';
         fprintf(stderr, "gq_http_send: curl_easy_init failed\n");
         return 0;
     }
 
     if (proxy) curl_easy_setopt(curl, CURLOPT_PROXY, proxy);
-
     curl_easy_setopt(curl, CURLOPT_URL, url);
     curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, write_file);
     curl_easy_setopt(curl, CURLOPT_WRITEDATA, fp);
@@ -257,15 +273,19 @@ static int gq_http_send(request *r, const char *url) {
 static char *slurp_file(const char *path, size_t *out_len) {
     FILE *fp = fopen(path, "rb");
     if (!fp) return NULL;
+
     fseek(fp, 0, SEEK_END);
     long sz = ftell(fp);
     if (sz < 0) { fclose(fp); return NULL; }
     rewind(fp);
+
     char *buf = malloc((size_t)sz + 1);
     if (!buf) { fclose(fp); return NULL; }
+
     size_t rd = fread(buf, 1, (size_t)sz, fp);
     buf[rd] = '\0';
     fclose(fp);
+
     if (out_len) *out_len = rd;
     return buf;
 }
@@ -276,24 +296,29 @@ static char *slurp_file(const char *path, size_t *out_len) {
 
 static char **load_lines(const char *path, int *out_n) {
     *out_n = 0;
+
     FILE *fp = fopen(path, "r");
     if (!fp) return NULL;
 
-    char **lines = NULL;
-    int    n = 0;
-    char   buf[MAX_PAYLOAD_LEN];
+    char  **lines = NULL;
+    int     n = 0;
+    char    buf[MAX_PAYLOAD_LEN];
 
     while (fgets(buf, sizeof(buf), fp)) {
         strip_newline(buf);
         if (!buf[0] || buf[0] == '#') continue;
+
         char *dup = strdup(buf);
         if (!dup) break;
-        char **tmp = realloc(lines, sizeof(char*) * (n + 1));
+
+        char **tmp = realloc(lines, sizeof(char *) * (n + 1));
         if (!tmp) { free(dup); break; }
+
         lines = tmp;
         lines[n++] = dup;
     }
     fclose(fp);
+
     *out_n = n;
     return lines;
 }
@@ -309,17 +334,20 @@ static void free_lines(char **lines, int n) {
  * ============================================================================ */
 
 int find_param_reflecting(char *url, char *path) {
-    int nparams = 0, i = 0;
-    char full_url[MAX_URL_LEN];
+    int   nparams = 0, i = 0;
+    char  full_url[MAX_URL_LEN];
     request *r;
     FILE *fptr;
-    const char *param_file = "/usr/share/sentinel/ghostquery/params.txt";
+
+    char param_file[512];
     char output_file[4096];
     const char *output_dir = "ghostquery/xss";
 
+    data_path("ghostquery/params.txt", param_file, sizeof(param_file));
     snprintf(output_file, sizeof(output_file), "%s/valid_params.txt", path);
 
     if (!url) { fprintf(stderr, "find_param_reflecting: url is NULL\n"); return 1; }
+
     if (ensure_directory(output_dir) != 0) {
         fprintf(stderr, "find_param_reflecting: failed to create %s\n", output_dir);
         return 1;
@@ -329,7 +357,7 @@ int find_param_reflecting(char *url, char *path) {
         return 1;
     }
 
-    int total = line_count((char*)param_file);
+    int total = line_count(param_file);
     if (total <= 0) {
         fprintf(stderr, "find_param_reflecting: %s is empty or missing\n", param_file);
         return 1;
@@ -343,12 +371,18 @@ int find_param_reflecting(char *url, char *path) {
     }
 
     r = calloc((size_t)(total + 1), sizeof(request));
-    if (!r) { fprintf(stderr, "find_param_reflecting: calloc failed\n"); free_lines(params, nparams); return 1; }
+    if (!r) {
+        fprintf(stderr, "find_param_reflecting: calloc failed\n");
+        free_lines(params, nparams);
+        return 1;
+    }
 
     fptr = fopen(output_file, "w");
     if (!fptr) {
         fprintf(stderr, "find_param_reflecting: cannot open %s\n", output_file);
-        free(r); free_lines(params, nparams); return 1;
+        free(r);
+        free_lines(params, nparams);
+        return 1;
     }
 
     printf("[find_param_reflecting] probing %d params against %s\n", nparams, url);
@@ -360,10 +394,12 @@ int find_param_reflecting(char *url, char *path) {
         }
 
         request *cur = &r[i];
+
         if (gq_http_send(cur, full_url)) {
             if (cur->code >= 200 && cur->code < 400 && cur->filename[0]) {
                 size_t blen = 0;
                 char *body = slurp_file(cur->filename, &blen);
+
                 if (body) {
                     if (strstr(body, "asdasda")) {
                         fprintf(fptr, "%s\n", params[i]);
@@ -384,59 +420,62 @@ int find_param_reflecting(char *url, char *path) {
             printf("[find_param_reflecting] %s -> request failed\n", params[i]);
         }
 
-        if (cur->filename[0]) { safe_remove(cur->filename); cur->filename[0] = '\0'; }
+        if (cur->filename[0]) {
+            safe_remove(cur->filename);
+            cur->filename[0] = '\0';
+        }
     }
 
     fclose(fptr);
+
+    for (i = 0; i <= total; i++)
+        free(r[i].filename);
     free(r);
+
     free_lines(params, nparams);
+
     printf("find_param_reflecting: results written to %s\n", output_file);
     return 0;
 }
 
-/* ============================================================================
- * XSS payload runner — Chrome-only confirmation, encoding-aware
- * ============================================================================ */
-
 struct xss_ctx {
     const char *tag;
     const char *url;
-    char       *path;
+    char  *path;
+    char **params;   int nparams;
+    char **payloads; int npayloads;
+    char **escaped;
+    int   *event_types;
+    int   *preencoded;
 
-    char      **params;      int nparams;
-    char      **payloads;    int npayloads;
-    char      **escaped;
-    int        *event_types;
-    int        *preencoded;
-
-    FILE           *found;
+    FILE  *found;
     pthread_mutex_t found_lock;
 
-    int             total_tested;
-    int             total_confirmed;
+    int total_tested;
+    int total_confirmed;
     pthread_mutex_t stat_lock;
 
-    int             chrome_port_base;
+    int chrome_port_base;
 };
 
 struct worker_arg {
     struct xss_ctx *ctx;
-    int             worker_id;
-    int             start_param;
-    int             end_param;
+    int worker_id;
+    int start_param;
+    int end_param;
 };
 
 static void *xss_worker(void *arg) {
-    struct worker_arg *wa = arg;
+    struct worker_arg *wa  = arg;
     struct xss_ctx    *ctx = wa->ctx;
+    char full_url[MAX_URL_LEN];
 
-    char   full_url[MAX_URL_LEN];
     chrome c;
-
     memset(&c, 0, sizeof(c));
 
     int port = ctx->chrome_port_base + wa->worker_id;
     printf("[%s/w%d] Initializing Chrome (port %d)...\n", ctx->tag, wa->worker_id, port);
+
     if (init_chrome(&c, port) != 0) {
         printf("[%s/w%d] Chrome init FAILED — worker aborting\n",
                ctx->tag, wa->worker_id);
@@ -455,15 +494,13 @@ static void *xss_worker(void *arg) {
                 continue;
 
             int event_type = ctx->event_types[k];
-
-            int confirmed = 0;
+            int confirmed  = 0;
 
             if (navigate_to(&c, full_url) == 0) {
                 usleep(150000);
                 if (detect_xss(&c, 15, event_type) == 0)
                     confirmed = 1;
             }
-
             if (!confirmed && navigate_to(&c, full_url) == 0) {
                 usleep(300000);
                 if (detect_xss(&c, 20, event_type) == 0)
@@ -477,7 +514,6 @@ static void *xss_worker(void *arg) {
 
             if (confirmed) {
                 const char *kind = ctx->preencoded[k] ? "URL-ENC" : "RAW";
-
                 pthread_mutex_lock(&ctx->found_lock);
                 fprintf(ctx->found, "[%s] %s -> %s\n",
                         kind, param, ctx->payloads[k]);
@@ -503,6 +539,7 @@ static void xss_payload_run(const char *tag,
 
     char param_file[4096];
     char out_path[4096];
+
     snprintf(param_file, sizeof(param_file), "%s/valid_params.txt", path);
     snprintf(out_path,   sizeof(out_path),   "%s/%s", path, out_file_name);
 
@@ -519,7 +556,7 @@ static void xss_payload_run(const char *tag,
     ctx.chrome_port_base = chrome_port_base;
 
     ctx.payloads = load_lines(payload_file, &ctx.npayloads);
-    ctx.params   = load_lines(param_file,   &ctx.nparams);
+    ctx.params   = load_lines(param_file,    &ctx.nparams);
 
     if (ctx.npayloads <= 0 || ctx.nparams <= 0) {
         fprintf(stderr, "[%s] %s (%d) or %s (%d) empty/missing\n",
@@ -528,10 +565,16 @@ static void xss_payload_run(const char *tag,
         free_lines(ctx.params,   ctx.nparams);
         return;
     }
-se
-    ctx.escaped     = calloc((size_t)ctx.npayloads, sizeof(char*));
+
+    /* FIXED: removed the stray "se" token that broke this function. */
+    ctx.escaped     = calloc((size_t)ctx.npayloads, sizeof(char *));
     ctx.event_types = calloc((size_t)ctx.npayloads, sizeof(int));
     ctx.preencoded  = calloc((size_t)ctx.npayloads, sizeof(int));
+
+    if (!ctx.escaped || !ctx.event_types || !ctx.preencoded) {
+        fprintf(stderr, "[%s] calloc failed\n", tag);
+        goto cleanup_arrays;
+    }
 
     for (int k = 0; k < ctx.npayloads; k++) {
         if (looks_url_encoded(ctx.payloads[k])) {
@@ -547,28 +590,22 @@ se
     ctx.found = fopen(out_path, "w");
     if (!ctx.found) {
         fprintf(stderr, "[%s] cannot write %s\n", tag, out_path);
-        for (int k = 0; k < ctx.npayloads; k++)
-            if (ctx.escaped[k]) free(ctx.escaped[k]);
-        free(ctx.escaped);
-        free(ctx.event_types);
-        free(ctx.preencoded);
-        free_lines(ctx.payloads, ctx.npayloads);
-        free_lines(ctx.params,   ctx.nparams);
-        return;
+        goto cleanup_arrays;
     }
 
     pthread_mutex_init(&ctx.found_lock, NULL);
     pthread_mutex_init(&ctx.stat_lock,  NULL);
 
-    pthread_t         tids[WORKERS_PER_SCAN];
+    pthread_t tids[WORKERS_PER_SCAN];
     struct worker_arg wargs[WORKERS_PER_SCAN];
 
-    int per = ctx.nparams / WORKERS_PER_SCAN;
-    int rem = ctx.nparams % WORKERS_PER_SCAN;
+    int per    = ctx.nparams / WORKERS_PER_SCAN;
+    int rem    = ctx.nparams % WORKERS_PER_SCAN;
     int cursor = 0;
 
     for (int w = 0; w < WORKERS_PER_SCAN; w++) {
         int take = per + (w < rem ? 1 : 0);
+
         wargs[w].ctx         = &ctx;
         wargs[w].worker_id   = w;
         wargs[w].start_param = cursor;
@@ -593,6 +630,7 @@ se
     pthread_mutex_destroy(&ctx.found_lock);
     pthread_mutex_destroy(&ctx.stat_lock);
 
+cleanup_arrays:
     for (int k = 0; k < ctx.npayloads; k++)
         if (ctx.escaped[k]) free(ctx.escaped[k]);
     free(ctx.escaped);
@@ -601,21 +639,46 @@ se
     free_lines(ctx.payloads, ctx.npayloads);
     free_lines(ctx.params,   ctx.nparams);
 }
-/* ============================================================================
- * Scan entrypoint
- * ============================================================================ */
+
 
 void xss_custom(char *url, char *path) {
     char wordlist[512];
-    data_path(full ? "ghostquery/xss/custom.txt" : "ghostquery/xss/new.txt",
-              wordlist, sizeof(wordlist));
+    char cand[512];
+
+    /* FIXED: "full" was undeclared. Use the custom list when it exists,
+     * otherwise the default payload set. */
+    data_path("ghostquery/xss/custom.txt", cand, sizeof(cand));
+    if (access(cand, F_OK) != 0)
+        data_path("ghostquery/xss/new.txt", cand, sizeof(cand));
+
+    snprintf(wordlist, sizeof(wordlist), "%s", cand);
+
     xss_payload_run("xss_custom", url, path, wordlist, "xss.txt",
                     CHROME_BASE_PORT);
 }
 
-/* ============================================================================
- * Entry point
- * ============================================================================ */
+
+static void mirror_xss_findings(const char *path, const char *report_dir) {
+    char src[4096], dst[4096];
+
+    snprintf(src, sizeof(src), "%s/xss.txt", path);
+    snprintf(dst, sizeof(dst), "%s/xss.txt", report_dir);
+    if (!strcmp(src, dst)) return;     /* same directory: nothing to mirror */
+
+    FILE *in = fopen(src, "r");
+    if (!in) return;
+
+    FILE *out = fopen(dst, "a");
+    if (!out) { fclose(in); return; }
+
+    char buf[4096];
+    while (fgets(buf, sizeof(buf), in))
+        fputs(buf, out);
+
+    fclose(in);
+    fclose(out);
+}
+
 
 int file_exists(const char *filename) {
     return access(filename, F_OK) == 0;
@@ -642,10 +705,6 @@ int xss_run(char *url, char *path, char *report_dir) {
     return 0;
 }
 
-/* ============================================================================
- * nuclei_run — run_tool() now fork/execs directly (no shell), so args are
- * passed verbatim; no escaping or quoting is needed or wanted here.
- * ============================================================================ */
 
 int nuclei_run(char *url, char *path) {
     if (!url || !path) {
@@ -675,13 +734,13 @@ int nuclei_run(char *url, char *path) {
     if (!tl) { fprintf(stderr, "[nuclei_run] cannot write %s\n", targets_path); return 1; }
 
     char param[MAX_PARAM_LEN];
-    int ntargets = 0;
+    int  ntargets = 0;
 
     FILE *fp = fopen(param_file, "r");
     if (fp) {
         while (fgets(param, sizeof(param), fp)) {
             size_t l = strlen(param);
-            while (l && (param[l-1] == '\n' || param[l-1] == '\r'))
+            while (l && (param[l - 1] == '\n' || param[l - 1] == '\r'))
                 param[--l] = '\0';
             if (l == 0 || param[0] == '#') continue;
 
@@ -697,17 +756,20 @@ int nuclei_run(char *url, char *path) {
     if (ntargets == 0) {
         printf("[nuclei_run] no reflecting params — falling back to params.txt\n");
         data_path("ghostquery/params.txt", fallback_wl, sizeof(fallback_wl));
+
         FILE *wf = fopen(fallback_wl, "r");
         if (!wf) {
             fprintf(stderr, "[nuclei_run] fallback wordlist missing (%s)\n", fallback_wl);
             fclose(tl);
             return 1;
         }
+
         char wparam[MAX_PARAM_LEN];
         while (fgets(wparam, sizeof(wparam), wf)) {
             size_t l = strlen(wparam);
-            while (l && (wparam[l-1] == '\n' || wparam[l-1] == '\r'))
-                param[--l] = '\0', wparam[--l] = '\0';
+            /* FIXED: only trim wparam (the old code also wrote into param). */
+            while (l && (wparam[l - 1] == '\n' || wparam[l - 1] == '\r'))
+                wparam[--l] = '\0';
             if (l == 0 || wparam[0] == '#') continue;
 
             fprintf(tl, "%s%c%s=test\n",

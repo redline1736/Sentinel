@@ -3,7 +3,7 @@
 #include <errno.h>
 #include <sys/stat.h>
 #include <sys/types.h>
-#include <sys/wait.h>   /* waitpid */
+#include <sys/wait.h>
 #include <time.h>
 #include <ctype.h>
 #include <curl/curl.h>
@@ -21,9 +21,8 @@
 #include "openredirect/oprt.h"
 #include "gq.h"
 
-
 /* ============================================================================
- * Constants
+ * ghostquery_full — the full ghostquery chain for one URL
  * ============================================================================ */
 
 int ghostquery_full(char *url, char *path, char *report_dir) {
@@ -31,15 +30,22 @@ int ghostquery_full(char *url, char *path, char *report_dir) {
         fprintf(stderr, "ghostquery_full: invalid arguments\n");
         return 1;
     }
-    printf("[ghostquery_full] Starting XSS scan on %s\n", url);
+    if (!report_dir) report_dir = path;
+
+    printf("[ghostquery_full] Starting on %s\n", url);
+
     xss_run(url, path, report_dir);
     nuclei_run(url, path);
     sql_run(url, path);
     openredirect_run(url, path);
-    return 0;                              /* <-- add this */
+
+    printf("[ghostquery_full] Done on %s\n", url);
+    return 0;
 }
+
 void *ghostquery_run(void *arg) {
     ghostquery_t *gq_args = (ghostquery_t *)arg;
+    if (!gq_args) return NULL;
     ghostquery_full(gq_args->url, gq_args->path, gq_args->report_dir);
     return NULL;
 }

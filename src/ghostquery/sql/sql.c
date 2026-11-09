@@ -17,7 +17,6 @@
 #include "../sql/sql.h"
 #include "../gq.h"
 
-
 #ifndef MAX_URL_LEN
 #define MAX_URL_LEN     32768
 #endif
@@ -26,9 +25,6 @@
 #define MAX_PARAM_LEN   256
 #endif
 
-/* Insert or replace `param` in the query string, preserving other params
- * and any #fragment. Safer than appending: /greet?name=x + param 'name'
- * stays a single `name=` (Flask's request.args.get returns the FIRST). */
 static int build_param_url(char *dst, size_t dstsz,
                            const char *url, const char *param, const char *value) {
     if (!dst || !url || !param || !value) return 0;
@@ -74,22 +70,19 @@ static int build_param_url(char *dst, size_t dstsz,
 
 static int ensure_directory(const char *path) {
     if (!path) return -1;
+
     struct stat st;
     if (stat(path, &st) == 0) {
         if (S_ISDIR(st.st_mode)) return 0;
         errno = ENOTDIR;
         return -1;
     }
+
     char tmp[512];
     snprintf(tmp, sizeof(tmp), "mkdir -p %s 2>/dev/null", path);
     return system(tmp);
 }
 
-/* ============================================================================
- * SQL Injection Run (SQLMap)
- * ============================================================================ */
-
-/* Parse one line of sqlmap output: "Parameter: id (GET)" */
 static int sqlmap_line_is_finding(const char *line) {
     if (!line) return 0;
     /* sqlmap prints findings like:
@@ -97,12 +90,13 @@ static int sqlmap_line_is_finding(const char *line) {
      *   Type: boolean-based blind
      *   Title: AND boolean-based blind - WHERE or HAVING clause
      *   Payload: id=1 AND 1=1
-     * We treat "Parameter:" and "Payload:" as confirmed findings. */
+     * We treat "Parameter:"/"Payload:"/"Type:" and the verbose markers
+     * as confirmed findings. */
     if (strncmp(line, "Parameter:", 10) == 0) return 1;
     if (strncmp(line, "Payload:",    8) == 0) return 1;
     if (strncmp(line, "Type:",       5) == 0) return 1;
-    if (strstr(line, "is vulnerable"))         return 1;
-    if (strstr(line, "injectable"))            return 1;
+    if (strstr(line, "is vulnerable"))        return 1;
+    if (strstr(line, "injectable"))           return 1;
     return 0;
 }
 
@@ -114,17 +108,22 @@ int sql_run(char *url, char *path) {
     char sqlmap_dir[4096];
     char fallback_wl[512];
 
+    if (!url || !path) {
+        fprintf(stderr, "[sql_run] invalid arguments\n");
+        return 1;
+    }
+
     if (snprintf(param_file,   sizeof(param_file),   "%s/valid_params.txt", path) >= (int)sizeof(param_file) ||
-        snprintf(targets_path, sizeof(targets_path), "%s/sql_targets.txt",  path)   >= (int)sizeof(targets_path) ||
-        snprintf(sqlmap_out,   sizeof(sqlmap_out),   "%s/sql.txt",          path)   >= (int)sizeof(sqlmap_out) ||
-        snprintf(sqlmap_raw,   sizeof(sqlmap_raw),   "%s/sqlmap_raw.txt",   path)   >= (int)sizeof(sqlmap_raw) ||
-        snprintf(sqlmap_dir,   sizeof(sqlmap_dir),   "%s/sqlmap_sessions",  path)   >= (int)sizeof(sqlmap_dir)) {
+        snprintf(targets_path, sizeof(targets_path), "%s/sql_targets.txt",  path) >= (int)sizeof(targets_path) ||
+        snprintf(sqlmap_out,   sizeof(sqlmap_out),   "%s/sql.txt",          path) >= (int)sizeof(sqlmap_out) ||
+        snprintf(sqlmap_raw,   sizeof(sqlmap_raw),   "%s/sqlmap_raw.txt",   path) >= (int)sizeof(sqlmap_raw) ||
+        snprintf(sqlmap_dir,   sizeof(sqlmap_dir),   "%s/sqlmap_sessions",  path) >= (int)sizeof(sqlmap_dir)) {
         fprintf(stderr, "[sql_run] path too long\n");
         return 1;
     }
 
-    if (ensure_directory(path)         != 0 ||
-        ensure_directory(sqlmap_dir)   != 0) {
+    if (ensure_directory(path)       != 0 ||
+        ensure_directory(sqlmap_dir) != 0) {
         fprintf(stderr, "[sql_run] failed to create output directories under %s\n", path);
         return 1;
     }
@@ -137,13 +136,13 @@ int sql_run(char *url, char *path) {
     }
 
     char param[MAX_PARAM_LEN];
-    int ntargets = 0;
+    int  ntargets = 0;
 
     FILE *fp = fopen(param_file, "r");
     if (fp) {
         while (fgets(param, sizeof(param), fp)) {
             size_t l = strlen(param);
-            while (l && (param[l-1] == '\n' || param[l-1] == '\r'))
+            while (l && (param[l - 1] == '\n' || param[l - 1] == '\r'))
                 param[--l] = '\0';
             if (l == 0 || param[0] == '#') continue;
 
@@ -163,16 +162,18 @@ int sql_run(char *url, char *path) {
     if (ntargets == 0) {
         printf("[sql_run] no reflecting params — falling back to params.txt\n");
         data_path("ghostquery/params.txt", fallback_wl, sizeof(fallback_wl));
+
         FILE *wf = fopen(fallback_wl, "r");
         if (!wf) {
             fprintf(stderr, "[sql_run] fallback wordlist missing (%s)\n", fallback_wl);
             fclose(tl);
             return 1;
         }
+
         char wparam[MAX_PARAM_LEN];
         while (fgets(wparam, sizeof(wparam), wf)) {
             size_t l = strlen(wparam);
-            while (l && (wparam[l-1] == '\n' || wparam[l-1] == '\r'))
+            while (l && (wparam[l - 1] == '\n' || wparam[l - 1] == '\r'))
                 wparam[--l] = '\0';
             if (l == 0 || wparam[0] == '#') continue;
 
@@ -193,10 +194,6 @@ int sql_run(char *url, char *path) {
 
     printf("[sql_run] running sqlmap on %d param URLs\n", ntargets);
 
-    /* -- 2. Invoke sqlmap ------------------------------------------------ *
-     * run_tool_out() fork/execs directly (no shell) and dup2's stdout+stderr
-     * into the raw log — session logs go into sqlmap_dir, findings are
-     * post-processed from the raw log below. */
     char *sqlmap_args[] = {
         "sqlmap",
         "-m",           targets_path,
@@ -220,8 +217,39 @@ int sql_run(char *url, char *path) {
     if (rc != 0)
         printf("[!] sqlmap exited with code %d (findings may still exist)\n", rc);
 
-    /* -- 3. Parse raw log for confirmed findings -------------------------- */
-    /* >>> UNCHANGED: keep your existing parsing block (current_target
-     * >>> tracking, sqlmap_line_is_finding, [VULN]/payload output) verbatim
-     * >>> from "FILE *raw = fopen(sqlmap_raw, \"r\");" to the end. */
+
+    FILE *raw = fopen(sqlmap_raw, "r");
+    FILE *out = fopen(sqlmap_out, "a");
+
+    int nfindings = 0;
+
+    if (raw && out) {
+        char line[8192];
+        char current_target[4096] = "";
+
+        while (fgets(line, sizeof(line), raw)) {
+            char *u = strstr(line, "URL: ");
+            if (u) {
+                char *nl = strpbrk(u, "\r\n");
+                if (nl) *nl = '\0';
+                snprintf(current_target, sizeof(current_target), "%s", u + 5);
+            }
+            if (sqlmap_line_is_finding(line)) {
+                fprintf(out, "[SQLI] %s | %s",
+                        current_target[0] ? current_target : url, line);
+                fflush(out);
+                nfindings++;
+            }
+        }
+    } else {
+        fprintf(stderr, "[sql_run] cannot post-process %s (rc=%d)\n",
+                sqlmap_raw, rc);
+    }
+
+    if (raw) fclose(raw);
+    if (out) fclose(out);
+
+    printf("[sql_run] done — %d finding line(s), results in %s\n",
+           nfindings, sqlmap_out);
+    return 0;
 }
