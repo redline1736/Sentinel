@@ -1,20 +1,18 @@
 """
-Sentinel UI — tkinter port of the Nuklear/SDL3 view.
+Sentinel UI — tkinter host for the sentinel scanner.
 
-Design mirrors the C version:
-  - UI runs its own window loop
-  - the scan pipeline runs in a worker thread ("pthread" equivalent)
-  - stdout/stderr from the pipeline are tee'd: terminal + Log tab
-  - findings/status propagate to the UI as they arrive
+Architecture:
+  - this process owns the GUI window
+  - each RUN spawns the C scanner (./sentinel) as a subprocess in a
+    worker thread, streaming its stdout/stderr into the Log tab
+  - if set_run_callback(fn) was called (embedded mode), fn(argv) runs
+    in-process instead of a subprocess
+  - when a scan ends the window stays open; RUN re-enables so you can
+    fire another scan. Process exits only when the window closes.
 
-Usage from main:
-    import view
-    view.set_run_callback(run_pipeline_entry)
-    view.start_gui()
-    view.wait()          # blocks until window closed
-
-Command-line shape mirrors src/main.c:
-    sentinel <outdir> <mode> <arg> [flags]
+Usage:
+    python3 view.py <outdir> <mode> <arg> [flags]   # mirrors src/main.c
+    python3 view.py                                  # GUI only
 """
 import shlex
 import subprocess
@@ -22,7 +20,6 @@ import sys
 import threading
 import time
 import queue
-import io
 import tkinter as tk
 from tkinter import ttk, font as tkfont
 
@@ -32,13 +29,15 @@ _lock = threading.Lock()
 _log_q = queue.Queue()      # (severity, line)
 _result_q = queue.Queue()   # (severity, tool, text)
 _status_q = queue.Queue()   # str
-_done_q = queue.Queue()     # worker completion notifications
+_done_q = queue.Queue()     # worker completion rc
 
 _stop_event = threading.Event()
 _proc = None                # live subprocess.Popen, guarded by _lock
-_run_fn = None              # called with the assembled command argv
+_run_fn = None              # optional in-process pipeline entry
 
-MODES_URL = ["--scan-url", "--scan-site", "--xss-only", "--url"]
+SENTINEL_BIN = "./sentinel"   # adjust path/binary name as needed
+
+MODES_URL = ["--scan-url", "--scan-site", "--xss-only"]
 MODES_DOMAIN = ["-sub", "--full-scan", "--fast-scan"]
 MODES = MODES_URL + MODES_DOMAIN
 
@@ -90,7 +89,7 @@ def status(text: str):
 
 
 def set_run_callback(fn):
-    """Register the pipeline entry point. Called as fn(argv_list)."""
+    """Register an in-process pipeline entry point. Called as fn(argv_list)."""
     global _run_fn
     with _lock:
         _run_fn = fn
@@ -106,48 +105,6 @@ def request_stop():
             p.terminate()
         except OSError:
             pass
-
-
-# ------------------------------------------------------- stdout tee helper --
-class _Tee(io.TextIOBase):
-    """Tee stdout/stderr: real terminal + UI log queue."""
-
-    def __init__(self, original, stderr=False):
-        self._orig = original
-        self._stderr = stderr
-
-    def write(self, s):
-        if self._orig:
-            try:
-                self._orig.write(s)
-                self._orig.flush()
-            except (OSError, ValueError):
-                pass
-        for line in s.splitlines():
-            if line.strip():
-                _log_q.put(("err" if self._stderr else _classify(line), line))
-        return len(s)
-
-    def flush(self):
-        if self._orig:
-            try:
-                self._orig.flush()
-            except (OSError, ValueError):
-                pass
-
-    def fileno(self):
-        return self._orig.fileno() if self._orig else 1
-
-    def isatty(self):
-        return False
-
-
-def attach_stdout():
-    """Route this process's stdout/stderr through the UI log (idempotent)."""
-    if not isinstance(sys.stdout, _Tee):
-        sys.stdout = _Tee(sys.stdout, stderr=False)
-    if not isinstance(sys.stderr, _Tee):
-        sys.stderr = _Tee(sys.stderr, stderr=True)
 
 
 # --------------------------------------------------------- job execution ----
@@ -169,8 +126,51 @@ def _assemble(outdir, mode, target, flags, proxy_file=""):
     return argv
 
 
+def _pipeline_subprocess(argv):
+    """Run the C scanner as a subprocess, tee its output to the Log tab."""
+    global _proc
+    cmd = [SENTINEL_BIN] + argv
+    log("[*] $ " + " ".join(shlex.quote(a) for a in cmd))
+    try:
+        p = subprocess.Popen(
+            cmd,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+            bufsize=1,
+        )
+    except FileNotFoundError:
+        log(f"[-] cannot launch '{SENTINEL_BIN}' — build it or fix SENTINEL_BIN")
+        return 1
+
+    with _lock:
+        _proc = p
+
+    try:
+        for line in p.stdout:
+            line = line.rstrip("\n")
+            if not line.strip():
+                continue
+            # tee to real terminal as well
+            try:
+                sys.__stdout__.write(line + "\n")
+                sys.__stdout__.flush()
+            except (OSError, ValueError):
+                pass
+
+            sev = _classify(line)
+            _log_q.put((sev, line))
+            if sev in ("critical", "high", "medium", "low"):
+                add_result(sev, "sentinel", line)
+    finally:
+        rc = p.wait()
+        with _lock:
+            _proc = None
+    return rc
+
+
 def _job_thread(argv):
-    """Worker 'pthread': run the pipeline, tee output, report completion."""
+    """Worker thread: run the pipeline, report completion."""
     t0 = time.monotonic()
     status("running: " + " ".join(shlex.quote(a) for a in argv))
     rc = 0
@@ -178,8 +178,7 @@ def _job_thread(argv):
         with _lock:
             fn = _run_fn
         if fn is None:
-            log("[-] no run callback registered (set_run_callback)")
-            rc = 1
+            rc = _pipeline_subprocess(argv)
         else:
             fn(argv)
     except Exception as e:  # noqa: BLE001 — report everything to the UI
@@ -194,21 +193,20 @@ def _job_thread(argv):
         _done_q.put(rc)
 
 
-def _start_job(outdir, mode, target, flags, proxy_file=""):
+def _start_job(argv):
     """Spawn the worker thread. Returns False if a job is already running."""
     if any(t.name == "sentinel-scan" and t.is_alive()
            for t in threading.enumerate()):
         return False
 
     _stop_event.clear()
-    argv = _assemble(outdir, mode, target, flags, proxy_file)
     threading.Thread(target=_job_thread, args=(argv,),
                      name="sentinel-scan", daemon=True).start()
     return True
 
 
 # ------------------------------------------------------------------- GUI ----
-def start_gui():
+def start_gui(initial_argv=None):
     def _build_window():
         root = tk.Tk()
         root.title("Sentinel — automated pentest scanner")
@@ -329,9 +327,10 @@ def start_gui():
             if not outdir_var.get().strip():
                 log("[-] outdir required")
                 return
-            if not _start_job(outdir_var.get().strip(), mode_var.get(), target,
-                              {k: v.get() for k, v in flags.items()},
-                              proxy_var.get().strip()):
+            argv = _assemble(outdir_var.get().strip(), mode_var.get(), target,
+                             {k: v.get() for k, v in flags.items()},
+                             proxy_var.get().strip())
+            if not _start_job(argv):
                 log("[!] a scan is already running")
                 return
             run_btn.configure(state="disabled")
@@ -377,8 +376,9 @@ def start_gui():
                 root.configure(cursor="")
                 run_btn.configure(state="normal")
                 stop_btn.configure(state="disabled")
-                log(f"[+] job finished (rc={rc})" if rc == 0
-                    else f"[-] job finished with errors (rc={rc})")
+                log(f"[+] job finished (rc={rc}) — UI stays open, run another scan"
+                    if rc == 0 else
+                    f"[-] job finished with errors (rc={rc})")
             except queue.Empty:
                 pass
 
@@ -386,6 +386,13 @@ def start_gui():
 
         def on_close():
             request_stop()
+            with _lock:
+                p = _proc
+            if p is not None and p.poll() is None:
+                try:
+                    p.wait(timeout=2)
+                except subprocess.TimeoutExpired:
+                    p.kill()
             if pump_after is not None:
                 root.after_cancel(pump_after)
             root.destroy()
@@ -393,6 +400,22 @@ def start_gui():
         root.protocol("WM_DELETE_WINDOW", on_close)
         pump()
         log("[+] UI online")
+
+        # prefill from CLI argv (<outdir> <mode> <arg> [flags])
+        if initial_argv and len(initial_argv) >= 3:
+            outdir_var.set(initial_argv[0])
+            if initial_argv[1] in MODES:
+                mode_var.set(initial_argv[1])
+            target_var.set(initial_argv[2])
+            for i, flag in enumerate(("--xss-no", "--deepblue", "--tor", "--elite")):
+                if flag in initial_argv[3:]:
+                    if flag == "--xss-no":
+                        flags["xss"].set(False)
+                    else:
+                        flags[flag.lstrip("-")].set(True)
+            log(f"[*] prefilled from argv: {' '.join(initial_argv)}")
+            on_run()   # auto-start the scan from the command line
+
         root.mainloop()
 
     t = threading.Thread(target=_build_window, name="sentinel-ui", daemon=False)
@@ -411,34 +434,13 @@ def wait(ui_thread=None):
         ui_thread.join()
 
 
-# ------------------------------------------------------------ CLI helper ---
-def run_with_ui(entry, command: str):
-    """
-    Convenience for CLI mode:
-        view.run_with_ui(run_pipeline, "out -sub example.com")
-    Starts the UI, runs the pipeline in a worker thread with stdout
-    captured, blocks until the window closes.
-
-    `command` is parsed with shlex so quoted URLs survive intact, and the
-    argv is passed to the callback verbatim (main.c shape:
-    <outdir> <mode> <arg> [flags]).
-    """
-    set_run_callback(entry)
-    attach_stdout()
-    t = start_gui()
-
-    time.sleep(0.2)  # grace period so first log lines land after the window exists
-
-    argv = shlex.split(command)
-    _stop_event.clear()
-    threading.Thread(target=_job_thread, args=(argv,),
-                     name="sentinel-scan", daemon=True).start()
+# ------------------------------------------------------------ entry point ---
+def main():
+    argv = sys.argv[1:]
+    set_run_callback(None)   # standalone: run ./sentinel as a subprocess
+    t = start_gui(argv if len(argv) >= 3 else None)
     wait(t)
 
 
 if __name__ == "__main__":
-    if len(sys.argv) > 1:
-        run_with_ui(None, " ".join(sys.argv[1:]))
-    else:
-        start_gui()
-        wait()
+    main()

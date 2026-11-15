@@ -107,23 +107,6 @@ int get_value_from_file(const char *file, const char *key,
     return found;   /* 1 = found, 0 = not found */
 }
 
-void host_of_url(const char *url, char *out, size_t outsz) {
-    const char *p = strstr(url, "://");
-    const char *h = p ? p + 3 : url;
-    const char *slash = strchr(h, '/');
-    size_t n;
-
-    /* keep host[:port] together; only cut at '/' (or end) */
-    n = slash ? (size_t)(slash - h) : strlen(h);
-
-    if (n >= outsz) n = outsz - 1;
-    memcpy(out, h, n);
-    out[n] = '\0';
-
-    for (char *q = out; *q; q++)
-        *q = (char)tolower((unsigned char)q[0]);
-}
-
 bool contains(const char *haystack, const char *needle) {
     if (!haystack || !needle) return false;
     return strstr(haystack, needle) != NULL;

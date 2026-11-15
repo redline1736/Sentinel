@@ -1,14 +1,7 @@
-#define _GNU_SOURCE
 #include <errno.h>
-#include <signal.h>
-#include <fcntl.h>
 #include <sys/stat.h>
-#include <sys/wait.h>
 #include <ctype.h>
 #include <unistd.h>
-#include <pthread.h>
-#include <stdlib.h>
-#include <string.h>
 
 #include "util/util.h"
 #include "prox/prox.h"
@@ -16,68 +9,6 @@
 #include "ghostquery/xss/xss.h"
 #include "glassworm/gw.h"
 #include "global.h"
-
-/* ---------------- viewer (UI) ---------------- */
-
-static pid_t g_viewer_pid = -1;
-
-static void ui_reap(void) {
-    if (g_viewer_pid > 0) {
-        /* give it a chance to exit cleanly, then hard-kill */
-        kill(g_viewer_pid, SIGTERM);
-        for (int i = 0; i < 20; i++) {
-            if (waitpid(g_viewer_pid, NULL, WNOHANG) == g_viewer_pid) {
-                g_viewer_pid = -1;
-                return;
-            }
-            usleep(50000); /* 50ms x 20 = 1s grace period */
-        }
-        kill(g_viewer_pid, SIGKILL);
-        waitpid(g_viewer_pid, NULL, 0);
-        g_viewer_pid = -1;
-    }
-}
-
-static void *ui(void *arg) {
-    (void)arg;
-
-    pid_t pid = fork();
-    if (pid == 0) {
-        /* child: detach from the scanner's terminal so the viewer
-         * cannot steal stdin/stdout or fight over the tty */
-        setsid();
-        int devnull = open("/dev/null", O_RDWR);
-        if (devnull >= 0) {
-            dup2(devnull, STDIN_FILENO);
-            dup2(devnull, STDOUT_FILENO);
-            dup2(devnull, STDERR_FILENO);
-            if (devnull > STDERR_FILENO)
-                close(devnull);
-        }
-
-        execlp("python3", "python3",
-               "/usr/share/sentinel/view/view.py", (char *)NULL);
-
-        /* execlp only returns on failure */
-        _exit(1);
-    }
-    if (pid > 0)
-        g_viewer_pid = pid;
-    /* parent returns immediately; reaped by ui_reap() at exit */
-    return NULL;
-}
-
-static int ui_start(void) {
-    pthread_t t;
-    if (pthread_create(&t, NULL, ui, NULL) != 0) {
-        fprintf(stderr, "[-] pthread_create(ui) failed: %s\n", strerror(errno));
-        return -1;
-    }
-    pthread_detach(t);
-    return 0;
-}
-
-/* ---------------- usage ---------------- */
 
 static void print_usage(const char *prog) {
     printf("Usage:\n");
@@ -87,8 +18,6 @@ static void print_usage(const char *prog) {
     printf("  %s <outdir> -sub        <domain> [flags]\n", prog);
     printf("  %s <outdir> --full-scan <domain> [flags]\n", prog);
     printf("  %s <outdir> --fast-scan <domain> [flags]\n", prog);
-    printf("  %s <outdir> --url       <target_url>\n", prog);
-    printf("  %s <outdir> --gobuster  <gobuster_dir>\n", prog);
     printf("\n");
     printf("  proxy flags (default: direct, no proxy):\n");
     printf("        --tor           route through a pool of local Tor SOCKS5 instances\n");
@@ -98,19 +27,46 @@ static void print_usage(const char *prog) {
     printf("  other flags:\n");
     printf("        --xss-no        disable XSS scanning\n");
     printf("        --deepblue      run DeepBlue exploit phase after scan\n");
-    printf("        --no-ui         do not start the viewer\n");
     printf("\n");
     printf("Examples:\n");
     printf("  %s output -sub example.com --tor\n", prog);
     printf("  %s output --scan-url https://example.com/login.php?u=1 --tor\n", prog);
     printf("  %s output --xss-only https://example.com/login.php?u=1\n", prog);
-    printf("  %s output --url https://example.com/graphql\n", prog);
-    printf("  %s output --gobuster ~/gobuster/\n", prog);
 }
 
-/* ---------------- helpers ---------------- */
+/* Extract host[:port] from a URL, IPv6-aware.
+ * "https://example.com:8443/a?b=1"   -> "example.com:8443"
+ * "http://[2001:db8::1]:8080/x"      -> "2001:db8::1:8080"  (see note)
+ */
+static void host_of_url(const char *url, char *out, size_t outsz) {
+    const char *p = strstr(url, "://");
+    const char *h = p ? p + 3 : url;
+    size_t n;
 
-/* Copy src into dst (dstsz incl. NUL). Returns 0 on success, -1 on truncation. */
+    if (h[0] == '[') {                      /* IPv6 literal */
+        const char *close = strchr(h, ']');
+        if (close) {
+            h++;                            /* skip '[' */
+            n = (size_t)(close - h);
+        } else {
+            h++;
+            n = strlen(h);
+        }
+    } else {
+        /* keep host[:port] together; only cut at '/' */
+        const char *slash = strchr(h, '/');
+        n = slash ? (size_t)(slash - h) : strlen(h);
+    }
+
+    if (n >= outsz) n = outsz - 1;
+    memcpy(out, h, n);
+    out[n] = '\0';
+
+    for (char *q = out; *q; q++)
+        *q = (char)tolower((unsigned char)q[0]);
+}
+
+/* Copy src into dst (dstsz incl. NUL). 0 on success, -1 on truncation. */
 static int copy_str(char *dst, size_t dstsz, const char *src) {
     size_t n = strlen(src);
     if (n >= dstsz)
@@ -119,13 +75,11 @@ static int copy_str(char *dst, size_t dstsz, const char *src) {
     return 0;
 }
 
-
-/* Normalize outdir: strip one trailing '/' (keep plain "/"). */
-static void normalize_dir(char *dir, size_t sz) {
+/* Strip trailing slashes (keep plain "/"). */
+static void normalize_dir(char *dir) {
     size_t n = strlen(dir);
     while (n > 1 && dir[n - 1] == '/')
         dir[--n] = '\0';
-    (void)sz;
 }
 
 static void write_live(const char *host) {
@@ -150,21 +104,17 @@ static void write_live(const char *host) {
     }
 }
 
-/* Returns 1 if the token is a URL-bearing mode. */
 static int is_url_mode(const char *mode) {
     return (strcmp(mode, "--scan-url")  == 0) ||
            (strcmp(mode, "--scan-site") == 0) ||
            (strcmp(mode, "--xss-only")  == 0);
 }
 
-/* Returns 1 if the token is a domain-bearing mode. */
 static int is_domain_mode(const char *mode) {
     return (strcmp(mode, "-sub")        == 0) ||
            (strcmp(mode, "--full-scan") == 0) ||
            (strcmp(mode, "--fast-scan") == 0);
 }
-
-/* ---------------- main ---------------- */
 
 int main(int argc, char *argv[]) {
 
@@ -195,7 +145,7 @@ int main(int argc, char *argv[]) {
         fprintf(stderr, "[-] outdir path too long (max %zu)\n", sizeof(g.dir) - 1);
         return 1;
     }
-    normalize_dir(g.dir, sizeof(g.dir));
+    normalize_dir(g.dir);
 
     const int flag_start = 4;
 
@@ -221,15 +171,11 @@ int main(int argc, char *argv[]) {
     }
 
     /* --- optional flags --- */
-    int start_ui = 1;
-
     for (int i = flag_start; i < argc; i++) {
         if (strcmp(argv[i], "--xss-no") == 0) {
             g.xss = false;
         } else if (strcmp(argv[i], "--deepblue") == 0) {
             g.deepblue = true;
-        } else if (strcmp(argv[i], "--no-ui") == 0) {
-            start_ui = 0;
         } else if (strcmp(argv[i], "--tor") == 0) {
             g.proxy_mode = PROXY_TOR;
             g.proxy = true;
@@ -266,7 +212,6 @@ int main(int argc, char *argv[]) {
     }
 
     curl_http_init();
-    atexit(ui_reap);
 
     printf("[+] Sentinel starting\n");
     if (g.domain[0]) printf("[+] Target: %s\n", g.domain);
@@ -274,9 +219,6 @@ int main(int argc, char *argv[]) {
     if (g.target[0]) printf("[+] URL:    %s\n", g.target);
 
     int rc = 0;
-
-    if (start_ui && ui_start() != 0)
-        return 1;
 
     if (strcmp(mode, "-sub") == 0) {
         if (g.proxy) start_proxies();
@@ -311,8 +253,6 @@ int main(int argc, char *argv[]) {
         rc = run(NULL);
     }
 
-    /* ui_reap runs via atexit(); explicit call here too for clarity */
-    ui_reap();
     proxy_shutdown();
     curl_http_cleanup();
     return rc;

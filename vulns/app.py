@@ -1314,12 +1314,10 @@ search(term: "&lt;img src=x onerror=alert(1)&gt;") {{ username }}</pre>
 @app.route("/xss", methods=["GET", "POST"])
 def xss_lab():
     # [MEDIUM]
-    # Exactly one vulnerable parameter:
-    # POST parameter: comment
-    #
+    # Vulnerable parameter: comment (GET ?comment= or POST form)
     # The value is placed into an HTML attribute without encoding.
 
-    comment = request.form.get("comment", "")
+    comment = request.args.get("comment", "") or request.form.get("comment", "")
 
     body = f"""
     <div class="card">
@@ -1329,7 +1327,7 @@ def xss_lab():
       </h2>
 
       <p class="muted">
-        The POST <code>comment</code> parameter is reflected
+        The <code>comment</code> parameter (GET or POST) is reflected
         into an HTML attribute.
       </p>
 
@@ -1941,6 +1939,6 @@ if __name__ == "__main__":
 
     app.run(
         host="0.0.0.0",
-        port=5000,
+        port=80,
         debug=False
     )
