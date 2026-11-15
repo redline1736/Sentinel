@@ -2,9 +2,9 @@
 Sentinel UI — tkinter port of the Nuklear/SDL3 view.
 
 Design mirrors the C version:
-  - UI runs its own thread-safe window loop
-  - scan pipeline runs in a worker thread ("pthread" equivalent)
-  - stdout from the pipeline is tee'd: terminal + Log tab
+  - UI runs its own window loop
+  - the scan pipeline runs in a worker thread ("pthread" equivalent)
+  - stdout/stderr from the pipeline are tee'd: terminal + Log tab
   - findings/status propagate to the UI as they arrive
 
 Usage from main:
@@ -16,46 +16,42 @@ Usage from main:
 Command-line shape mirrors src/main.c:
     sentinel <outdir> <mode> <arg> [flags]
 """
-import threading
-import queue
 import shlex
 import subprocess
 import sys
+import threading
+import time
+import queue
 import io
-import os
 import tkinter as tk
 from tkinter import ttk, font as tkfont
 
 # ---------------------------------------------------------------- state ----
-_lock        = threading.Lock()
+_lock = threading.Lock()
 
-_log_q       = queue.Queue()          # (severity, line)
-_result_q    = queue.Queue()          # (severity, tool, text)
-_status_q    = queue.Queue()          # str
+_log_q = queue.Queue()      # (severity, line)
+_result_q = queue.Queue()   # (severity, tool, text)
+_status_q = queue.Queue()   # str
+_done_q = queue.Queue()     # worker completion notifications
 
-_stop_event  = threading.Event()
-_proc        = None                   # live subprocess.Popen, guarded by _lock
-_run_fn      = None                   # called with the assembled command argv
-_done_q      = queue.Queue()          # worker completion notifications
+_stop_event = threading.Event()
+_proc = None                # live subprocess.Popen, guarded by _lock
+_run_fn = None              # called with the assembled command argv
 
-MODES_URL    = ["--scan-url", "--scan-site", "--xss-only", "--url"]
+MODES_URL = ["--scan-url", "--scan-site", "--xss-only", "--url"]
 MODES_DOMAIN = ["-sub", "--full-scan", "--fast-scan"]
-MODES        = MODES_URL + MODES_DOMAIN + ["--gobuster"]
+MODES = MODES_URL + MODES_DOMAIN
 
-# severity colors
 SEV_COLORS = {
-    "info":     "#b4b4b4",
-    "ok":       "#5adc6e",
-    "warn":     "#f0c846",
-    "err":      "#eb5a5a",
+    "info": "#b4b4b4",
+    "ok": "#5adc6e",
+    "warn": "#f0c846",
+    "err": "#eb5a5a",
     "critical": "#eb5a5a",
-    "high":     "#eb5a5a",
-    "medium":   "#f0c846",
-    "low":      "#78beff",
+    "high": "#eb5a5a",
+    "medium": "#f0c846",
+    "low": "#78beff",
 }
-
-SEV_ORDER = {"critical": 0, "high": 1, "medium": 2, "low": 3, "warn": 4,
-             "err": 5, "ok": 6, "info": 7}
 
 
 def _classify(line: str) -> str:
@@ -85,7 +81,7 @@ def log(line: str):
 
 def add_result(severity: str, tool: str, text: str):
     """Record a finding in the Findings tab."""
-    _result_q.put((severity.lower() if severity else "info", tool, text))
+    _result_q.put(((severity or "info").lower(), tool, text))
 
 
 def status(text: str):
@@ -112,14 +108,10 @@ def request_stop():
             pass
 
 
-def _wait_idle(timeout=10.0):
-    """Block the worker thread until the current job is reaped."""
-    _stop_event.wait(timeout)
-
-
 # ------------------------------------------------------- stdout tee helper --
 class _Tee(io.TextIOBase):
     """Tee stdout/stderr: real terminal + UI log queue."""
+
     def __init__(self, original, stderr=False):
         self._orig = original
         self._stderr = stderr
@@ -143,7 +135,6 @@ class _Tee(io.TextIOBase):
             except (OSError, ValueError):
                 pass
 
-    # fileno needed by some subprocess/progress libraries
     def fileno(self):
         return self._orig.fileno() if self._orig else 1
 
@@ -152,7 +143,7 @@ class _Tee(io.TextIOBase):
 
 
 def attach_stdout():
-    """Route this process's stdout/stderr through the UI log (idempotent-ish)."""
+    """Route this process's stdout/stderr through the UI log (idempotent)."""
     if not isinstance(sys.stdout, _Tee):
         sys.stdout = _Tee(sys.stdout, stderr=False)
     if not isinstance(sys.stderr, _Tee):
@@ -180,34 +171,33 @@ def _assemble(outdir, mode, target, flags, proxy_file=""):
 
 def _job_thread(argv):
     """Worker 'pthread': run the pipeline, tee output, report completion."""
+    t0 = time.monotonic()
     status("running: " + " ".join(shlex.quote(a) for a in argv))
-    rc = 1
+    rc = 0
     try:
-        if _stop_event.is_set():
-            rc = 0
+        with _lock:
+            fn = _run_fn
+        if fn is None:
+            log("[-] no run callback registered (set_run_callback)")
+            rc = 1
         else:
-            with _lock:
-                fn = _run_fn
-            if fn is None:
-                log("[-] no run callback registered (set_run_callback)")
-            else:
-                fn(argv)
-        rc = 0
+            fn(argv)
     except Exception as e:  # noqa: BLE001 — report everything to the UI
         log(f"[-] pipeline error: {e.__class__.__name__}: {e}")
+        rc = 1
     finally:
+        if _stop_event.is_set():
+            status("stopped")
+        else:
+            mins, secs = divmod(int(time.monotonic() - t0), 60)
+            status(("done" if rc == 0 else "failed") + f" (rc={rc}, {mins}m{secs:02d}s)")
         _done_q.put(rc)
-        status("done (rc=%d)" % rc if rc == 0 else "failed (rc=%d)" % rc)
 
 
 def _start_job(outdir, mode, target, flags, proxy_file=""):
     """Spawn the worker thread. Returns False if a job is already running."""
-    with _lock:
-        running = _proc is not None and _proc.poll() is None
-    # also treat a live 'sentinel-scan' thread as busy
-    if any(t.name == "sentinel-scan" for t in threading.enumerate()):
-        return False
-    if running:
+    if any(t.name == "sentinel-scan" and t.is_alive()
+           for t in threading.enumerate()):
         return False
 
     _stop_event.clear()
@@ -229,6 +219,15 @@ def start_gui():
         fixed_font = tkfont.nametofont("TkFixedFont")
         fixed_font.configure(size=10)
 
+        style = ttk.Style(root)
+        try:
+            style.theme_use("clam")
+        except tk.TclError:
+            pass
+        style.configure(".", background="#0e0f13", fieldbackground="#14161c",
+                        foreground="#dddddd")
+        style.configure("TNotebook.Tab", padding=(12, 4))
+
         # ---- controls ----
         ctrl = ttk.LabelFrame(root, text=" controls ")
         ctrl.pack(fill="x", padx=8, pady=(8, 4))
@@ -239,27 +238,25 @@ def start_gui():
 
         ttk.Label(ctrl, text="mode:").grid(row=0, column=2, sticky="e", padx=6)
         mode_var = tk.StringVar(value=MODES[0])
-        mode_cb = ttk.Combobox(ctrl, textvariable=mode_var, values=MODES,
-                               state="readonly", width=14)
-        mode_cb.grid(row=0, column=3, padx=4)
+        ttk.Combobox(ctrl, textvariable=mode_var, values=MODES,
+                     state="readonly", width=14).grid(row=0, column=3, padx=4)
 
-        # show the target label appropriate to the selected mode
-        ttk.Label(ctrl, text="target (url / domain):").grid(row=1, column=0, sticky="w", padx=6)
+        target_entry_label = tk.StringVar(value="target (url):")
+        ttk.Label(ctrl, textvariable=target_entry_label).grid(
+            row=1, column=0, sticky="w", padx=6)
         target_var = tk.StringVar()
-        target_entry = ttk.Entry(ctrl, textvariable=target_var, width=48)
-        target_entry.grid(row=1, column=1, columnspan=3, sticky="we", padx=4)
+        ttk.Entry(ctrl, textvariable=target_var, width=48).grid(
+            row=1, column=1, columnspan=3, sticky="we", padx=4)
 
         def _retarget_label(*_):
             m = mode_var.get()
             if m in MODES_URL:
-                target_entry_label.set("target (url):" if m != "--gobuster" else "n/a")
+                target_entry_label.set("target (url):")
             elif m in MODES_DOMAIN:
                 target_entry_label.set("target (domain):")
             else:
                 target_entry_label.set("target:")
-        target_entry_label = tk.StringVar(value="target (url):")
-        lbl = ctrl.grid_slaves(row=1, column=0)[0]
-        lbl.configure(textvariable=target_entry_label)
+
         mode_var.trace_add("write", _retarget_label)
         _retarget_label()
 
@@ -275,8 +272,8 @@ def start_gui():
         proxy_var = tk.StringVar()
         ttk.Entry(ctrl, textvariable=proxy_var, width=22).grid(row=0, column=5, padx=4)
 
-        run_btn  = ttk.Button(ctrl, text="▶ RUN")
-        stop_btn = ttk.Button(ctrl, text="■ STOP", command=request_stop,
+        run_btn = ttk.Button(ctrl, text="\u25b6 RUN")
+        stop_btn = ttk.Button(ctrl, text="\u25a0 STOP", command=request_stop,
                               state="disabled")
         run_btn.grid(row=2, column=4, padx=10)
         stop_btn.grid(row=2, column=5, padx=4)
@@ -326,7 +323,7 @@ def start_gui():
         # ---- job control ----
         def on_run():
             target = target_var.get().strip()
-            if not target and mode_var.get() != "--gobuster":
+            if not target:
                 log("[-] target required")
                 return
             if not outdir_var.get().strip():
@@ -339,6 +336,7 @@ def start_gui():
                 return
             run_btn.configure(state="disabled")
             stop_btn.configure(state="normal")
+            root.configure(cursor="watch")
 
         run_btn.configure(command=on_run)
 
@@ -347,9 +345,7 @@ def start_gui():
 
         def pump():
             nonlocal pump_after
-            nonlocal run_btn, stop_btn  # noqa: F841 — captured via closure
 
-            # log lines
             drained = 0
             while drained < 200:
                 try:
@@ -358,14 +354,12 @@ def start_gui():
                     break
                 log_text.configure(state="normal")
                 log_text.insert("end", line + "\n", sev)
-                # cap the log at ~5000 lines
                 if int(log_text.index("end-1c").split(".")[0]) > 5000:
                     log_text.delete("1.0", "100.0")
                 log_text.see("end")
                 log_text.configure(state="disabled")
                 drained += 1
 
-            # findings
             while True:
                 try:
                     sev, tool, text = _result_q.get_nowait()
@@ -373,17 +367,18 @@ def start_gui():
                     break
                 tree.insert("", "end", values=(sev, tool, text), tags=(sev,))
 
-            # status
             try:
                 status_var.set(_status_q.get_nowait())
             except queue.Empty:
                 pass
 
-            # job completion -> re-enable buttons
             try:
-                _done_q.get_nowait()
+                rc = _done_q.get_nowait()
+                root.configure(cursor="")
                 run_btn.configure(state="normal")
                 stop_btn.configure(state="disabled")
+                log(f"[+] job finished (rc={rc})" if rc == 0
+                    else f"[-] job finished with errors (rc={rc})")
             except queue.Empty:
                 pass
 
@@ -432,12 +427,18 @@ def run_with_ui(entry, command: str):
     attach_stdout()
     t = start_gui()
 
-    # brief grace period so the first log lines land after the window exists
-    import time
-    time.sleep(0.2)
+    time.sleep(0.2)  # grace period so first log lines land after the window exists
 
     argv = shlex.split(command)
     _stop_event.clear()
     threading.Thread(target=_job_thread, args=(argv,),
                      name="sentinel-scan", daemon=True).start()
     wait(t)
+
+
+if __name__ == "__main__":
+    if len(sys.argv) > 1:
+        run_with_ui(None, " ".join(sys.argv[1:]))
+    else:
+        start_gui()
+        wait()
