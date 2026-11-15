@@ -44,16 +44,22 @@ static void print_usage(const char *prog) {
 void *ui(void *arg) {
     (void)arg;
 
-    char *argv[] = {
-        "python3",
-        "/usr/share/sentinel/view/view.py",   /* adjust to your path */
-        NULL
-    };
-
-    execvp(argv[0], argv);
-
-    /* execvp only returns on failure */
-    fprintf(stderr, "[-] execvp(python3) failed: %s\n", strerror(errno));
+    pid_t pid = fork();
+    if (pid == 0) {
+        /* child: exec the viewer */
+        char *argv[] = {
+            "python3",
+            "/usr/share/sentinel/view/view.py",
+            NULL
+        };
+        execvp(argv[0], argv);
+        fprintf(stderr, "[-] execvp(python3) failed: %s\n", strerror(errno));
+        _exit(1);
+    }
+    else if (pid > 0) {
+        /* parent: don't wait, but reap it at exit */
+        /* optionally store pid in a global for later kill() */
+    }
     return NULL;
 }
 
