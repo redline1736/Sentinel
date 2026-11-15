@@ -233,5 +233,8 @@ jobs:
             testxss/
             testnucleixss/
             ghostquery/
+            glassworm/
+            deepblue/
+            view/
           retention-days: 14
           if-no-files-found: warn

@@ -46,7 +46,7 @@ void *ui(void *arg) {
 
     char *argv[] = {
         "python3",
-        "src/view/view.py",   /* adjust to your path */
+        "/usr/share/sentinel/view/view.py",   /* adjust to your path */
         NULL
     };
 
