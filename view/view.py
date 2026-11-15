@@ -10,10 +10,17 @@ Architecture:
   - when a scan ends the window stays open; RUN re-enables so you can
     fire another scan. Process exits only when the window closes.
 
-Usage:
+Usage (from the C binary):
+    ./sentinel                      # UI only
+    ./sentinel --ui                 # UI only (explicit)
+    ./sentinel --ui out -sub example.com --tor   # prefilled + auto-run
+    ./sentinel out -sub example.com --tor        # headless scan (no UI)
+
+Standalone:
     python3 view.py <outdir> <mode> <arg> [flags]   # mirrors src/main.c
     python3 view.py                                  # GUI only
 """
+import os
 import shlex
 import subprocess
 import sys
@@ -35,11 +42,15 @@ _stop_event = threading.Event()
 _proc = None                # live subprocess.Popen, guarded by _lock
 _run_fn = None              # optional in-process pipeline entry
 
-SENTINEL_BIN = "./sentinel"   # adjust path/binary name as needed
+# Default to the sibling ./sentinel binary; SENTINEL_BIN env can override
+# (mirrors the C side's SENTINEL_UI override for view.py).
+SENTINEL_BIN = os.environ.get("SENTINEL_BIN", "./sentinel")
 
 MODES_URL = ["--scan-url", "--scan-site", "--xss-only"]
 MODES_DOMAIN = ["-sub", "--full-scan", "--fast-scan"]
 MODES = MODES_URL + MODES_DOMAIN
+
+FLAG_ORDER = ("--xss-no", "--deepblue", "--tor", "--elite")
 
 SEV_COLORS = {
     "info": "#b4b4b4",
@@ -401,18 +412,20 @@ def start_gui(initial_argv=None):
         pump()
         log("[+] UI online")
 
-        # prefill from CLI argv (<outdir> <mode> <arg> [flags])
+        # prefill from CLI argv (<outdir> <mode> <arg> [flags]);
+        # a leading "--ui" (forwarded by main.c) is tolerated and skipped.
+        if initial_argv and initial_argv[0] == "--ui":
+            initial_argv = initial_argv[1:]
         if initial_argv and len(initial_argv) >= 3:
             outdir_var.set(initial_argv[0])
             if initial_argv[1] in MODES:
                 mode_var.set(initial_argv[1])
             target_var.set(initial_argv[2])
-            for i, flag in enumerate(("--xss-no", "--deepblue", "--tor", "--elite")):
-                if flag in initial_argv[3:]:
-                    if flag == "--xss-no":
-                        flags["xss"].set(False)
-                    else:
-                        flags[flag.lstrip("-")].set(True)
+            for flag in initial_argv[3:]:
+                if flag == "--xss-no":
+                    flags["xss"].set(False)
+                elif flag in FLAG_ORDER:
+                    flags[flag.lstrip("-")].set(True)
             log(f"[*] prefilled from argv: {' '.join(initial_argv)}")
             on_run()   # auto-start the scan from the command line
 
@@ -437,7 +450,9 @@ def wait(ui_thread=None):
 # ------------------------------------------------------------ entry point ---
 def main():
     argv = sys.argv[1:]
-    set_run_callback(None)   # standalone: run ./sentinel as a subprocess
+    if argv and argv[0] == "--ui":
+        argv = argv[1:]
+    set_run_callback(None)   # standalone: run SENTINEL_BIN as a subprocess
     t = start_gui(argv if len(argv) >= 3 else None)
     wait(t)
 

@@ -1,5 +1,6 @@
 #include <errno.h>
 #include <sys/stat.h>
+#include <sys/wait.h>
 #include <ctype.h>
 #include <unistd.h>
 
@@ -28,10 +29,114 @@ static void print_usage(const char *prog) {
     printf("        --xss-no        disable XSS scanning\n");
     printf("        --deepblue      run DeepBlue exploit phase after scan\n");
     printf("\n");
+    printf("  UI:\n");
+    printf("        %s              launch the tkinter UI (view.py)\n", prog);
+    printf("        %s --ui [args]  launch the UI, optionally prefilled\n", prog);
+    printf("                        with <outdir> <mode> <arg> [flags]\n");
+    printf("        SENTINEL_UI=path overrides the location of view.py\n");
+    printf("\n");
     printf("Examples:\n");
     printf("  %s output -sub example.com --tor\n", prog);
     printf("  %s output --scan-url https://example.com/login.php?u=1 --tor\n", prog);
     printf("  %s output --xss-only https://example.com/login.php?u=1\n", prog);
+    printf("  %s --ui output -sub example.com --tor\n", prog);
+}
+
+/* Resolve view.py next to the running binary (Linux /proc/self/exe),
+ * falling back to "view.py" in the CWD. Overridable via $SENTINEL_UI. */
+static void locate_viewpy(char *out, size_t outsz) {
+    const char *env = getenv("SENTINEL_UI");
+    if (env && *env) {
+        snprintf(out, outsz, "%s", env);
+        return;
+    }
+
+    ssize_t n = readlink("/proc/self/exe", out, outsz - 1);
+    if (n <= 0) {
+        snprintf(out, outsz, "view.py");
+        return;
+    }
+    out[n] = '\0';
+
+    char *slash = strrchr(out, '/');
+    if (slash)
+        slash[1] = '\0';                    /* keep dir + trailing slash */
+    else
+        out[0] = '\0';                      /* binary was plain name */
+
+    strncat(out, "view.py", outsz - strlen(out) - 1);
+}
+
+/* Build "python3 view.py [prefill...]" argv from ours, skipping "--ui". */
+static int build_ui_argv(int argc, char *argv[], char **nargv, int nmax) {
+    char uipath[4096];
+    locate_viewpy(uipath, sizeof(uipath));
+
+    int n = 0;
+    if (n + 2 > nmax) return -1;
+    nargv[n++] = (char *)"python3";
+    nargv[n++] = uipath;
+
+    for (int i = 1; i < argc; i++) {
+        if (strcmp(argv[i], "--ui") == 0)
+            continue;
+        if (n + 1 > nmax) return -1;
+        nargv[n++] = argv[i];
+    }
+    nargv[n] = NULL;
+    return n;
+}
+
+/* Replace this process with the UI. Never returns on success. */
+static void launch_ui_exec(int argc, char *argv[]) {
+    char *nargv[argc + 2];
+    if (build_ui_argv(argc, argv, nargv, argc + 2) < 0) {
+        fprintf(stderr, "[-] too many arguments for UI launch\n");
+        exit(1);
+    }
+    execvp(nargv[0], nargv);
+    fprintf(stderr, "[-] cannot launch UI '%s': %s\n",
+            nargv[1], strerror(errno));
+    exit(1);
+}
+
+/* Fork the UI as a child and wait for it. Returns child rc, or -1. */
+static int launch_ui_wait(int argc, char *argv[]) {
+    char *nargv[argc + 2];
+    if (build_ui_argv(argc, argv, nargv, argc + 2) < 0)
+        return -1;
+
+    pid_t pid = fork();
+    if (pid < 0) {
+        perror("fork");
+        return -1;
+    }
+    if (pid == 0) {
+        execvp(nargv[0], nargv);
+        fprintf(stderr, "[-] cannot launch UI '%s': %s\n",
+                nargv[1], strerror(errno));
+        _exit(127);
+    }
+
+    int st;
+    while (waitpid(pid, &st, 0) < 0 && errno == EINTR)
+        ;
+    if (WIFEXITED(st))
+        return WEXITSTATUS(st);
+    if (WIFSIGNALED(st))
+        return 128 + WTERMSIG(st);
+    return -1;
+}
+
+/* 1 = launch UI, 0 = normal scan path */
+static int wants_ui(int argc, char *argv[]) {
+    if (argc == 1)
+        return 1;                            /* bare invocation */
+    if (argc == 2 && strcmp(argv[1], "--ui") == 0)
+        return 1;
+    if (argc >= 2 && strcmp(argv[1], "--ui") == 0)
+        return 1;                            /* --ui with prefill args */
+    return 0;
 }
 
 /* Extract host[:port] from a URL, IPv6-aware.
@@ -117,6 +222,12 @@ static int is_domain_mode(const char *mode) {
 }
 
 int main(int argc, char *argv[]) {
+
+    /* --- UI dispatch: bare run or --ui [prefill args] --- */
+    if (wants_ui(argc, argv)) {
+        return launch_ui_wait(argc, argv);   /* use launch_ui_exec(argc, argv)
+                                              * instead if you prefer exec */
+    }
 
     if (argc < 4) {
         print_usage(argv[0]);
