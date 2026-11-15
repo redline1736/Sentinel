@@ -119,45 +119,6 @@ static int copy_str(char *dst, size_t dstsz, const char *src) {
     return 0;
 }
 
-/* Extract the bare host from a URL: "https://example.com:8443/a?b=1" -> "example.com"
- * IPv6-aware: "http://[2001:db8::1]:8080/" -> "2001:db8::1" */
-static void host_of_url(const char *url, char *out, size_t outsz) {
-    const char *p = strstr(url, "://");
-    const char *h = p ? p + 3 : url;
-    const char *end;
-    size_t n;
-
-    if (h[0] == '[') {                      /* IPv6 literal */
-        const char *close = strchr(h, ']');
-        if (close) {
-            n = (size_t)(close - h - 1);
-            h++;                            /* skip '[' */
-        } else {
-            n = strlen(h) - 1;
-            h++;
-        }
-    } else {
-        const char *slash = strchr(h, '/');
-        const char *colon = strchr(h, ':');
-        if (colon && (!slash || colon < slash))
-            n = (size_t)(colon - h);
-        else if (slash)
-            n = (size_t)(slash - h);
-        else
-            n = strlen(h);
-    }
-
-    end = h + n;
-    if (n >= outsz)
-        n = outsz - 1;
-
-    memcpy(out, h, n);
-    out[n] = '\0';
-    (void)end;
-
-    for (char *q = out; *q; q++)
-        *q = (char)tolower((unsigned char)q[0]);
-}
 
 /* Normalize outdir: strip one trailing '/' (keep plain "/"). */
 static void normalize_dir(char *dir, size_t sz) {
