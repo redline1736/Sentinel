@@ -51,20 +51,27 @@ static void locate_viewpy(char *out, size_t outsz) {
         return;
     }
 
+    /* 1. next to the binary */
     ssize_t n = readlink("/proc/self/exe", out, outsz - 1);
-    if (n <= 0) {
-        snprintf(out, outsz, "view.py");
-        return;
+    if (n > 0) {
+        out[n] = '\0';
+        char *slash = strrchr(out, '/');
+        if (slash)
+            slash[1] = '\0';
+        else
+            out[0] = '\0';
+        strncat(out, "view.py", outsz - strlen(out) - 1);
+        if (access(out, R_OK) == 0)
+            return;                         /* found it */
     }
-    out[n] = '\0';
 
-    char *slash = strrchr(out, '/');
-    if (slash)
-        slash[1] = '\0';                    /* keep dir + trailing slash */
-    else
-        out[0] = '\0';                      /* binary was plain name */
+    /* 2. installed share path */
+    snprintf(out, outsz, "/usr/share/sentinel/view/view.py");
+    if (access(out, R_OK) == 0)
+        return;
 
-    strncat(out, "view.py", outsz - strlen(out) - 1);
+    /* 3. CWD fallback */
+    snprintf(out, outsz, "view.py");
 }
 
 /* Build "python3 view.py [prefill...]" argv from ours, skipping "--ui". */
