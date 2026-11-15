@@ -107,7 +107,7 @@ int get_value_from_file(const char *file, const char *key,
     return found;   /* 1 = found, 0 = not found */
 }
 
-static void host_of_url(const char *url, char *out, size_t outsz) {
+void host_of_url(const char *url, char *out, size_t outsz) {
     const char *p = strstr(url, "://");
     const char *h = p ? p + 3 : url;
     const char *slash = strchr(h, '/');
