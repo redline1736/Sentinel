@@ -2,23 +2,20 @@
 Sentinel UI — tkinter host for the sentinel scanner.
 
 Architecture:
-  - this process owns the GUI window
-  - each RUN spawns the C scanner (./sentinel) as a subprocess in a
-    worker thread, streaming its stdout/stderr into the Log tab
-  - if set_run_callback(fn) was called (embedded mode), fn(argv) runs
-    in-process instead of a subprocess
+  - launched by the C binary (sentinel), which forwards
+    <outdir> <mode> <arg> [flags]; the UI prefills and auto-starts
+  - each RUN spawns the sentinel binary as a subprocess in a worker
+    thread, streaming its stdout/stderr into the Log tab
   - when a scan ends the window stays open; RUN re-enables so you can
-    fire another scan. Process exits only when the window closes.
+    fire another scan
+  - the parent C process blocks until this window closes; closing the
+    window ends the whole thing
 
-Usage (from the C binary):
-    ./sentinel                      # UI only
-    ./sentinel --ui                 # UI only (explicit)
-    ./sentinel --ui out -sub example.com --tor   # prefilled + auto-run
-    ./sentinel out -sub example.com --tor        # headless scan (no UI)
-
-Standalone:
-    python3 view.py <outdir> <mode> <arg> [flags]   # mirrors src/main.c
-    python3 view.py                                  # GUI only
+Usage:
+    sentinel                                  # UI only
+    sentinel out --xss-only http://host/path  # prefilled + auto-run
+    sentinel out --xss-only http://host/path --no-ui   # headless, no UI
+    python3 view.py [outdir mode arg flags]   # standalone
 """
 import os
 import shlex
@@ -42,9 +39,18 @@ _stop_event = threading.Event()
 _proc = None                # live subprocess.Popen, guarded by _lock
 _run_fn = None              # optional in-process pipeline entry
 
-# Default to the sibling ./sentinel binary; SENTINEL_BIN env can override
-# (mirrors the C side's SENTINEL_UI override for view.py).
-SENTINEL_BIN = os.environ.get("SENTINEL_BIN", "./sentinel")
+# The C launcher sets SENTINEL_BIN to its own absolute path so the UI
+# respawns the right binary. Fallbacks cover standalone use.
+def _default_bin():
+    env = os.environ.get("SENTINEL_BIN")
+    if env:
+        return env
+    for cand in ("/usr/bin/sentinel", "/usr/local/bin/sentinel", "./sentinel"):
+        if os.path.isfile(cand) and os.access(cand, os.X_OK):
+            return cand
+    return "./sentinel"
+
+SENTINEL_BIN = _default_bin()
 
 MODES_URL = ["--scan-url", "--scan-site", "--xss-only"]
 MODES_DOMAIN = ["-sub", "--full-scan", "--fast-scan"]
@@ -138,9 +144,9 @@ def _assemble(outdir, mode, target, flags, proxy_file=""):
 
 
 def _pipeline_subprocess(argv):
-    """Run the C scanner as a subprocess, tee its output to the Log tab."""
+    """Run the sentinel binary as a subprocess, tee output to the Log tab."""
     global _proc
-    cmd = [SENTINEL_BIN] + argv
+    cmd = [SENTINEL_BIN, "--no-ui"] + argv   # headless child: no UI loop
     log("[*] $ " + " ".join(shlex.quote(a) for a in cmd))
     try:
         p = subprocess.Popen(
@@ -151,7 +157,7 @@ def _pipeline_subprocess(argv):
             bufsize=1,
         )
     except FileNotFoundError:
-        log(f"[-] cannot launch '{SENTINEL_BIN}' — build it or fix SENTINEL_BIN")
+        log(f"[-] cannot launch '{SENTINEL_BIN}' — build/install it or fix SENTINEL_BIN")
         return 1
 
     with _lock:
@@ -406,16 +412,14 @@ def start_gui(initial_argv=None):
                     p.kill()
             if pump_after is not None:
                 root.after_cancel(pump_after)
-            root.destroy()
+            root.destroy()          # -> mainloop returns -> process exits
+                                    # -> parent sentinel's ui_wait() returns
 
         root.protocol("WM_DELETE_WINDOW", on_close)
         pump()
         log("[+] UI online")
 
-        # prefill from CLI argv (<outdir> <mode> <arg> [flags]);
-        # a leading "--ui" (forwarded by main.c) is tolerated and skipped.
-        if initial_argv and initial_argv[0] == "--ui":
-            initial_argv = initial_argv[1:]
+        # prefill from forwarded argv (<outdir> <mode> <arg> [flags])
         if initial_argv and len(initial_argv) >= 3:
             outdir_var.set(initial_argv[0])
             if initial_argv[1] in MODES:
@@ -450,9 +454,7 @@ def wait(ui_thread=None):
 # ------------------------------------------------------------ entry point ---
 def main():
     argv = sys.argv[1:]
-    if argv and argv[0] == "--ui":
-        argv = argv[1:]
-    set_run_callback(None)   # standalone: run SENTINEL_BIN as a subprocess
+    set_run_callback(None)   # run the sentinel binary as a subprocess
     t = start_gui(argv if len(argv) >= 3 else None)
     wait(t)
 

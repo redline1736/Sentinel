@@ -1,8 +1,13 @@
+#define _GNU_SOURCE
 #include <errno.h>
+#include <signal.h>
+#include <fcntl.h>
 #include <sys/stat.h>
 #include <sys/wait.h>
 #include <ctype.h>
 #include <unistd.h>
+#include <stdlib.h>
+#include <string.h>
 
 #include "util/util.h"
 #include "prox/prox.h"
@@ -10,6 +15,93 @@
 #include "ghostquery/xss/xss.h"
 #include "glassworm/gw.h"
 #include "global.h"
+
+/* ---------------- viewer (UI) ---------------- */
+
+static pid_t g_viewer_pid = -1;
+
+/* Absolute path of this binary, for the UI to respawn us for scans. */
+static void self_path(char *out, size_t outsz) {
+    ssize_t n = readlink("/proc/self/exe", out, outsz - 1);
+    if (n > 0) {
+        out[n] = '\0';
+        return;
+    }
+    /* fallback: whatever we were invoked as */
+    snprintf(out, outsz, "sentinel");
+}
+
+/* Kill the viewer (used only on abnormal exits / signals). */
+static void ui_reap(void) {
+    if (g_viewer_pid > 0) {
+        kill(g_viewer_pid, SIGTERM);
+        for (int i = 0; i < 20; i++) {
+            if (waitpid(g_viewer_pid, NULL, WNOHANG) == g_viewer_pid) {
+                g_viewer_pid = -1;
+                return;
+            }
+            usleep(50000); /* 50ms x 20 = 1s grace period */
+        }
+        kill(g_viewer_pid, SIGKILL);
+        waitpid(g_viewer_pid, NULL, 0);
+        g_viewer_pid = -1;
+    }
+}
+
+/* Launch the viewer, forwarding <outdir> <mode> <arg> [flags] so it
+ * prefills and auto-starts the scan. Returns child pid or -1. */
+static pid_t ui_launch(int argc, char *argv[]) {
+    char self[4096];
+    self_path(self, sizeof(self));
+
+    pid_t pid = fork();
+    if (pid < 0) {
+        perror("fork");
+        return -1;
+    }
+    if (pid == 0) {
+        /* the UI respawns this binary for each scan */
+        setenv("SENTINEL_BIN", self, 1);
+
+        /* argv: python3 view.py <outdir> <mode> <arg> [flags...] */
+        char *nargv[argc + 2];
+        int n = 0;
+        nargv[n++] = (char *)"python3";
+        nargv[n++] = (char *)"/usr/share/sentinel/view/view.py";
+        for (int i = 1; i < argc; i++)
+            nargv[n++] = argv[i];       /* forward everything, skip progname */
+        nargv[n] = NULL;
+
+        execvp(nargv[0], nargv);
+        fprintf(stderr, "[-] cannot launch viewer: %s\n", strerror(errno));
+        _exit(1);
+    }
+    return pid;
+}
+
+/* Block until the viewer window closes. Returns its exit status. */
+static int ui_wait(void) {
+    int st = 0;
+    if (g_viewer_pid < 0)
+        return 0;
+    while (waitpid(g_viewer_pid, &st, 0) < 0 && errno == EINTR)
+        ;
+    g_viewer_pid = -1;
+    if (WIFEXITED(st))
+        return WEXITSTATUS(st);
+    if (WIFSIGNALED(st))
+        return 128 + WTERMSIG(st);
+    return 0;
+}
+
+/* SIGINT/SIGTERM: take the viewer down with us */
+static void on_signal(int sig) {
+    if (g_viewer_pid > 0)
+        kill(g_viewer_pid, sig);
+    _exit(128 + sig);
+}
+
+/* ---------------- usage ---------------- */
 
 static void print_usage(const char *prog) {
     printf("Usage:\n");
@@ -19,6 +111,13 @@ static void print_usage(const char *prog) {
     printf("  %s <outdir> -sub        <domain> [flags]\n", prog);
     printf("  %s <outdir> --full-scan <domain> [flags]\n", prog);
     printf("  %s <outdir> --fast-scan <domain> [flags]\n", prog);
+    printf("  %s <outdir> --url       <target_url>\n", prog);
+    printf("  %s <outdir> --gobuster  <gobuster_dir>\n", prog);
+    printf("\n");
+    printf("  With a full <outdir> <mode> <arg> invocation the viewer starts\n");
+    printf("  automatically, prefilled with your arguments; the process stays\n");
+    printf("  alive until the viewer window is closed. Plain scan output also\n");
+    printf("  goes to the terminal.\n");
     printf("\n");
     printf("  proxy flags (default: direct, no proxy):\n");
     printf("        --tor           route through a pool of local Tor SOCKS5 instances\n");
@@ -28,157 +127,18 @@ static void print_usage(const char *prog) {
     printf("  other flags:\n");
     printf("        --xss-no        disable XSS scanning\n");
     printf("        --deepblue      run DeepBlue exploit phase after scan\n");
-    printf("\n");
-    printf("  UI:\n");
-    printf("        %s              launch the tkinter UI (view.py)\n", prog);
-    printf("        %s --ui [args]  launch the UI, optionally prefilled\n", prog);
-    printf("                        with <outdir> <mode> <arg> [flags]\n");
-    printf("        SENTINEL_UI=path overrides the location of view.py\n");
+    printf("        --no-ui         headless: do not start the viewer, just scan and exit\n");
     printf("\n");
     printf("Examples:\n");
     printf("  %s output -sub example.com --tor\n", prog);
     printf("  %s output --scan-url https://example.com/login.php?u=1 --tor\n", prog);
-    printf("  %s output --xss-only https://example.com/login.php?u=1\n", prog);
-    printf("  %s --ui output -sub example.com --tor\n", prog);
+    printf("  %s output --xss-only https://example.com/login.php?u=1 --no-ui\n", prog);
+    printf("  %s output --url https://example.com/graphql\n", prog);
+    printf("  %s output --gobuster ~/gobuster/\n", prog);
 }
 
-/* Resolve view.py next to the running binary (Linux /proc/self/exe),
- * falling back to "view.py" in the CWD. Overridable via $SENTINEL_UI. */
-static void locate_viewpy(char *out, size_t outsz) {
-    const char *env = getenv("SENTINEL_UI");
-    if (env && *env) {
-        snprintf(out, outsz, "%s", env);
-        return;
-    }
+/* ---------------- helpers ---------------- */
 
-    /* 1. next to the binary */
-    ssize_t n = readlink("/proc/self/exe", out, outsz - 1);
-    if (n > 0) {
-        out[n] = '\0';
-        char *slash = strrchr(out, '/');
-        if (slash)
-            slash[1] = '\0';
-        else
-            out[0] = '\0';
-        strncat(out, "view.py", outsz - strlen(out) - 1);
-        if (access(out, R_OK) == 0)
-            return;                         /* found it */
-    }
-
-    /* 2. installed share path */
-    snprintf(out, outsz, "/usr/share/sentinel/view/view.py");
-    if (access(out, R_OK) == 0)
-        return;
-
-    /* 3. CWD fallback */
-    snprintf(out, outsz, "view.py");
-}
-
-/* Build "python3 view.py [prefill...]" argv from ours, skipping "--ui". */
-static int build_ui_argv(int argc, char *argv[], char **nargv, int nmax) {
-    char uipath[4096];
-    locate_viewpy(uipath, sizeof(uipath));
-
-    int n = 0;
-    if (n + 2 > nmax) return -1;
-    nargv[n++] = (char *)"python3";
-    nargv[n++] = uipath;
-
-    for (int i = 1; i < argc; i++) {
-        if (strcmp(argv[i], "--ui") == 0)
-            continue;
-        if (n + 1 > nmax) return -1;
-        nargv[n++] = argv[i];
-    }
-    nargv[n] = NULL;
-    return n;
-}
-
-/* Replace this process with the UI. Never returns on success. */
-static void launch_ui_exec(int argc, char *argv[]) {
-    char *nargv[argc + 2];
-    if (build_ui_argv(argc, argv, nargv, argc + 2) < 0) {
-        fprintf(stderr, "[-] too many arguments for UI launch\n");
-        exit(1);
-    }
-    execvp(nargv[0], nargv);
-    fprintf(stderr, "[-] cannot launch UI '%s': %s\n",
-            nargv[1], strerror(errno));
-    exit(1);
-}
-
-/* Fork the UI as a child and wait for it. Returns child rc, or -1. */
-static int launch_ui_wait(int argc, char *argv[]) {
-    char *nargv[argc + 2];
-    if (build_ui_argv(argc, argv, nargv, argc + 2) < 0)
-        return -1;
-
-    pid_t pid = fork();
-    if (pid < 0) {
-        perror("fork");
-        return -1;
-    }
-    if (pid == 0) {
-        execvp(nargv[0], nargv);
-        fprintf(stderr, "[-] cannot launch UI '%s': %s\n",
-                nargv[1], strerror(errno));
-        _exit(127);
-    }
-
-    int st;
-    while (waitpid(pid, &st, 0) < 0 && errno == EINTR)
-        ;
-    if (WIFEXITED(st))
-        return WEXITSTATUS(st);
-    if (WIFSIGNALED(st))
-        return 128 + WTERMSIG(st);
-    return -1;
-}
-
-/* 1 = launch UI, 0 = normal scan path */
-static int wants_ui(int argc, char *argv[]) {
-    if (argc == 1)
-        return 1;                            /* bare invocation */
-    if (argc == 2 && strcmp(argv[1], "--ui") == 0)
-        return 1;
-    if (argc >= 2 && strcmp(argv[1], "--ui") == 0)
-        return 1;                            /* --ui with prefill args */
-    return 0;
-}
-
-/* Extract host[:port] from a URL, IPv6-aware.
- * "https://example.com:8443/a?b=1"   -> "example.com:8443"
- * "http://[2001:db8::1]:8080/x"      -> "2001:db8::1:8080"  (see note)
- */
-static void host_of_url(const char *url, char *out, size_t outsz) {
-    const char *p = strstr(url, "://");
-    const char *h = p ? p + 3 : url;
-    size_t n;
-
-    if (h[0] == '[') {                      /* IPv6 literal */
-        const char *close = strchr(h, ']');
-        if (close) {
-            h++;                            /* skip '[' */
-            n = (size_t)(close - h);
-        } else {
-            h++;
-            n = strlen(h);
-        }
-    } else {
-        /* keep host[:port] together; only cut at '/' */
-        const char *slash = strchr(h, '/');
-        n = slash ? (size_t)(slash - h) : strlen(h);
-    }
-
-    if (n >= outsz) n = outsz - 1;
-    memcpy(out, h, n);
-    out[n] = '\0';
-
-    for (char *q = out; *q; q++)
-        *q = (char)tolower((unsigned char)q[0]);
-}
-
-/* Copy src into dst (dstsz incl. NUL). 0 on success, -1 on truncation. */
 static int copy_str(char *dst, size_t dstsz, const char *src) {
     size_t n = strlen(src);
     if (n >= dstsz)
@@ -187,11 +147,11 @@ static int copy_str(char *dst, size_t dstsz, const char *src) {
     return 0;
 }
 
-/* Strip trailing slashes (keep plain "/"). */
-static void normalize_dir(char *dir) {
+static void normalize_dir(char *dir, size_t sz) {
     size_t n = strlen(dir);
     while (n > 1 && dir[n - 1] == '/')
         dir[--n] = '\0';
+    (void)sz;
 }
 
 static void write_live(const char *host) {
@@ -228,19 +188,17 @@ static int is_domain_mode(const char *mode) {
            (strcmp(mode, "--fast-scan") == 0);
 }
 
-int main(int argc, char *argv[]) {
+/* Is any flag in argv[4..] asking for headless mode? */
+static int wants_no_ui(int argc, char *argv[]) {
+    for (int i = 4; i < argc; i++)
+        if (strcmp(argv[i], "--no-ui") == 0)
+            return 1;
+    return 0;
+}
 
-    /* --- UI dispatch: bare run or --ui [prefill args] --- */
-    if (wants_ui(argc, argv)) {
-        return launch_ui_wait(argc, argv);   /* use launch_ui_exec(argc, argv)
-                                              * instead if you prefer exec */
-    }
+/* ---------------- headless scan (original path) ---------------- */
 
-    if (argc < 4) {
-        print_usage(argv[0]);
-        return 1;
-    }
-
+static int run_headless(int argc, char *argv[], const char *mode) {
     /* --- defaults --- */
     g.xss = true;
     g.deepblue = false;
@@ -254,18 +212,11 @@ int main(int argc, char *argv[]) {
     g.target[0] = '\0';
     g.domain[0] = '\0';
 
-    /* Universal shape:
-     *     sentinel <outdir> <mode> <arg> [flags]
-     */
-    const char *mode = argv[2];
-
     if (copy_str(g.dir, sizeof(g.dir), argv[1]) != 0) {
         fprintf(stderr, "[-] outdir path too long (max %zu)\n", sizeof(g.dir) - 1);
         return 1;
     }
-    normalize_dir(g.dir);
-
-    const int flag_start = 4;
+    normalize_dir(g.dir, sizeof(g.dir));
 
     if (is_url_mode(mode)) {
         if (copy_str(g.target, sizeof(g.target), argv[3]) != 0) {
@@ -288,12 +239,13 @@ int main(int argc, char *argv[]) {
         return 1;
     }
 
-    /* --- optional flags --- */
-    for (int i = flag_start; i < argc; i++) {
+    for (int i = 4; i < argc; i++) {
         if (strcmp(argv[i], "--xss-no") == 0) {
             g.xss = false;
         } else if (strcmp(argv[i], "--deepblue") == 0) {
             g.deepblue = true;
+        } else if (strcmp(argv[i], "--no-ui") == 0) {
+            /* handled by caller */
         } else if (strcmp(argv[i], "--tor") == 0) {
             g.proxy_mode = PROXY_TOR;
             g.proxy = true;
@@ -323,7 +275,6 @@ int main(int argc, char *argv[]) {
         }
     }
 
-    /* --- safe mkdir --- */
     if (mkdir(g.dir, 0755) != 0 && errno != EEXIST) {
         perror("mkdir");
         return 1;
@@ -373,5 +324,47 @@ int main(int argc, char *argv[]) {
 
     proxy_shutdown();
     curl_http_cleanup();
+    return rc;
+}
+
+/* ---------------- main ---------------- */
+
+int main(int argc, char *argv[]) {
+
+    /* -------- headless: --no-ui flag -> original scan-and-exit path */
+    if (argc >= 4 && wants_no_ui(argc, argv))
+        return run_headless(argc, argv, argv[2]);
+
+    /* -------- UI mode: launch viewer with our args, wait for it.
+     * Valid forms:
+     *   sentinel                                (UI only)
+     *   sentinel <outdir> <mode> <arg> [flags]  (UI prefilled + auto-run)
+     */
+    if (argc != 1 && argc < 4) {
+        print_usage(argv[0]);
+        return 1;
+    }
+
+    /* validate mode/target early so typos fail fast, before the UI */
+    if (argc >= 4) {
+        const char *m = argv[2];
+        if (!is_url_mode(m) && !is_domain_mode(m) &&
+            strcmp(m, "--url") != 0 && strcmp(m, "--gobuster") != 0) {
+            fprintf(stderr, "[-] Unknown mode: %s\n", m);
+            print_usage(argv[0]);
+            return 1;
+        }
+    }
+
+    signal(SIGINT,  on_signal);
+    signal(SIGTERM, on_signal);
+
+    g_viewer_pid = ui_launch(argc, argv);
+    if (g_viewer_pid < 0)
+        return 1;
+
+    /* stay alive until the viewer window is closed — scan completion
+     * does NOT end this process */
+    int rc = ui_wait();
     return rc;
 }
