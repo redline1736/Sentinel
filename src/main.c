@@ -20,6 +20,10 @@
 
 static pid_t g_viewer_pid = -1;
 
+#ifndef SENTINEL_VIEW
+#define SENTINEL_VIEW "/usr/share/sentinel/view/view.py"
+#endif
+
 /* Absolute path of this binary, for the UI to respawn us for scans. */
 static void self_path(char *out, size_t outsz) {
     ssize_t n = readlink("/proc/self/exe", out, outsz - 1);
@@ -27,11 +31,10 @@ static void self_path(char *out, size_t outsz) {
         out[n] = '\0';
         return;
     }
-    /* fallback: whatever we were invoked as */
     snprintf(out, outsz, "sentinel");
 }
 
-/* Kill the viewer (used only on abnormal exits / signals). */
+/* Kill the viewer (abnormal exits / signal handler cleanup). */
 static void ui_reap(void) {
     if (g_viewer_pid > 0) {
         kill(g_viewer_pid, SIGTERM);
@@ -48,11 +51,16 @@ static void ui_reap(void) {
     }
 }
 
-/* Launch the viewer, forwarding <outdir> <mode> <arg> [flags] so it
- * prefills and auto-starts the scan. Returns child pid or -1. */
+/* Launch the viewer, forwarding <outdir> <mode> <arg> [flags] verbatim
+ * so it prefills and auto-starts the scan. Returns child pid or -1. */
 static pid_t ui_launch(int argc, char *argv[]) {
     char self[4096];
     self_path(self, sizeof(self));
+
+    /* allow the install layout / repo checkouts to override the script path */
+    const char *view = getenv("SENTINEL_VIEW");
+    if (!view || !*view)
+        view = SENTINEL_VIEW;
 
     pid_t pid = fork();
     if (pid < 0) {
@@ -60,20 +68,24 @@ static pid_t ui_launch(int argc, char *argv[]) {
         return -1;
     }
     if (pid == 0) {
-        /* the UI respawns this binary for each scan */
+        /* own session: terminal Ctrl+C hits only us, and we forward it */
+        setsid();
+        /* let the UI respawn this exact binary for each scan */
         setenv("SENTINEL_BIN", self, 1);
 
         /* argv: python3 view.py <outdir> <mode> <arg> [flags...] */
-        char *nargv[argc + 2];
+        char **nargv = malloc(sizeof(char *) * (size_t)(argc + 2));
+        if (!nargv)
+            _exit(1);
         int n = 0;
         nargv[n++] = (char *)"python3";
-        nargv[n++] = (char *)"/usr/share/sentinel/view/view.py";
-        for (int i = 1; i < argc; i++)
-            nargv[n++] = argv[i];       /* forward everything, skip progname */
+        nargv[n++] = (char *)view;
+        for (int i = 1; i < argc; i++)   /* forward everything after progname */
+            nargv[n++] = argv[i];
         nargv[n] = NULL;
 
         execvp(nargv[0], nargv);
-        fprintf(stderr, "[-] cannot launch viewer: %s\n", strerror(errno));
+        fprintf(stderr, "[-] cannot launch viewer (%s): %s\n", view, strerror(errno));
         _exit(1);
     }
     return pid;
@@ -128,6 +140,9 @@ static void print_usage(const char *prog) {
     printf("        --xss-no        disable XSS scanning\n");
     printf("        --deepblue      run DeepBlue exploit phase after scan\n");
     printf("        --no-ui         headless: do not start the viewer, just scan and exit\n");
+    printf("\n");
+    printf("Env:\n");
+    printf("        SENTINEL_VIEW   path to view.py (default %s)\n", SENTINEL_VIEW);
     printf("\n");
     printf("Examples:\n");
     printf("  %s output -sub example.com --tor\n", prog);
@@ -188,6 +203,12 @@ static int is_domain_mode(const char *mode) {
            (strcmp(mode, "--fast-scan") == 0);
 }
 
+static int is_known_mode(const char *mode) {
+    return is_url_mode(mode) || is_domain_mode(mode) ||
+           (strcmp(mode, "--url") == 0) ||
+           (strcmp(mode, "--gobuster") == 0);
+}
+
 /* Is any flag in argv[4..] asking for headless mode? */
 static int wants_no_ui(int argc, char *argv[]) {
     for (int i = 4; i < argc; i++)
@@ -232,6 +253,20 @@ static int run_headless(int argc, char *argv[], const char *mode) {
         }
         for (char *q = g.domain; *q; q++)
             *q = (char)tolower((unsigned char)q[0]);
+    }
+    else if (strcmp(mode, "--url") == 0) {
+        /* same payload as --scan-url minus site-scan extras */
+        if (copy_str(g.target, sizeof(g.target), argv[3]) != 0) {
+            fprintf(stderr, "[-] URL too long (max %zu)\n", sizeof(g.target) - 1);
+            return 1;
+        }
+        host_of_url(g.target, g.domain, sizeof(g.domain));
+    }
+    else if (strcmp(mode, "--gobuster") == 0) {
+        if (copy_str(g.target, sizeof(g.target), argv[3]) != 0) {
+            fprintf(stderr, "[-] gobuster dir too long (max %zu)\n", sizeof(g.target) - 1);
+            return 1;
+        }
     }
     else {
         fprintf(stderr, "[-] Unknown mode: %s\n", mode);
@@ -321,6 +356,19 @@ static int run_headless(int argc, char *argv[], const char *mode) {
         write_live(g.domain);
         rc = run(NULL);
     }
+    else if (strcmp(mode, "--url") == 0) {
+        g.urlscan = true;
+        g.full = true;
+        write_live(g.domain);
+        rc = run(g.target);
+    }
+    else if (strcmp(mode, "--gobuster") == 0) {
+        /* NOTE: wire this to the gobuster-ingest entry in scan.c if one
+         * exists; the mode was previously accepted by the CLI but never
+         * dispatched anywhere. Keeping it explicit so it can't be forgotten. */
+        fprintf(stderr, "[-] --gobuster mode is not wired to the scan engine yet\n");
+        rc = 1;
+    }
 
     proxy_shutdown();
     curl_http_cleanup();
@@ -346,14 +394,10 @@ int main(int argc, char *argv[]) {
     }
 
     /* validate mode/target early so typos fail fast, before the UI */
-    if (argc >= 4) {
-        const char *m = argv[2];
-        if (!is_url_mode(m) && !is_domain_mode(m) &&
-            strcmp(m, "--url") != 0 && strcmp(m, "--gobuster") != 0) {
-            fprintf(stderr, "[-] Unknown mode: %s\n", m);
-            print_usage(argv[0]);
-            return 1;
-        }
+    if (argc >= 4 && !is_known_mode(argv[2])) {
+        fprintf(stderr, "[-] Unknown mode: %s\n", argv[2]);
+        print_usage(argv[0]);
+        return 1;
     }
 
     signal(SIGINT,  on_signal);
@@ -366,5 +410,8 @@ int main(int argc, char *argv[]) {
     /* stay alive until the viewer window is closed — scan completion
      * does NOT end this process */
     int rc = ui_wait();
+
+    /* if the viewer crashed without cleanup, make sure it's gone */
+    ui_reap();
     return rc;
 }

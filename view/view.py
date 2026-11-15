@@ -4,7 +4,8 @@ Sentinel UI — tkinter host for the sentinel scanner.
 Architecture:
   - launched by the C binary (sentinel), which forwards
     <outdir> <mode> <arg> [flags]; the UI prefills and auto-starts
-  - each RUN spawns the sentinel binary as a subprocess in a worker
+  - each RUN spawns the sentinel binary as a subprocess (own process
+    group, so STOP/kill takes the whole toolchain down) in a worker
     thread, streaming its stdout/stderr into the Log tab
   - when a scan ends the window stays open; RUN re-enables so you can
     fire another scan
@@ -19,6 +20,7 @@ Usage:
 """
 import os
 import shlex
+import signal
 import subprocess
 import sys
 import threading
@@ -28,15 +30,15 @@ import tkinter as tk
 from tkinter import ttk, font as tkfont
 
 # ---------------------------------------------------------------- state ----
-_lock = threading.Lock()
-
 _log_q = queue.Queue()      # (severity, line)
 _result_q = queue.Queue()   # (severity, tool, text)
 _status_q = queue.Queue()   # str
 _done_q = queue.Queue()     # worker completion rc
 
 _stop_event = threading.Event()
-_proc = None                # live subprocess.Popen, guarded by _lock
+_job_lock = threading.Lock()    # guards _proc and _running
+_proc = None                # live subprocess.Popen
+_running = False            # True while a worker thread owns a job
 _run_fn = None              # optional in-process pipeline entry
 
 # The C launcher sets SENTINEL_BIN to its own absolute path so the UI
@@ -52,11 +54,12 @@ def _default_bin():
 
 SENTINEL_BIN = _default_bin()
 
-MODES_URL = ["--scan-url", "--scan-site", "--xss-only"]
+MODES_URL = ["--scan-url", "--scan-site", "--xss-only", "--url"]
 MODES_DOMAIN = ["-sub", "--full-scan", "--fast-scan"]
-MODES = MODES_URL + MODES_DOMAIN
+MODES_SPECIAL = ["--gobuster"]
+MODES = MODES_URL + MODES_DOMAIN + MODES_SPECIAL
 
-FLAG_ORDER = ("--xss-no", "--deepblue", "--tor", "--elite")
+FLAG_BOOLS = ("--xss-no", "--deepblue", "--tor", "--elite")
 
 SEV_COLORS = {
     "info": "#b4b4b4",
@@ -108,25 +111,30 @@ def status(text: str):
 def set_run_callback(fn):
     """Register an in-process pipeline entry point. Called as fn(argv_list)."""
     global _run_fn
-    with _lock:
+    with _job_lock:
         _run_fn = fn
 
 
 def request_stop():
-    """Ask the running job to stop (terminate the subprocess if we own one)."""
+    """Ask the running job to stop. Kills the whole process group so the
+    external tools the scanner spawned die with it."""
     _stop_event.set()
-    with _lock:
+    with _job_lock:
         p = _proc
     if p is not None and p.poll() is None:
         try:
-            p.terminate()
-        except OSError:
-            pass
+            os.killpg(p.pid, signal.SIGTERM)
+        except (ProcessLookupError, PermissionError, OSError):
+            try:
+                p.terminate()
+            except OSError:
+                pass
 
 
 # --------------------------------------------------------- job execution ----
 def _assemble(outdir, mode, target, flags, proxy_file=""):
-    """Build the argv exactly as src/main.c expects."""
+    """Build the argv exactly as src/main.c expects:
+        <outdir> <mode> <arg> [flags...]   -- --no-ui is appended LAST."""
     argv = [outdir, mode, target]
 
     if not flags.get("xss", True):
@@ -146,7 +154,8 @@ def _assemble(outdir, mode, target, flags, proxy_file=""):
 def _pipeline_subprocess(argv):
     """Run the sentinel binary as a subprocess, tee output to the Log tab."""
     global _proc
-    cmd = [SENTINEL_BIN, "--no-ui"] + argv   # headless child: no UI loop
+    # --no-ui goes at the END: main.c expects <outdir> <mode> <arg> [flags]
+    cmd = [SENTINEL_BIN] + argv + ["--no-ui"]
     log("[*] $ " + " ".join(shlex.quote(a) for a in cmd))
     try:
         p = subprocess.Popen(
@@ -155,14 +164,16 @@ def _pipeline_subprocess(argv):
             stderr=subprocess.STDOUT,
             text=True,
             bufsize=1,
+            start_new_session=True,   # own process group -> killpg works
         )
     except FileNotFoundError:
         log(f"[-] cannot launch '{SENTINEL_BIN}' — build/install it or fix SENTINEL_BIN")
         return 1
 
-    with _lock:
+    with _job_lock:
         _proc = p
 
+    rc = 1
     try:
         for line in p.stdout:
             line = line.rstrip("\n")
@@ -180,25 +191,32 @@ def _pipeline_subprocess(argv):
             if sev in ("critical", "high", "medium", "low"):
                 add_result(sev, "sentinel", line)
     finally:
+        if _stop_event.is_set() and p.poll() is None:
+            # escalate after terminate()
+            try:
+                os.killpg(p.pid, signal.SIGKILL)
+            except (ProcessLookupError, PermissionError, OSError):
+                pass
         rc = p.wait()
-        with _lock:
+        with _job_lock:
             _proc = None
     return rc
 
 
 def _job_thread(argv):
     """Worker thread: run the pipeline, report completion."""
+    global _running
     t0 = time.monotonic()
     status("running: " + " ".join(shlex.quote(a) for a in argv))
     rc = 0
     try:
-        with _lock:
+        with _job_lock:
             fn = _run_fn
         if fn is None:
             rc = _pipeline_subprocess(argv)
         else:
             fn(argv)
-    except Exception as e:  # noqa: BLE001 — report everything to the UI
+    except Exception as e:  # report everything to the UI
         log(f"[-] pipeline error: {e.__class__.__name__}: {e}")
         rc = 1
     finally:
@@ -207,256 +225,265 @@ def _job_thread(argv):
         else:
             mins, secs = divmod(int(time.monotonic() - t0), 60)
             status(("done" if rc == 0 else "failed") + f" (rc={rc}, {mins}m{secs:02d}s)")
+        with _job_lock:
+            _running = False
         _done_q.put(rc)
 
 
 def _start_job(argv):
     """Spawn the worker thread. Returns False if a job is already running."""
-    if any(t.name == "sentinel-scan" and t.is_alive()
-           for t in threading.enumerate()):
-        return False
-
+    global _running
+    with _job_lock:
+        if _running:
+            return False
+        _running = True
     _stop_event.clear()
     threading.Thread(target=_job_thread, args=(argv,),
                      name="sentinel-scan", daemon=True).start()
     return True
 
 
+def job_running():
+    with _job_lock:
+        return _running
+
+
 # ------------------------------------------------------------------- GUI ----
 def start_gui(initial_argv=None):
-    def _build_window():
-        root = tk.Tk()
-        root.title("Sentinel — automated pentest scanner")
-        root.geometry("1100x700")
-        root.minsize(820, 480)
-        root.configure(bg="#0e0f13")
+    """Build and run the UI on the CALLING thread (must be the main
+    thread — Tk is not safe to construct off-main). Blocks until the
+    window closes."""
+    root = tk.Tk()
+    root.title("Sentinel — automated pentest scanner")
+    root.geometry("1100x700")
+    root.minsize(820, 480)
+    root.configure(bg="#0e0f13")
 
-        fixed_font = tkfont.nametofont("TkFixedFont")
-        fixed_font.configure(size=10)
+    fixed_font = tkfont.nametofont("TkFixedFont")
+    fixed_font.configure(size=10)
 
-        style = ttk.Style(root)
-        try:
-            style.theme_use("clam")
-        except tk.TclError:
-            pass
-        style.configure(".", background="#0e0f13", fieldbackground="#14161c",
-                        foreground="#dddddd")
-        style.configure("TNotebook.Tab", padding=(12, 4))
+    style = ttk.Style(root)
+    try:
+        style.theme_use("clam")
+    except tk.TclError:
+        pass
+    style.configure(".", background="#0e0f13", fieldbackground="#14161c",
+                    foreground="#dddddd")
+    style.configure("TNotebook.Tab", padding=(12, 4))
 
-        # ---- controls ----
-        ctrl = ttk.LabelFrame(root, text=" controls ")
-        ctrl.pack(fill="x", padx=8, pady=(8, 4))
+    # ---- controls ----
+    ctrl = ttk.LabelFrame(root, text=" controls ")
+    ctrl.pack(fill="x", padx=8, pady=(8, 4))
 
-        ttk.Label(ctrl, text="outdir:").grid(row=0, column=0, sticky="w", padx=6, pady=4)
-        outdir_var = tk.StringVar(value="out")
-        ttk.Entry(ctrl, textvariable=outdir_var, width=20).grid(row=0, column=1, padx=4)
+    ttk.Label(ctrl, text="outdir:").grid(row=0, column=0, sticky="w", padx=6, pady=4)
+    outdir_var = tk.StringVar(value="out")
+    ttk.Entry(ctrl, textvariable=outdir_var, width=20).grid(row=0, column=1, padx=4)
 
-        ttk.Label(ctrl, text="mode:").grid(row=0, column=2, sticky="e", padx=6)
-        mode_var = tk.StringVar(value=MODES[0])
-        ttk.Combobox(ctrl, textvariable=mode_var, values=MODES,
-                     state="readonly", width=14).grid(row=0, column=3, padx=4)
+    ttk.Label(ctrl, text="mode:").grid(row=0, column=2, sticky="e", padx=6)
+    mode_var = tk.StringVar(value=MODES[0])
+    ttk.Combobox(ctrl, textvariable=mode_var, values=MODES,
+                 state="readonly", width=14).grid(row=0, column=3, padx=4)
 
-        target_entry_label = tk.StringVar(value="target (url):")
-        ttk.Label(ctrl, textvariable=target_entry_label).grid(
-            row=1, column=0, sticky="w", padx=6)
-        target_var = tk.StringVar()
-        ttk.Entry(ctrl, textvariable=target_var, width=48).grid(
-            row=1, column=1, columnspan=3, sticky="we", padx=4)
+    target_entry_label = tk.StringVar(value="target (url):")
+    ttk.Label(ctrl, textvariable=target_entry_label).grid(
+        row=1, column=0, sticky="w", padx=6)
+    target_var = tk.StringVar()
+    ttk.Entry(ctrl, textvariable=target_var, width=48).grid(
+        row=1, column=1, columnspan=3, sticky="we", padx=4)
 
-        def _retarget_label(*_):
-            m = mode_var.get()
-            if m in MODES_URL:
-                target_entry_label.set("target (url):")
-            elif m in MODES_DOMAIN:
-                target_entry_label.set("target (domain):")
-            else:
-                target_entry_label.set("target:")
+    def _retarget_label(*_):
+        m = mode_var.get()
+        if m in MODES_URL:
+            target_entry_label.set("target (url):")
+        elif m in MODES_DOMAIN:
+            target_entry_label.set("target (domain):")
+        else:
+            target_entry_label.set("target:")
 
-        mode_var.trace_add("write", _retarget_label)
-        _retarget_label()
+    mode_var.trace_add("write", _retarget_label)
+    _retarget_label()
 
-        flags = {"xss": tk.BooleanVar(value=True),
-                 "deepblue": tk.BooleanVar(value=False),
-                 "tor": tk.BooleanVar(value=False),
-                 "elite": tk.BooleanVar(value=False)}
-        for i, name in enumerate(["xss", "deepblue", "tor", "elite"]):
-            ttk.Checkbutton(ctrl, text=name, variable=flags[name]).grid(
-                row=2, column=i, sticky="w", padx=6)
+    flags = {"xss": tk.BooleanVar(value=True),
+             "deepblue": tk.BooleanVar(value=False),
+             "tor": tk.BooleanVar(value=False),
+             "elite": tk.BooleanVar(value=False)}
+    for i, name in enumerate(["xss", "deepblue", "tor", "elite"]):
+        ttk.Checkbutton(ctrl, text=name, variable=flags[name]).grid(
+            row=2, column=i, sticky="w", padx=6)
 
-        ttk.Label(ctrl, text="proxy list:").grid(row=0, column=4, sticky="e", padx=6)
-        proxy_var = tk.StringVar()
-        ttk.Entry(ctrl, textvariable=proxy_var, width=22).grid(row=0, column=5, padx=4)
+    ttk.Label(ctrl, text="proxy list:").grid(row=0, column=4, sticky="e", padx=6)
+    proxy_var = tk.StringVar()
+    ttk.Entry(ctrl, textvariable=proxy_var, width=22).grid(row=0, column=5, padx=4)
 
-        run_btn = ttk.Button(ctrl, text="\u25b6 RUN")
-        stop_btn = ttk.Button(ctrl, text="\u25a0 STOP", command=request_stop,
-                              state="disabled")
-        run_btn.grid(row=2, column=4, padx=10)
-        stop_btn.grid(row=2, column=5, padx=4)
-        ctrl.columnconfigure(1, weight=1)
+    run_btn = ttk.Button(ctrl, text="\u25b6 RUN")
+    stop_btn = ttk.Button(ctrl, text="\u25a0 STOP", command=request_stop,
+                          state="disabled")
+    run_btn.grid(row=2, column=4, padx=10)
+    stop_btn.grid(row=2, column=5, padx=4)
+    ctrl.columnconfigure(1, weight=1)
 
-        # ---- results area: tabs ----
-        nb = ttk.Notebook(root)
-        nb.pack(fill="both", expand=True, padx=8, pady=4)
+    # ---- results area: tabs ----
+    nb = ttk.Notebook(root)
+    nb.pack(fill="both", expand=True, padx=8, pady=4)
 
-        # Log tab
-        log_frame = ttk.Frame(nb)
-        nb.add(log_frame, text="Log")
-        log_text = tk.Text(log_frame, bg="#14161c", fg="#dddddd",
-                           insertbackground="#dddddd", relief="flat",
-                           padx=8, pady=6, font=fixed_font)
-        log_scroll = ttk.Scrollbar(log_frame, command=log_text.yview)
-        log_text.configure(yscrollcommand=log_scroll.set)
-        log_scroll.pack(side="right", fill="y")
-        log_text.pack(side="left", fill="both", expand=True)
-        for tag in ("ok", "warn", "err", "info"):
-            log_text.tag_config(tag, foreground=SEV_COLORS[tag])
-        log_text.configure(state="disabled")
+    # Log tab
+    log_frame = ttk.Frame(nb)
+    nb.add(log_frame, text="Log")
+    log_text = tk.Text(log_frame, bg="#14161c", fg="#dddddd",
+                       insertbackground="#dddddd", relief="flat",
+                       padx=8, pady=6, font=fixed_font)
+    log_scroll = ttk.Scrollbar(log_frame, command=log_text.yview)
+    log_text.configure(yscrollcommand=log_scroll.set)
+    log_scroll.pack(side="right", fill="y")
+    log_text.pack(side="left", fill="both", expand=True)
+    # register ALL severity tags — _classify emits critical/high/medium/low too
+    for tag in SEV_COLORS:
+        log_text.tag_config(tag, foreground=SEV_COLORS[tag])
+    log_text.configure(state="disabled")
 
-        # Findings tab
-        res_frame = ttk.Frame(nb)
-        nb.add(res_frame, text="Findings")
-        tree = ttk.Treeview(res_frame, columns=("sev", "tool", "finding"),
-                            show="headings", height=20)
-        for col, title, w in (("sev", "severity", 90),
-                              ("tool", "tool", 140),
-                              ("finding", "finding", 780)):
-            tree.heading(col, text=title)
-            tree.column(col, width=w, anchor="w")
-        res_scroll = ttk.Scrollbar(res_frame, command=tree.yview)
-        tree.configure(yscrollcommand=res_scroll.set)
-        res_scroll.pack(side="right", fill="y")
-        tree.pack(side="left", fill="both", expand=True)
-        for tag in ("critical", "high", "medium", "low", "info"):
-            tree.tag_configure(tag, foreground=SEV_COLORS[tag])
+    # Findings tab
+    res_frame = ttk.Frame(nb)
+    nb.add(res_frame, text="Findings")
+    tree = ttk.Treeview(res_frame, columns=("sev", "tool", "finding"),
+                        show="headings", height=20)
+    for col, title, w in (("sev", "severity", 90),
+                          ("tool", "tool", 140),
+                          ("finding", "finding", 780)):
+        tree.heading(col, text=title)
+        tree.column(col, width=w, anchor="w")
+    res_scroll = ttk.Scrollbar(res_frame, command=tree.yview)
+    tree.configure(yscrollcommand=res_scroll.set)
+    res_scroll.pack(side="right", fill="y")
+    tree.pack(side="left", fill="both", expand=True)
+    for tag in ("critical", "high", "medium", "low", "info"):
+        tree.tag_configure(tag, foreground=SEV_COLORS[tag])
 
-        # ---- status bar ----
-        status_var = tk.StringVar(value="ready")
-        status_bar = tk.Label(root, textvariable=status_var, anchor="w",
-                              bg="#0e0f13", fg="#ffffff", padx=8, pady=4)
-        status_bar.pack(fill="x", side="bottom")
+    # ---- status bar ----
+    status_var = tk.StringVar(value="ready")
+    status_bar = tk.Label(root, textvariable=status_var, anchor="w",
+                          bg="#0e0f13", fg="#ffffff", padx=8, pady=4)
+    status_bar.pack(fill="x", side="bottom")
 
-        # ---- job control ----
-        def on_run():
-            target = target_var.get().strip()
-            if not target:
-                log("[-] target required")
-                return
-            if not outdir_var.get().strip():
-                log("[-] outdir required")
-                return
-            argv = _assemble(outdir_var.get().strip(), mode_var.get(), target,
-                             {k: v.get() for k, v in flags.items()},
-                             proxy_var.get().strip())
-            if not _start_job(argv):
-                log("[!] a scan is already running")
-                return
-            run_btn.configure(state="disabled")
-            stop_btn.configure(state="normal")
-            root.configure(cursor="watch")
+    # ---- job control ----
+    def on_run():
+        target = target_var.get().strip()
+        if not target:
+            log("[-] target required")
+            return
+        if not outdir_var.get().strip():
+            log("[-] outdir required")
+            return
+        argv = _assemble(outdir_var.get().strip(), mode_var.get(), target,
+                         {k: v.get() for k, v in flags.items()},
+                         proxy_var.get().strip())
+        if not _start_job(argv):
+            log("[!] a scan is already running")
+            return
+        run_btn.configure(state="disabled")
+        stop_btn.configure(state="normal")
+        root.configure(cursor="watch")
 
-        run_btn.configure(command=on_run)
+    run_btn.configure(command=on_run)
 
-        # ---- pump queues -> widgets (UI thread) ----
-        pump_after = None
+    # ---- pump queues -> widgets (UI thread) ----
+    pump_after = [None]
 
-        def pump():
-            nonlocal pump_after
-
-            drained = 0
-            while drained < 200:
-                try:
-                    sev, line = _log_q.get_nowait()
-                except queue.Empty:
-                    break
-                log_text.configure(state="normal")
-                log_text.insert("end", line + "\n", sev)
-                if int(log_text.index("end-1c").split(".")[0]) > 5000:
-                    log_text.delete("1.0", "100.0")
-                log_text.see("end")
-                log_text.configure(state="disabled")
-                drained += 1
-
-            while True:
-                try:
-                    sev, tool, text = _result_q.get_nowait()
-                except queue.Empty:
-                    break
-                tree.insert("", "end", values=(sev, tool, text), tags=(sev,))
-
+    def pump():
+        drained = 0
+        while drained < 200:
             try:
-                status_var.set(_status_q.get_nowait())
+                sev, line = _log_q.get_nowait()
             except queue.Empty:
-                pass
-
-            try:
-                rc = _done_q.get_nowait()
-                root.configure(cursor="")
-                run_btn.configure(state="normal")
-                stop_btn.configure(state="disabled")
-                log(f"[+] job finished (rc={rc}) — UI stays open, run another scan"
-                    if rc == 0 else
-                    f"[-] job finished with errors (rc={rc})")
-            except queue.Empty:
-                pass
-
-            pump_after = root.after(100, pump)
-
-        def on_close():
-            request_stop()
-            with _lock:
-                p = _proc
-            if p is not None and p.poll() is None:
-                try:
-                    p.wait(timeout=2)
-                except subprocess.TimeoutExpired:
-                    p.kill()
-            if pump_after is not None:
-                root.after_cancel(pump_after)
-            root.destroy()          # -> mainloop returns -> process exits
-                                    # -> parent sentinel's ui_wait() returns
-
-        root.protocol("WM_DELETE_WINDOW", on_close)
-        pump()
-        log("[+] UI online")
-
-        # prefill from forwarded argv (<outdir> <mode> <arg> [flags])
-        if initial_argv and len(initial_argv) >= 3:
-            outdir_var.set(initial_argv[0])
-            if initial_argv[1] in MODES:
-                mode_var.set(initial_argv[1])
-            target_var.set(initial_argv[2])
-            for flag in initial_argv[3:]:
-                if flag == "--xss-no":
-                    flags["xss"].set(False)
-                elif flag in FLAG_ORDER:
-                    flags[flag.lstrip("-")].set(True)
-            log(f"[*] prefilled from argv: {' '.join(initial_argv)}")
-            on_run()   # auto-start the scan from the command line
-
-        root.mainloop()
-
-    t = threading.Thread(target=_build_window, name="sentinel-ui", daemon=False)
-    t.start()
-    return t
-
-
-def wait(ui_thread=None):
-    """Block until the UI window closes."""
-    if ui_thread is None:
-        for t in threading.enumerate():
-            if t.name == "sentinel-ui":
-                ui_thread = t
                 break
-    if ui_thread is not None:
-        ui_thread.join()
+            log_text.configure(state="normal")
+            log_text.insert("end", line + "\n", sev)
+            if int(log_text.index("end-1c").split(".")[0]) > 5000:
+                log_text.delete("1.0", "100.0")
+            log_text.see("end")
+            log_text.configure(state="disabled")
+            drained += 1
+
+        while True:
+            try:
+                sev, tool, text = _result_q.get_nowait()
+            except queue.Empty:
+                break
+            tree.insert("", "end", values=(sev, tool, text), tags=(sev,))
+
+        try:
+            status_var.set(_status_q.get_nowait())
+        except queue.Empty:
+            pass
+
+        try:
+            rc = _done_q.get_nowait()
+            root.configure(cursor="")
+            run_btn.configure(state="normal")
+            stop_btn.configure(state="disabled")
+            log(f"[+] job finished (rc={rc}) — UI stays open, run another scan"
+                if rc == 0 else
+                f"[-] job finished with errors (rc={rc})")
+        except queue.Empty:
+            pass
+
+        pump_after[0] = root.after(100, pump)
+
+    def on_close():
+        request_stop()
+        with _job_lock:
+            p = _proc
+        if p is not None and p.poll() is None:
+            try:
+                p.wait(timeout=2)
+            except subprocess.TimeoutExpired:
+                try:
+                    os.killpg(p.pid, signal.SIGKILL)
+                except (ProcessLookupError, PermissionError, OSError):
+                    p.kill()
+        if pump_after[0] is not None:
+            root.after_cancel(pump_after[0])
+        root.destroy()          # -> mainloop returns -> process exits
+                                # -> parent sentinel's ui_wait() returns
+
+    root.protocol("WM_DELETE_WINDOW", on_close)
+    pump()
+    log("[+] UI online")
+
+    # prefill from forwarded argv (<outdir> <mode> <arg> [flags])
+    if initial_argv and len(initial_argv) >= 3:
+        tail = list(initial_argv[3:])
+        outdir_var.set(initial_argv[0])
+        if initial_argv[1] in MODES:
+            mode_var.set(initial_argv[1])
+        target_var.set(initial_argv[2])
+
+        i = 0
+        while i < len(tail):
+            f = tail[i]
+            if f == "--proxy" and i + 1 < len(tail):
+                proxy_var.set(tail[i + 1])
+                i += 2
+                continue
+            if f == "--xss-no":
+                flags["xss"].set(False)
+            elif f in FLAG_BOOLS:
+                flags[f.lstrip("-")].set(True)
+            # --no-proxy / --no-ui / unknown flags: ignored in the UI
+            i += 1
+
+        log(f"[*] prefilled from argv: {' '.join(initial_argv)}")
+        on_run()   # auto-start the scan from the command line
+
+    root.mainloop()
 
 
 # ------------------------------------------------------------ entry point ---
 def main():
     argv = sys.argv[1:]
     set_run_callback(None)   # run the sentinel binary as a subprocess
-    t = start_gui(argv if len(argv) >= 3 else None)
-    wait(t)
+    # Tk on the main thread — no worker-thread wrapper. The C parent is
+    # blocked in waitpid() the whole time, so there is nothing else to do.
+    start_gui(argv if len(argv) >= 3 else None)
 
 
 if __name__ == "__main__":
