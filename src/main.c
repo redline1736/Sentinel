@@ -16,102 +16,7 @@
 #include "glassworm/gw.h"
 #include "global.h"
 
-/* ---------------- viewer (UI) ---------------- */
-
-static pid_t g_viewer_pid = -1;
-
-#ifndef SENTINEL_VIEW
-#define SENTINEL_VIEW "/usr/share/sentinel/view/view.py"
-#endif
-
-/* Absolute path of this binary, for the UI to respawn us for scans. */
-static void self_path(char *out, size_t outsz) {
-    ssize_t n = readlink("/proc/self/exe", out, outsz - 1);
-    if (n > 0) {
-        out[n] = '\0';
-        return;
-    }
-    snprintf(out, outsz, "sentinel");
-}
-
-/* Kill the viewer (abnormal exits / signal handler cleanup). */
-static void ui_reap(void) {
-    if (g_viewer_pid > 0) {
-        kill(g_viewer_pid, SIGTERM);
-        for (int i = 0; i < 20; i++) {
-            if (waitpid(g_viewer_pid, NULL, WNOHANG) == g_viewer_pid) {
-                g_viewer_pid = -1;
-                return;
-            }
-            usleep(50000); /* 50ms x 20 = 1s grace period */
-        }
-        kill(g_viewer_pid, SIGKILL);
-        waitpid(g_viewer_pid, NULL, 0);
-        g_viewer_pid = -1;
-    }
-}
-
-/* Launch the viewer, forwarding <outdir> <mode> <arg> [flags] verbatim
- * so it prefills and auto-starts the scan. Returns child pid or -1. */
-static pid_t ui_launch(int argc, char *argv[]) {
-    char self[4096];
-    self_path(self, sizeof(self));
-
-    /* allow the install layout / repo checkouts to override the script path */
-    const char *view = getenv("SENTINEL_VIEW");
-    if (!view || !*view)
-        view = SENTINEL_VIEW;
-
-    pid_t pid = fork();
-    if (pid < 0) {
-        perror("fork");
-        return -1;
-    }
-    if (pid == 0) {
-        /* own session: terminal Ctrl+C hits only us, and we forward it */
-        setsid();
-        /* let the UI respawn this exact binary for each scan */
-        setenv("SENTINEL_BIN", self, 1);
-
-        /* argv: python3 view.py <outdir> <mode> <arg> [flags...] */
-        char **nargv = malloc(sizeof(char *) * (size_t)(argc + 2));
-        if (!nargv)
-            _exit(1);
-        int n = 0;
-        nargv[n++] = (char *)"python3";
-        nargv[n++] = (char *)view;
-        for (int i = 1; i < argc; i++)   /* forward everything after progname */
-            nargv[n++] = argv[i];
-        nargv[n] = NULL;
-
-        execvp(nargv[0], nargv);
-        fprintf(stderr, "[-] cannot launch viewer (%s): %s\n", view, strerror(errno));
-        _exit(1);
-    }
-    return pid;
-}
-
-/* Block until the viewer window closes. Returns its exit status. */
-static int ui_wait(void) {
-    int st = 0;
-    if (g_viewer_pid < 0)
-        return 0;
-    while (waitpid(g_viewer_pid, &st, 0) < 0 && errno == EINTR)
-        ;
-    g_viewer_pid = -1;
-    if (WIFEXITED(st))
-        return WEXITSTATUS(st);
-    if (WIFSIGNALED(st))
-        return 128 + WTERMSIG(st);
-    return 0;
-}
-
-/* SIGINT/SIGTERM: take the viewer down with us */
-static void on_signal(int sig) {
-    if (g_viewer_pid > 0)
-        kill(g_viewer_pid, sig);
-    _exit(128 + sig);
-}
+#include "gui/ui.h"          /* <-- new: in-process SDL3 UI */
 
 /* ---------------- usage ---------------- */
 
@@ -126,10 +31,10 @@ static void print_usage(const char *prog) {
     printf("  %s <outdir> --url       <target_url>\n", prog);
     printf("  %s <outdir> --gobuster  <gobuster_dir>\n", prog);
     printf("\n");
-    printf("  With a full <outdir> <mode> <arg> invocation the viewer starts\n");
-    printf("  automatically, prefilled with your arguments; the process stays\n");
-    printf("  alive until the viewer window is closed. Plain scan output also\n");
-    printf("  goes to the terminal.\n");
+    printf("  With a full <outdir> <mode> <arg> invocation the built-in SDL3\n");
+    printf("  GUI starts, prefilled with outdir, target and scan type, and\n");
+    printf("  auto-starts the scan. The window stays open after each scan.\n");
+    printf("  The scan itself runs as a child process (sentinel --no-ui).\n");
     printf("\n");
     printf("  proxy flags (default: direct, no proxy):\n");
     printf("        --tor           route through a pool of local Tor SOCKS5 instances\n");
@@ -139,10 +44,7 @@ static void print_usage(const char *prog) {
     printf("  other flags:\n");
     printf("        --xss-no        disable XSS scanning\n");
     printf("        --deepblue      run DeepBlue exploit phase after scan\n");
-    printf("        --no-ui         headless: do not start the viewer, just scan and exit\n");
-    printf("\n");
-    printf("Env:\n");
-    printf("        SENTINEL_VIEW   path to view.py (default %s)\n", SENTINEL_VIEW);
+    printf("        --no-ui         headless: do not open the GUI, just scan and exit\n");
     printf("\n");
     printf("Examples:\n");
     printf("  %s output -sub example.com --tor\n", prog);
@@ -156,16 +58,14 @@ static void print_usage(const char *prog) {
 
 static int copy_str(char *dst, size_t dstsz, const char *src) {
     size_t n = strlen(src);
-    if (n >= dstsz)
-        return -1;
+    if (n >= dstsz) return -1;
     memcpy(dst, src, n + 1);
     return 0;
 }
 
 static void normalize_dir(char *dir, size_t sz) {
     size_t n = strlen(dir);
-    while (n > 1 && dir[n - 1] == '/')
-        dir[--n] = '\0';
+    while (n > 1 && dir[n - 1] == '/') dir[--n] = '\0';
     (void)sz;
 }
 
@@ -209,7 +109,7 @@ static int is_known_mode(const char *mode) {
            (strcmp(mode, "--gobuster") == 0);
 }
 
-/* Is any flag in argv[4..] asking for headless mode? */
+/* Is --no-ui anywhere in argv[4..]? */
 static int wants_no_ui(int argc, char *argv[]) {
     for (int i = 4; i < argc; i++)
         if (strcmp(argv[i], "--no-ui") == 0)
@@ -217,21 +117,21 @@ static int wants_no_ui(int argc, char *argv[]) {
     return 0;
 }
 
-/* ---------------- headless scan (original path) ---------------- */
+/* ---------------- headless scan (scan-and-exit path) ---------------- */
 
 static int run_headless(int argc, char *argv[], const char *mode) {
     /* --- defaults --- */
-    g.xss = true;
-    g.deepblue = false;
-    g.full = false;
-    g.urlscan = false;
-    g.proxy = false;
-    g.tor = false;
-    g.sitescan = false;
-    g.proxy_mode = PROXY_NONE;
-    g.proxy_list[0] = '\0';
-    g.target[0] = '\0';
-    g.domain[0] = '\0';
+    g.xss          = true;
+    g.deepblue     = false;
+    g.full         = false;
+    g.urlscan      = false;
+    g.proxy        = false;
+    g.tor          = false;
+    g.sitescan     = false;
+    g.proxy_mode   = PROXY_NONE;
+    g.proxy_list[0]= '\0';
+    g.target[0]    = '\0';
+    g.domain[0]    = '\0';
 
     if (copy_str(g.dir, sizeof(g.dir), argv[1]) != 0) {
         fprintf(stderr, "[-] outdir path too long (max %zu)\n", sizeof(g.dir) - 1);
@@ -255,7 +155,6 @@ static int run_headless(int argc, char *argv[], const char *mode) {
             *q = (char)tolower((unsigned char)q[0]);
     }
     else if (strcmp(mode, "--url") == 0) {
-        /* same payload as --scan-url minus site-scan extras */
         if (copy_str(g.target, sizeof(g.target), argv[3]) != 0) {
             fprintf(stderr, "[-] URL too long (max %zu)\n", sizeof(g.target) - 1);
             return 1;
@@ -280,11 +179,11 @@ static int run_headless(int argc, char *argv[], const char *mode) {
         } else if (strcmp(argv[i], "--deepblue") == 0) {
             g.deepblue = true;
         } else if (strcmp(argv[i], "--no-ui") == 0) {
-            /* handled by caller */
+            /* handled by main() */
         } else if (strcmp(argv[i], "--tor") == 0) {
             g.proxy_mode = PROXY_TOR;
             g.proxy = true;
-            g.tor = true;
+            g.tor   = true;
         } else if (strcmp(argv[i], "--elite") == 0) {
             g.proxy_mode = PROXY_ELITE;
             g.proxy = true;
@@ -300,10 +199,10 @@ static int run_headless(int argc, char *argv[], const char *mode) {
             g.proxy_mode = PROXY_CUSTOM;
             g.proxy = true;
         } else if (strcmp(argv[i], "--no-proxy") == 0) {
-            g.proxy_mode = PROXY_NONE;
-            g.proxy = false;
-            g.tor = false;
-            g.proxy_list[0] = '\0';
+            g.proxy_mode   = PROXY_NONE;
+            g.proxy        = false;
+            g.tor          = false;
+            g.proxy_list[0]= '\0';
         } else {
             fprintf(stderr, "[-] Unknown flag: %s\n", argv[i]);
             return 1;
@@ -332,12 +231,12 @@ static int run_headless(int argc, char *argv[], const char *mode) {
     }
     else if (strcmp(mode, "--full-scan") == 0) {
         g.sitescan = true;
-        g.full = true;
+        g.full     = true;
         rc = run(NULL);
     }
     else if (strcmp(mode, "--fast-scan") == 0) {
         g.sitescan = true;
-        g.full = false;
+        g.full     = false;
         rc = run(NULL);
     }
     else if (strcmp(mode, "--xss-only") == 0) {
@@ -345,27 +244,24 @@ static int run_headless(int argc, char *argv[], const char *mode) {
     }
     else if (strcmp(mode, "--scan-url") == 0) {
         g.urlscan = true;
-        g.full = true;
+        g.full    = true;
         write_live(g.domain);
         rc = run(g.target);
     }
     else if (strcmp(mode, "--scan-site") == 0) {
         g.sitescan = true;
-        g.urlscan = true;
-        g.full = true;
+        g.urlscan  = true;
+        g.full     = true;
         write_live(g.domain);
         rc = run(NULL);
     }
     else if (strcmp(mode, "--url") == 0) {
         g.urlscan = true;
-        g.full = true;
+        g.full    = true;
         write_live(g.domain);
         rc = run(g.target);
     }
     else if (strcmp(mode, "--gobuster") == 0) {
-        /* NOTE: wire this to the gobuster-ingest entry in scan.c if one
-         * exists; the mode was previously accepted by the CLI but never
-         * dispatched anywhere. Keeping it explicit so it can't be forgotten. */
         fprintf(stderr, "[-] --gobuster mode is not wired to the scan engine yet\n");
         rc = 1;
     }
@@ -378,40 +274,26 @@ static int run_headless(int argc, char *argv[], const char *mode) {
 /* ---------------- main ---------------- */
 
 int main(int argc, char *argv[]) {
+    /* real-time log streaming through the UI's pipe */
+    setvbuf(stdout, NULL, _IOLBF, 0);
+    setvbuf(stderr, NULL, _IOLBF, 0);
 
-    /* -------- headless: --no-ui flag -> original scan-and-exit path */
+    /* headless: --no-ui at argv[4..] -> scan and exit */
     if (argc >= 4 && wants_no_ui(argc, argv))
         return run_headless(argc, argv, argv[2]);
 
-    /* -------- UI mode: launch viewer with our args, wait for it.
-     * Valid forms:
-     *   sentinel                                (UI only)
-     *   sentinel <outdir> <mode> <arg> [flags]  (UI prefilled + auto-run)
-     */
+    /* validate shape + mode before we open a window */
     if (argc != 1 && argc < 4) {
         print_usage(argv[0]);
         return 1;
     }
-
-    /* validate mode/target early so typos fail fast, before the UI */
     if (argc >= 4 && !is_known_mode(argv[2])) {
         fprintf(stderr, "[-] Unknown mode: %s\n", argv[2]);
         print_usage(argv[0]);
         return 1;
     }
 
-    signal(SIGINT,  on_signal);
-    signal(SIGTERM, on_signal);
-
-    g_viewer_pid = ui_launch(argc, argv);
-    if (g_viewer_pid < 0)
-        return 1;
-
-    /* stay alive until the viewer window is closed — scan completion
-     * does NOT end this process */
-    int rc = ui_wait();
-
-    /* if the viewer crashed without cleanup, make sure it's gone */
-    ui_reap();
-    return rc;
+    /* UI mode: SDL3 window runs in this process; each scan is a
+     * forked `sentinel <outdir> <mode> <target> [flags] --no-ui`. */
+    return ui_run(argc, argv);
 }
