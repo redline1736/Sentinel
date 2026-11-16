@@ -24,16 +24,23 @@ jobs:
         run: |
           set -euo pipefail
           sudo apt-get update -qq
-          # NOTE: SDL packages removed — nothing in src/ links SDL anymore
-          # (Makefile LIBS = -lcurl -lpthread -lcjson -lm only).
+          # NOTE: libsdl3-dev / libsdl3-ttf-dev are NOT in Ubuntu 24.04.
+          # SDL3 is provided by the setup-sdl action below.
           sudo apt-get install -y --no-install-recommends \
             ca-certificates curl git gcc make pkg-config \
             libcurl4-openssl-dev python3 python3-pip python3-venv \
             chromium libcjson-dev ruby ruby-dev zlib1g-dev \
             procps file tor proxychains4 nikto \
             perl libnet-ssleay-perl libwww-perl \
-            libssl-dev build-essential \
-            libsdl3-dev libsdl3-ttf-dev
+            libssl-dev build-essential cmake ninja-build
+
+      - name: Setup SDL3 + SDL3_ttf
+        uses: libsdl-org/setup-sdl@main
+        id: sdl
+        with:
+          install-linux-dependencies: true
+          version: 3-latest
+          version-sdl-ttf: 3-latest
 
       - name: Setup Go
         uses: actions/setup-go@v5
@@ -77,16 +84,25 @@ jobs:
         run: |
           set -euo pipefail
           sudo apt-get update -qq
-          # chromium-browser dropped (snap-transition package, unreliable on
-          # runners); Playwright's managed Chromium is the test browser.
           sudo apt-get install -y --no-install-recommends \
             ca-certificates curl git gcc make pkg-config \
             libcurl4-openssl-dev python3 python3-pip python3-venv \
             chromium libcjson-dev ruby ruby-dev zlib1g-dev \
             procps file tor proxychains4 nikto dnsutils \
-            perl libnet-ssleay-perl libwww-perl
+            perl libnet-ssleay-perl libwww-perl \
+            cmake ninja-build
           pip install playwright
           playwright install chromium
+
+      # The sentinel binary links against SDL3 at runtime, so the test
+      # job also needs the SDL3 libraries installed.
+      - name: Setup SDL3 + SDL3_ttf
+        uses: libsdl-org/setup-sdl@main
+        id: sdl
+        with:
+          install-linux-dependencies: true
+          version: 3-latest
+          version-sdl-ttf: 3-latest
 
       - name: Install Go tools
         run: |
@@ -137,15 +153,6 @@ jobs:
       - name: Make binary executable
         run: chmod +x sentinel
 
-      # ------------------------------------------------------------------
-      # IMPORTANT: main.c parses argv as:  sentinel <outdir> <mode> <arg>
-      # so every invocation is <outdir> first, mode second, target last.
-      # The old calls passed the URL first, which main.c treated as the
-      # mode and failed with "Unknown mode". All fixed below.
-      # Each test writes a pass/fail marker into $GITHUB_STEP_SUMMARY so
-      # the summary step can report real coverage instead of silently
-      # "passing" everything under continue-on-error.
-      # ------------------------------------------------------------------
       - name: Run Subdomain test
         continue-on-error: true
         id: test_sub
@@ -214,9 +221,6 @@ jobs:
           echo "failed_tests=$failed" >> "$GITHUB_OUTPUT"
           echo "### CI Test Results" >> "$GITHUB_STEP_SUMMARY"
           echo "Passed: $passed  Failed: $failed" >> "$GITHUB_STEP_SUMMARY"
-          # Don't fail the job on flaky external targets, but make the
-          # count visible. Flip this to `exit 1` once the test targets
-          # are self-hosted and stable.
           [ "$failed" -eq 0 ] || echo "::warning::${failed} test(s) failed"
 
       - name: Upload all test output directories
