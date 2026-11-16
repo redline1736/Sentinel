@@ -32,7 +32,8 @@ jobs:
             chromium libcjson-dev ruby ruby-dev zlib1g-dev \
             procps file tor proxychains4 nikto \
             perl libnet-ssleay-perl libwww-perl \
-            libssl-dev build-essential
+            libssl-dev build-essential \
+            libsdl3-dev libsdl3-ttf-dev
 
       - name: Setup Go
         uses: actions/setup-go@v5

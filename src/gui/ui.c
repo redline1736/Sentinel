@@ -2,6 +2,7 @@
 #include <SDL3/SDL.h>
 #include <SDL3_ttf/SDL_ttf.h>
 
+#include <ctype.h>
 #include <errno.h>
 #include <fcntl.h>
 #include <pthread.h>
@@ -12,6 +13,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/wait.h>
+#include <time.h>
 #include <unistd.h>
 
 #include "ui.h"
@@ -20,6 +22,10 @@
 #define LOG_CAP 2000
 #define FND_CAP 2000
 #define FND_TXT 1024
+
+/* STOP escalation: SIGTERM first, SIGKILL this many seconds later,
+ * re-arming so a stubborn process group gets repeated SIGKILLs. */
+#define STOP_KILL_SECS 5
 
 static const SDL_Color C_BG     = {0x0e,0x0f,0x13,0xff};
 static const SDL_Color C_PANEL  = {0x14,0x16,0x1c,0xff};
@@ -105,6 +111,9 @@ typedef struct {
     bool      running;
     int       exit_code;
 
+    bool      stop_requested;        /* B7 */
+    time_t    stop_requested_at;     /* B7 */
+
     pthread_mutex_t q_lock;
     PendingLine    *q_head, *q_tail;
 
@@ -126,6 +135,9 @@ static void set_status(App *a, const char *fmt, ...) {
     va_end(ap);
 }
 
+/* B2: anchor severity matches so info chatter can't flood the
+ * Findings tab. "vulnerab" alone no longer maps to low; only an
+ * explicit "low:" / "severity: low" does. */
 static Severity classify(const char *s) {
     if (!s) return SEV_INFO;
     if (s[0] == '[' && s[1]) {
@@ -135,10 +147,16 @@ static Severity classify(const char *s) {
             case '!': return SEV_WARN;
         }
     }
-    if (strstr(s, "CRITICAL") || strstr(s, "critical")) return SEV_CRIT;
-    if (strstr(s, "HIGH") || strstr(s, "CVE-"))        return SEV_HIGH;
-    if (strstr(s, "MEDIUM") || strstr(s, "medium"))    return SEV_MED;
-    if (strstr(s, "LOW") || strstr(s, "vulnerab"))     return SEV_LOW;
+    char low[512];
+    size_t i = 0;
+    for (; s[i] && i < sizeof(low) - 1; i++)
+        low[i] = (char)tolower((unsigned char)s[i]);
+    low[i] = '\0';
+    if (strstr(low, "critical") || strstr(low, "cvss 9") ||
+        strstr(low, "cvss 10"))                                    return SEV_CRIT;
+    if (strstr(low, "high") || strstr(low, "cve-"))                return SEV_HIGH;
+    if (strstr(low, "medium"))                                     return SEV_MED;
+    if (strstr(low, "low:") || strstr(low, "severity: low"))       return SEV_LOW;
     return SEV_INFO;
 }
 
@@ -176,6 +194,8 @@ static void log_free(LogLine *l) {
     memset(l, 0, sizeof(*l));
 }
 
+/* B1: scroll state is owned exclusively by render_log(); this function
+ * no longer touches log_scroll. B11: strdup failure is guarded. */
 static void log_append(App *a, const char *line) {
     if (!line) return;
     Severity sev = classify(line);
@@ -183,9 +203,12 @@ static void log_append(App *a, const char *line) {
         log_free(&a->log[0]);
         memmove(&a->log[0], &a->log[1], sizeof(LogLine) * (LOG_CAP - 1));
         a->log_count--;
+        if (a->log_autoscroll) a->log_scroll = 0; /* render_log re-pins to bottom */
     }
+    char *dup = strdup(line);
+    if (!dup) return;
     LogLine *l = &a->log[a->log_count++];
-    l->text  = strdup(line);
+    l->text  = dup;
     l->tex   = NULL;
     l->tex_w = l->tex_h = 0;
     l->color = sev_color(sev);
@@ -202,7 +225,6 @@ static void log_append(App *a, const char *line) {
         snprintf(f->text, sizeof(f->text), "%s", line);
         f->color = l->color;
     }
-    if (a->log_autoscroll) a->log_scroll = 0;
 }
 
 /* ------------------------------------------------------------ reader thread */
@@ -210,6 +232,7 @@ static void enqueue(App *a, const char *text) {
     PendingLine *p = calloc(1, sizeof(*p));
     if (!p) return;
     p->text = strdup(text);
+    if (!p->text) { free(p); return; }
     pthread_mutex_lock(&a->q_lock);
     if (a->q_tail) a->q_tail->next = p; else a->q_head = p;
     a->q_tail = p;
@@ -262,7 +285,9 @@ static bool spawn_scan(App *a) {
     if (a->flag_deepblue)   argv[n++] = "--deepblue";
     if (a->flag_tor)        argv[n++] = "--tor";
     else if (a->flag_elite) argv[n++] = "--elite";
-    if (a->e_proxy.len) {
+    /* B13: explicit precedence — tor/elite win, proxy file is ignored
+     * rather than silently overriding tor depending on argv order */
+    if (!a->flag_tor && !a->flag_elite && a->e_proxy.len) {
         argv[n++] = "--proxy"; argv[n++] = a->e_proxy.buf;
     }
     argv[n++] = "--no-ui";
@@ -279,6 +304,12 @@ static bool spawn_scan(App *a) {
     }
     if (pid == 0) {
         setsid();
+        /* B5: never inherit the GUI's terminal as stdin */
+        int devnull = open("/dev/null", O_RDONLY);
+        if (devnull >= 0) {
+            dup2(devnull, STDIN_FILENO);
+            if (devnull > STDERR_FILENO) close(devnull);
+        }
         close(pfd[0]);
         dup2(pfd[1], STDOUT_FILENO);
         dup2(pfd[1], STDERR_FILENO);
@@ -288,13 +319,18 @@ static bool spawn_scan(App *a) {
         _exit(127);
     }
     close(pfd[1]);
+    /* B4: arm the signal handler before anything else can race */
+    g_child           = pid;
     a->child_pid      = pid;
     a->child_stdout   = pfd[0];
     a->running        = true;
     a->exit_code      = 0;
-    g_child           = pid;
-    a->reader_running = true;
-    pthread_create(&a->reader_thread, NULL, reader_main, a);
+    a->stop_requested = false;
+    /* B3: check pthread_create; degrade gracefully if it fails */
+    a->reader_running = (pthread_create(&a->reader_thread, NULL,
+                                        reader_main, a) == 0);
+    if (!a->reader_running)
+        log_append(a, "[!] log reader thread failed to start (scan still runs)");
 
     char line[2048] = "[*] $";
     for (int i = 0; i < n; i++) {
@@ -306,10 +342,25 @@ static bool spawn_scan(App *a) {
     return true;
 }
 
+/* B7: SIGTERM, then escalate to SIGKILL after STOP_KILL_SECS,
+ * re-arming so a process group that ignores signals keeps getting hit. */
 static void stop_scan(App *a) {
     if (!a->running || a->child_pid <= 0) return;
     kill(-a->child_pid, SIGTERM);
+    if (!a->stop_requested) {
+        a->stop_requested = true;
+        a->stop_requested_at = time(NULL);
+    }
     set_status(a, "stopping...");
+}
+
+static void stop_escalate(App *a) {
+    if (!a->running || !a->stop_requested || a->child_pid <= 0) return;
+    if (time(NULL) - a->stop_requested_at < STOP_KILL_SECS) return;
+    kill(-a->child_pid, SIGKILL);
+    a->stop_requested = false;   /* if it survives even SIGKILL, re-arm */
+    a->stop_requested_at = time(NULL);
+    log_append(a, "[!] sent SIGKILL to scan process group");
 }
 
 static void drain_pending(App *a) {
@@ -339,14 +390,20 @@ static void reap_children(App *a) {
     a->child_pid = -1;
     a->running   = false;
     g_child      = 0;
+    a->stop_requested = false;
     a->exit_code = WIFEXITED(st)   ? WEXITSTATUS(st) :
                    WIFSIGNALED(st) ? 128 + WTERMSIG(st) : -1;
+    /* B6: literal format strings only */
     char msg[128];
-    snprintf(msg, sizeof(msg), a->exit_code == 0
-        ? "[+] job finished (rc=0) \xe2\x80\x94 UI stays open"
-        : "[-] job finished (rc=%d)", a->exit_code);
+    if (a->exit_code == 0)
+        snprintf(msg, sizeof(msg), "[+] job finished (rc=0) \xe2\x80\x94 UI stays open");
+    else
+        snprintf(msg, sizeof(msg), "[-] job finished (rc=%d)", a->exit_code);
     log_append(a, msg);
-    set_status(a, a->exit_code == 0 ? "done (rc=0)" : "done (rc=%d)", a->exit_code);
+    if (a->exit_code == 0)
+        set_status(a, "done (rc=0)");
+    else
+        set_status(a, "done (rc=%d)", a->exit_code);
     a->log_autoscroll = true;
 }
 
@@ -560,7 +617,7 @@ static void render_log(App *a) {
     float content = (float)(a->log_count * lh);
     float view    = a->r_log_area.h;
     float maxscr  = content > view ? content - view : 0;
-    if (a->log_autoscroll) a->log_scroll = (int)maxscr;
+    if (a->log_autoscroll) a->log_scroll = (int)maxscr;   /* sole scroll owner */
     if (a->log_scroll < 0) a->log_scroll = 0;
     if ((float)a->log_scroll > maxscr) a->log_scroll = (int)maxscr;
 
@@ -713,7 +770,18 @@ static void on_key(App *a, const SDL_KeyboardEvent *ev) {
     if (t) {
         if (ctrl && k == SDLK_V) {
             char *c = SDL_GetClipboardText();
-            if (c) { te_insert(t, c); SDL_free(c); }
+            if (c) {
+                /* B9: strip non-ASCII so a multibyte paste can't leave
+                 * an invalid-UTF-8 buffer for the mono font renderer */
+                char clean[512];
+                size_t j = 0;
+                for (size_t i = 0; c[i] && j < sizeof(clean) - 1; i++)
+                    if ((unsigned char)c[i] < 0x80 && (unsigned char)c[i] >= 0x20)
+                        clean[j++] = c[i];
+                clean[j] = '\0';
+                te_insert(t, clean);
+                SDL_free(c);
+            }
             return;
         }
         if (k == SDLK_BACKSPACE) { te_back(t); return; }
@@ -738,7 +806,9 @@ static void on_key(App *a, const SDL_KeyboardEvent *ev) {
 static void on_text(App *a, const SDL_TextInputEvent *ev) {
     TextEntry *t = focused_entry(a);
     if (!t) return;
-    if ((unsigned char)ev->text[0] < 0x20) return;
+    /* B9: same ASCII filter for typed input */
+    if ((unsigned char)ev->text[0] < 0x20 || (unsigned char)ev->text[0] >= 0x80)
+        return;
     te_insert(t, ev->text);
 }
 
@@ -766,13 +836,17 @@ static void on_mouse_up(App *a, float x, float y, int b) {
             unfocus_all(a);
             e->focused = true;
             float local = x - e->x - 8;
-            int   bi = 0;
+            /* B8: cap measurement so entries beyond tmp[] are clamped
+             * instead of silently unmeasurable */
             char  tmp[512];
-            for (int c = 0; c <= e->len; c++) {
+            int   bi = 0;
+            for (int c = 0; c <= e->len && c < (int)sizeof(tmp) - 1; c++) {
                 memcpy(tmp, e->buf, c); tmp[c] = 0;
                 if (text_width(a->font, tmp) <= local) bi = c;
                 else break;
             }
+            if (e->len >= (int)sizeof(tmp) - 1 && bi == 0)
+                bi = (int)sizeof(tmp) - 2;
             e->cursor = bi;
             return;
         }
@@ -802,6 +876,12 @@ static void on_mouse_up(App *a, float x, float y, int b) {
     if (hit_run && !a->running) {
         if (!a->e_target.len) { set_status(a, "target required"); return; }
         if (!a->e_outdir.len) { set_status(a, "outdir required"); return; }
+        /* B6-side guard: never let the user inject --no-ui via fields */
+        if (strstr(a->e_target.buf, "--no-ui") ||
+            strstr(a->e_outdir.buf, "--no-ui")) {
+            set_status(a, "'--no-ui' not allowed in fields");
+            return;
+        }
         spawn_scan(a);
         return;
     }
@@ -850,10 +930,12 @@ static void on_wheel(App *a, float dy) {
 static void prefill(App *a, int argc, char **argv) {
     if (argc < 4) return;
     strncpy(a->e_outdir.buf, argv[1], sizeof(a->e_outdir.buf) - 1);
+    a->e_outdir.buf[sizeof(a->e_outdir.buf) - 1] = '\0';
     a->e_outdir.len    = (int)strlen(a->e_outdir.buf);
     a->e_outdir.cursor = a->e_outdir.len;
 
     strncpy(a->e_target.buf, argv[3], sizeof(a->e_target.buf) - 1);
+    a->e_target.buf[sizeof(a->e_target.buf) - 1] = '\0';
     a->e_target.len    = (int)strlen(a->e_target.buf);
     a->e_target.cursor = a->e_target.len;
 
@@ -867,24 +949,53 @@ static void prefill(App *a, int argc, char **argv) {
         else if (!strcmp(argv[i], "--elite"))    a->flag_elite    = true;
         else if (!strcmp(argv[i], "--proxy") && i + 1 < argc) {
             strncpy(a->e_proxy.buf, argv[++i], sizeof(a->e_proxy.buf) - 1);
+            a->e_proxy.buf[sizeof(a->e_proxy.buf) - 1] = '\0';
             a->e_proxy.len    = (int)strlen(a->e_proxy.buf);
             a->e_proxy.cursor = a->e_proxy.len;
         }
     }
 }
 
+/* B10: extended font probe with a glob-free recursive scan fallback
+ * so non-Debian layouts degrade instead of hard-failing. */
 static const char *pick_font(void) {
+    static char found[512];
     static const char *paths[] = {
         "/usr/share/fonts/truetype/dejavu/DejaVuSansMono.ttf",
         "/usr/share/fonts/TTF/DejaVuSansMono.ttf",
         "/usr/share/fonts/dejavu/DejaVuSansMono.ttf",
         "/usr/share/fonts/truetype/liberation/LiberationMono-Regular.ttf",
+        "/usr/share/fonts/liberation/LiberationMono-Regular.ttf",
         "/usr/share/fonts/truetype/freefont/FreeMono.ttf",
         "/usr/share/fonts/misc/unifont.ttf",
+        "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
+        "/usr/share/fonts/TTF/DejaVuSans.ttf",
         NULL
     };
     for (int i = 0; paths[i]; i++)
         if (access(paths[i], R_OK) == 0) return paths[i];
+
+    /* last resort: find any readable .ttf under /usr/share/fonts */
+    static const char *dirs[] = {
+        "/usr/share/fonts/truetype", "/usr/share/fonts/TTF",
+        "/usr/share/fonts/opentype", "/usr/share/fonts/OTF",
+        "/usr/share/fonts/misc", "/usr/share/fonts", NULL
+    };
+    for (int i = 0; dirs[i]; i++) {
+        char cmd[600];
+        snprintf(cmd, sizeof(cmd),
+                 "find %s -maxdepth 3 -name '*.ttf' -print -quit 2>/dev/null",
+                 dirs[i]);
+        FILE *fp = popen(cmd, "r");
+        if (!fp) continue;
+        if (fgets(found, sizeof(found), fp)) {
+            found[strcspn(found, "\n")] = '\0';
+            pclose(fp);
+            if (found[0] && access(found, R_OK) == 0) return found;
+        } else {
+            pclose(fp);
+        }
+    }
     return NULL;
 }
 
@@ -926,7 +1037,7 @@ int ui_run(int argc, char **argv) {
     }
     a.font = TTF_OpenFont(fp, 14.0f);
     if (!a.font) {
-        fprintf(stderr, "TTF_OpenFont: %s\n", SDL_GetError());
+        fprintf(stderr, "TTF_OpenFont(%s): %s\n", fp, SDL_GetError());
         SDL_DestroyRenderer(a.ren); SDL_DestroyWindow(a.win);
         TTF_Quit(); SDL_Quit();
         return 1;
@@ -934,6 +1045,8 @@ int ui_run(int argc, char **argv) {
     a.line_h = TTF_GetFontLineSkip(a.font);
     if (a.line_h <= 0) a.line_h = 18;
 
+    /* B14: --gobuster removed until the engine wires it (it currently
+     * always fails with rc=1 in run_headless) */
     a.modes[0] = "--scan-url";
     a.modes[1] = "--scan-site";
     a.modes[2] = "--xss-only";
@@ -941,8 +1054,7 @@ int ui_run(int argc, char **argv) {
     a.modes[4] = "-sub";
     a.modes[5] = "--full-scan";
     a.modes[6] = "--fast-scan";
-    a.modes[7] = "--gobuster";
-    a.mode_count = 8;
+    a.mode_count = 7;
     a.mode_idx   = 0;
     a.flag_xss   = true;
     a.active_tab = TAB_LOG;
@@ -982,6 +1094,7 @@ int ui_run(int argc, char **argv) {
                 default: break;
             }
         }
+        stop_escalate(&a);   /* B7 */
         drain_pending(&a);
         reap_children(&a);
         render(&a);

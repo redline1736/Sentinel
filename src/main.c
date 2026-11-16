@@ -15,7 +15,7 @@
 #include "glassworm/gw.h"
 #include "global.h"
 
-#include "gui/ui.h"          /* <-- new: in-process SDL3 UI */
+#include "gui/ui.h"
 
 /* ---------------- usage ---------------- */
 
@@ -34,6 +34,8 @@ static void print_usage(const char *prog) {
     printf("  GUI starts, prefilled with outdir, target and scan type, and\n");
     printf("  auto-starts the scan. The window stays open after each scan.\n");
     printf("  The scan itself runs as a child process (sentinel --no-ui).\n");
+    printf("  --no-ui must come after the mode argument (it is matched in\n");
+    printf("  argv[4..] only).\n");
     printf("\n");
     printf("  proxy flags (default: direct, no proxy):\n");
     printf("        --tor           route through a pool of local Tor SOCKS5 instances\n");
@@ -108,7 +110,7 @@ static int is_known_mode(const char *mode) {
            (strcmp(mode, "--gobuster") == 0);
 }
 
-/* Is --no-ui anywhere in argv[4..]? */
+/* M1 (documented, behavior kept): --no-ui is matched in argv[4..] only. */
 static int wants_no_ui(int argc, char *argv[]) {
     for (int i = 4; i < argc; i++)
         if (strcmp(argv[i], "--no-ui") == 0)
@@ -241,7 +243,8 @@ static int run_headless(int argc, char *argv[], const char *mode) {
     else if (strcmp(mode, "--xss-only") == 0) {
         rc = xss_run(g.target, g.dir, g.dir);
     }
-    else if (strcmp(mode, "--scan-url") == 0) {
+    else if (strcmp(mode, "--scan-url") == 0 || strcmp(mode, "--url") == 0) {
+        /* M3: --url is an alias of --scan-url (identical behavior) */
         g.urlscan = true;
         g.full    = true;
         write_live(g.domain);
@@ -254,13 +257,9 @@ static int run_headless(int argc, char *argv[], const char *mode) {
         write_live(g.domain);
         rc = run(NULL);
     }
-    else if (strcmp(mode, "--url") == 0) {
-        g.urlscan = true;
-        g.full    = true;
-        write_live(g.domain);
-        rc = run(g.target);
-    }
     else if (strcmp(mode, "--gobuster") == 0) {
+        /* explicit so the accepted mode can't silently do nothing;
+         * wire this to the gobuster-ingest entry in scan.c when built */
         fprintf(stderr, "[-] --gobuster mode is not wired to the scan engine yet\n");
         rc = 1;
     }
@@ -273,7 +272,10 @@ static int run_headless(int argc, char *argv[], const char *mode) {
 /* ---------------- main ---------------- */
 
 int main(int argc, char *argv[]) {
-    /* real-time log streaming through the UI's pipe */
+    /* M4: line-buffer our own output so the GUI pipe gets logs in real
+     * time. Note this only affects THIS process; external tools we spawn
+     * (gobuster, httpx, ...) use their own buffering and may arrive in
+     * chunks. That is a property of the child tools, not fixable here. */
     setvbuf(stdout, NULL, _IOLBF, 0);
     setvbuf(stderr, NULL, _IOLBF, 0);
 
