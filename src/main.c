@@ -70,6 +70,48 @@ static void normalize_dir(char *dir, size_t sz) {
     (void)sz;
 }
 
+/* Extract the bare host from a URL. Drops scheme, userinfo, port,
+ * path, query, and fragment. Handles bracketed IPv6 hosts. */
+static void host_of_url(const char *url, char *out, size_t outsz) {
+    if (!url || !out || outsz == 0) return;
+    out[0] = '\0';
+
+    const char *p = url;
+
+    /* skip scheme:// */
+    const char *sep = strstr(p, "://");
+    if (sep) p = sep + 3;
+
+    /* end of authority component */
+    size_t n = strcspn(p, "/?#");
+
+    /* strip userinfo@ */
+    const char *at = memchr(p, '@', n);
+    if (at) {
+        n -= (size_t)(at + 1 - p);
+        p  = at + 1;
+    }
+
+    /* strip port (respecting [::1] brackets) */
+    if (n > 0 && p[0] == '[') {
+        const char *rb = memchr(p, ']', n);
+        if (rb) {
+            size_t inner = (size_t)(rb - p + 1);
+            const char *c = memchr(p + inner, ':', n - inner);
+            if (c) n = (size_t)(c - p);
+        }
+    } else {
+        const char *colon = memchr(p, ':', n);
+        if (colon) n = (size_t)(colon - p);
+    }
+
+    /* strip trailing FQDN dot */
+    if (n > 0 && p[n - 1] == '.') n--;
+
+    if (n >= outsz) n = outsz - 1;
+    memcpy(out, p, n);
+    out[n] = '\0';
+}
 static void write_live(const char *host) {
     char path[2048];
     snprintf(path, sizeof(path), "%s/live.txt", g.dir);
