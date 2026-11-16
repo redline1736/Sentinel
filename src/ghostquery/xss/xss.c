@@ -23,8 +23,8 @@
 #define CURL_TIMEOUT         10L
 #define CURL_CONNECT_TIMEOUT 5L
 
-#define WORKERS_PER_SCAN   4
-#define CHROME_BASE_PORT   9222
+/* One thread, one chrome port. */
+#define CHROME_PORT 9222
 
 /* Size of the request.filename mirror path we allocate. */
 #define GQ_FILENAME_SZ     128
@@ -148,14 +148,6 @@ static int ensure_directory(const char *path) {
 
 /* ============================================================================
  * Encoding detection
- *
- * Returns 1 if the payload appears to already contain percent-escapes
- * (i.e. it was pre-URL-encoded by the author of the payload file).
- * In that case the scanner must NOT re-escape it — doing so would double
- * encode and the server would never see the intended %NN sequence.
- *
- * If the payload contains any raw HTML-special character, it's considered
- * a "raw" payload and will be escaped normally.
  * ============================================================================ */
 
 static int looks_url_encoded(const char *p) {
@@ -200,8 +192,6 @@ static int gq_http_send(request *r, const char *url) {
 
     r->code = -1;
 
-    /* FIXED: request.filename is a char *, not an array. calloc()'d
-     * requests have it NULL — allocate the mirror buffer before use. */
     if (!r->filename) {
         r->filename = malloc(GQ_FILENAME_SZ);
         if (!r->filename) {
@@ -225,7 +215,6 @@ static int gq_http_send(request *r, const char *url) {
     fp = safe_fopen_exclusive(filename, "wb");
     if (!fp) { perror("gq_http_send: fopen"); return 0; }
 
-    /* FIXED: explicit length — sizeof(r->filename) would be pointer size. */
     snprintf(r->filename, GQ_FILENAME_SZ, "%s", filename);
 
     curl = curl_easy_init();
@@ -438,103 +427,13 @@ int find_param_reflecting(char *url, char *path) {
     return 0;
 }
 
-struct xss_ctx {
-    const char *tag;
-    const char *url;
-    char  *path;
-    char **params;   int nparams;
-    char **payloads; int npayloads;
-    char **escaped;
-    int   *event_types;
-    int   *preencoded;
+/* ============================================================================
+ * XSS scan — ONE thread, ONE chrome on port 9222
+ * ============================================================================ */
 
-    FILE  *found;
-    pthread_mutex_t found_lock;
-
-    int total_tested;
-    int total_confirmed;
-    pthread_mutex_t stat_lock;
-
-    int chrome_port_base;
-};
-
-struct worker_arg {
-    struct xss_ctx *ctx;
-    int worker_id;
-    int start_param;
-    int end_param;
-};
-
-static void *xss_worker(void *arg) {
-    struct worker_arg *wa  = arg;
-    struct xss_ctx    *ctx = wa->ctx;
-    char full_url[MAX_URL_LEN];
-
-    chrome c;
-    memset(&c, 0, sizeof(c));
-
-    int port = ctx->chrome_port_base + wa->worker_id;
-    printf("[%s/w%d] Initializing Chrome (port %d)...\n", ctx->tag, wa->worker_id, port);
-
-    if (init_chrome(&c, port) != 0) {
-        printf("[%s/w%d] Chrome init FAILED — worker aborting\n",
-               ctx->tag, wa->worker_id);
-        return NULL;
-    }
-    printf("[%s/w%d] Chrome initialized\n", ctx->tag, wa->worker_id);
-
-    for (int pi = wa->start_param; pi < wa->end_param; pi++) {
-        const char *param = ctx->params[pi];
-
-        for (int k = 0; k < ctx->npayloads; k++) {
-            if (!ctx->escaped[k]) continue;
-
-            if (!build_param_url(full_url, sizeof(full_url),
-                                 ctx->url, param, ctx->escaped[k]))
-                continue;
-
-            int event_type = ctx->event_types[k];
-            int confirmed  = 0;
-
-            if (navigate_to(&c, full_url) == 0) {
-                usleep(150000);
-                if (detect_xss(&c, 15, event_type) == 0)
-                    confirmed = 1;
-            }
-            if (!confirmed && navigate_to(&c, full_url) == 0) {
-                usleep(300000);
-                if (detect_xss(&c, 20, event_type) == 0)
-                    confirmed = 1;
-            }
-
-            pthread_mutex_lock(&ctx->stat_lock);
-            ctx->total_tested++;
-            if (confirmed) ctx->total_confirmed++;
-            pthread_mutex_unlock(&ctx->stat_lock);
-
-            if (confirmed) {
-                const char *kind = ctx->preencoded[k] ? "URL-ENC" : "RAW";
-                pthread_mutex_lock(&ctx->found_lock);
-                fprintf(ctx->found, "[%s] %s -> %s\n",
-                        kind, param, ctx->payloads[k]);
-                fflush(ctx->found);
-                pthread_mutex_unlock(&ctx->found_lock);
-
-                printf("[%s/w%d] *** CONFIRMED [%s]: %s=%s ***\n",
-                       ctx->tag, wa->worker_id, kind, param, ctx->payloads[k]);
-            }
-        }
-    }
-
-    close_chrome(&c);
-    return NULL;
-}
-
-static void xss_payload_run(const char *tag,
-                            char *url, char *path,
-                            const char *payload_file,
-                            const char *out_file_name,
-                            int chrome_port_base) {
+static void xss_scan(const char *tag, char *url, char *path,
+                     const char *payload_file, const char *out_file_name)
+{
     if (!url || !path) { fprintf(stderr, "[%s] invalid args\n", tag); return; }
 
     char param_file[4096];
@@ -548,122 +447,139 @@ static void xss_payload_run(const char *tag,
         return;
     }
 
-    struct xss_ctx ctx;
-    memset(&ctx, 0, sizeof(ctx));
-    ctx.tag              = tag;
-    ctx.url              = url;
-    ctx.path             = path;
-    ctx.chrome_port_base = chrome_port_base;
+    int   nparams   = 0;
+    int   npayloads = 0;
+    char **params   = load_lines(param_file,   &nparams);
+    char **payloads = load_lines(payload_file, &npayloads);
 
-    ctx.payloads = load_lines(payload_file, &ctx.npayloads);
-    ctx.params   = load_lines(param_file,    &ctx.nparams);
-
-    if (ctx.npayloads <= 0 || ctx.nparams <= 0) {
+    if (nparams <= 0 || npayloads <= 0) {
         fprintf(stderr, "[%s] %s (%d) or %s (%d) empty/missing\n",
-                tag, payload_file, ctx.npayloads, param_file, ctx.nparams);
-        free_lines(ctx.payloads, ctx.npayloads);
-        free_lines(ctx.params,   ctx.nparams);
+                tag, payload_file, npayloads, param_file, nparams);
+        free_lines(payloads, npayloads);
+        free_lines(params,   nparams);
         return;
     }
 
-    /* FIXED: removed the stray "se" token that broke this function. */
-    ctx.escaped     = calloc((size_t)ctx.npayloads, sizeof(char *));
-    ctx.event_types = calloc((size_t)ctx.npayloads, sizeof(int));
-    ctx.preencoded  = calloc((size_t)ctx.npayloads, sizeof(int));
+    char **escaped     = calloc((size_t)npayloads, sizeof(char *));
+    int   *event_types = calloc((size_t)npayloads, sizeof(int));
+    int   *preencoded  = calloc((size_t)npayloads, sizeof(int));
 
-    if (!ctx.escaped || !ctx.event_types || !ctx.preencoded) {
+    if (!escaped || !event_types || !preencoded) {
         fprintf(stderr, "[%s] calloc failed\n", tag);
-        goto cleanup_arrays;
+        free(escaped); free(event_types); free(preencoded);
+        free_lines(payloads, npayloads);
+        free_lines(params,   nparams);
+        return;
     }
 
-    for (int k = 0; k < ctx.npayloads; k++) {
-        if (looks_url_encoded(ctx.payloads[k])) {
-            ctx.escaped[k]    = strdup(ctx.payloads[k]);
-            ctx.preencoded[k] = 1;
+    for (int k = 0; k < npayloads; k++) {
+        if (looks_url_encoded(payloads[k])) {
+            escaped[k]    = strdup(payloads[k]);
+            preencoded[k] = 1;
         } else {
-            ctx.escaped[k]    = curl_easy_escape(NULL, ctx.payloads[k], 0);
-            ctx.preencoded[k] = 0;
+            escaped[k]    = curl_easy_escape(NULL, payloads[k], 0);
+            preencoded[k] = 0;
         }
-        ctx.event_types[k] = detect_payload_event_type(ctx.payloads[k]);
+        event_types[k] = detect_payload_event_type(payloads[k]);
     }
 
-    ctx.found = fopen(out_path, "w");
-    if (!ctx.found) {
+    FILE *found = fopen(out_path, "w");
+    if (!found) {
         fprintf(stderr, "[%s] cannot write %s\n", tag, out_path);
-        goto cleanup_arrays;
+        goto cleanup_escaped;
     }
 
-    pthread_mutex_init(&ctx.found_lock, NULL);
-    pthread_mutex_init(&ctx.stat_lock,  NULL);
+    /* --- one chrome, one port --- */
+    chrome c;
+    memset(&c, 0, sizeof(c));
 
-    pthread_t tids[WORKERS_PER_SCAN];
-    struct worker_arg wargs[WORKERS_PER_SCAN];
+    printf("[%s] Initializing Chrome (port %d)...\n", tag, CHROME_PORT);
+    if (init_chrome(&c, CHROME_PORT) != 0) {
+        printf("[%s] Chrome init FAILED — aborting scan\n", tag);
+        fclose(found);
+        goto cleanup_escaped;
+    }
+    printf("[%s] Chrome initialized\n", tag);
 
-    int per    = ctx.nparams / WORKERS_PER_SCAN;
-    int rem    = ctx.nparams % WORKERS_PER_SCAN;
-    int cursor = 0;
+    /* --- main scan loop --- */
+    int total_tested = 0, total_confirmed = 0;
+    char full_url[MAX_URL_LEN];
 
-    for (int w = 0; w < WORKERS_PER_SCAN; w++) {
-        int take = per + (w < rem ? 1 : 0);
+    for (int pi = 0; pi < nparams; pi++) {
+        const char *param = params[pi];
 
-        wargs[w].ctx         = &ctx;
-        wargs[w].worker_id   = w;
-        wargs[w].start_param = cursor;
-        wargs[w].end_param   = cursor + take;
-        cursor += take;
+        for (int k = 0; k < npayloads; k++) {
+            if (!escaped[k]) continue;
 
-        if (pthread_create(&tids[w], NULL, xss_worker, &wargs[w]) != 0) {
-            fprintf(stderr, "[%s] pthread_create failed for worker %d\n", tag, w);
-            xss_worker(&wargs[w]);
-            tids[w] = 0;
+            if (!build_param_url(full_url, sizeof(full_url),
+                                 url, param, escaped[k]))
+                continue;
+
+            int event_type = event_types[k];
+            int confirmed  = 0;
+
+            if (navigate_to(&c, full_url) == 0) {
+                usleep(150000);
+                if (detect_xss(&c, 15, event_type) == 0)
+                    confirmed = 1;
+            }
+            if (!confirmed && navigate_to(&c, full_url) == 0) {
+                usleep(300000);
+                if (detect_xss(&c, 20, event_type) == 0)
+                    confirmed = 1;
+            }
+
+            total_tested++;
+            if (confirmed) {
+                total_confirmed++;
+                const char *kind = preencoded[k] ? "URL-ENC" : "RAW";
+                fprintf(found, "[%s] %s -> %s\n", kind, param, payloads[k]);
+                fflush(found);
+                printf("[%s] *** CONFIRMED [%s]: %s=%s ***\n",
+                       tag, kind, param, payloads[k]);
+            }
         }
     }
 
-    for (int w = 0; w < WORKERS_PER_SCAN; w++) {
-        if (tids[w]) pthread_join(tids[w], NULL);
-    }
+    close_chrome(&c);
+    fclose(found);
 
     printf("[%s] Done. Tested %d, confirmed %d. Results: %s\n",
-           tag, ctx.total_tested, ctx.total_confirmed, out_path);
+           tag, total_tested, total_confirmed, out_path);
 
-    fclose(ctx.found);
-    pthread_mutex_destroy(&ctx.found_lock);
-    pthread_mutex_destroy(&ctx.stat_lock);
-
-cleanup_arrays:
-    for (int k = 0; k < ctx.npayloads; k++)
-        if (ctx.escaped[k]) free(ctx.escaped[k]);
-    free(ctx.escaped);
-    free(ctx.event_types);
-    free(ctx.preencoded);
-    free_lines(ctx.payloads, ctx.npayloads);
-    free_lines(ctx.params,   ctx.nparams);
+cleanup_escaped:
+    for (int k = 0; k < npayloads; k++)
+        if (escaped[k]) free(escaped[k]);
+    free(escaped);
+    free(event_types);
+    free(preencoded);
+    free_lines(payloads, npayloads);
+    free_lines(params,   nparams);
 }
-
 
 void xss_custom(char *url, char *path) {
     char wordlist[512];
     char cand[512];
 
-    /* FIXED: "full" was undeclared. Use the custom list when it exists,
-     * otherwise the default payload set. */
     data_path("ghostquery/xss/custom.txt", cand, sizeof(cand));
     if (access(cand, F_OK) != 0)
         data_path("ghostquery/xss/new.txt", cand, sizeof(cand));
 
     snprintf(wordlist, sizeof(wordlist), "%s", cand);
 
-    xss_payload_run("xss_custom", url, path, wordlist, "xss.txt",
-                    CHROME_BASE_PORT);
+    xss_scan("xss_custom", url, path, wordlist, "xss.txt");
 }
 
+/* ============================================================================
+ * Mirror findings into report_dir
+ * ============================================================================ */
 
 static void mirror_xss_findings(const char *path, const char *report_dir) {
     char src[4096], dst[4096];
 
     snprintf(src, sizeof(src), "%s/xss.txt", path);
     snprintf(dst, sizeof(dst), "%s/xss.txt", report_dir);
-    if (!strcmp(src, dst)) return;     /* same directory: nothing to mirror */
+    if (!strcmp(src, dst)) return;
 
     FILE *in = fopen(src, "r");
     if (!in) return;
@@ -678,7 +594,6 @@ static void mirror_xss_findings(const char *path, const char *report_dir) {
     fclose(in);
     fclose(out);
 }
-
 
 int file_exists(const char *filename) {
     return access(filename, F_OK) == 0;
@@ -705,6 +620,9 @@ int xss_run(char *url, char *path, char *report_dir) {
     return 0;
 }
 
+/* ============================================================================
+ * nuclei — unchanged
+ * ============================================================================ */
 
 int nuclei_run(char *url, char *path) {
     if (!url || !path) {
@@ -767,7 +685,6 @@ int nuclei_run(char *url, char *path) {
         char wparam[MAX_PARAM_LEN];
         while (fgets(wparam, sizeof(wparam), wf)) {
             size_t l = strlen(wparam);
-            /* FIXED: only trim wparam (the old code also wrote into param). */
             while (l && (wparam[l - 1] == '\n' || wparam[l - 1] == '\r'))
                 wparam[--l] = '\0';
             if (l == 0 || wparam[0] == '#') continue;
