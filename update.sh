@@ -12,7 +12,6 @@ sudo mkdir -p /usr/share/sentinel
 sudo cp -r ghostquery /usr/share/sentinel/
 sudo cp -r glassworm /usr/share/sentinel/
 sudo cp -r deepblue /usr/share/sentinel/
-sudo cp -r view /usr/share/sentinel/
 
 # 6. Run
 cd /tmp
