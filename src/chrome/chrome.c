@@ -10,6 +10,9 @@
 #include <arpa/inet.h>
 #include <curl/curl.h>
 #include <pthread.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
 
 #include "chrome.h"
 #include "../global.h"
@@ -205,11 +208,18 @@ static const char *INSTRUMENT_JS =
 
 /* ============================================================================
  * Chrome lifecycle
+ *
+ * FIXED: exec switches must be single "--key=value" argv tokens. The old
+ * code passed "--user-data-dir" and the path as two separate argv entries,
+ * which Chromium parses as an empty --user-data-dir (falls back to the
+ * default profile + singleton lock) and the profile path as a URL. Result:
+ * worker 0 on port 9222 grabbed the singleton; workers on 9223/9224/9225
+ * handed off to it and exited, so wait_for_port() timed out.
  * ============================================================================ */
 
 static pthread_mutex_t g_chrome_launch_lock = PTHREAD_MUTEX_INITIALIZER;
 
-static pid_t spawn_chrome(const char *port_opt, const char *profile) {
+static pid_t spawn_chrome(int port, const char *profile) {
     pid_t pid = fork();
     if (pid < 0) return -1;
     if (pid == 0) {
@@ -221,45 +231,54 @@ static pid_t spawn_chrome(const char *port_opt, const char *profile) {
         }
         setsid();
 
-        execlp("chromium", "chromium",
-               port_opt,
-               "--user-data-dir", profile,
-               "--remote-allow-origins=*",
-               "--headless=new",
-               "--disable-gpu",
-               "--no-first-run",
-               "--no-default-browser-check",
-               "--disable-extensions",
-               "--disable-dev-shm-usage",
-               (char *)NULL);
+        char port_opt[64], udd[640], origins[64];
+        snprintf(port_opt, sizeof(port_opt), "--remote-debugging-port=%d", port);
+        snprintf(udd,      sizeof(udd),      "--user-data-dir=%s",      profile);
+        snprintf(origins,  sizeof(origins),  "--remote-allow-origins=%s", "*");
 
-        execlp("google-chrome", "google-chrome",
-               port_opt,
-               "--user-data-dir", profile,
-               "--remote-allow-origins=*",
-               "--headless=new",
-               "--disable-gpu",
-               "--no-first-run",
-               "--no-default-browser-check",
-               "--disable-extensions",
-               "--disable-dev-shm-usage",
-               (char *)NULL);
+        const char *bins[] = { "chromium", "google-chrome",
+                               "chromium-browser", NULL };
+        const char *argv[16];
+        int an = 0;
+        argv[an++] = bins[0];
+        argv[an++] = port_opt;
+        argv[an++] = udd;
+        argv[an++] = origins;
+        argv[an++] = "--headless=new";
+        argv[an++] = "--disable-gpu";
+        argv[an++] = "--no-first-run";
+        argv[an++] = "--no-default-browser-check";
+        argv[an++] = "--disable-extensions";
+        argv[an++] = "--disable-dev-shm-usage";
+        argv[an]   = NULL;
 
-        execlp("chromium-browser", "chromium-browser",
-               port_opt,
-               "--user-data-dir", profile,
-               "--remote-allow-origins=*",
-               "--headless=new",
-               "--disable-gpu",
-               "--no-first-run",
-               "--no-default-browser-check",
-               "--disable-extensions",
-               "--disable-dev-shm-usage",
-               (char *)NULL);
-
+        for (int i = 0; bins[i]; i++) {
+            argv[0] = (char *)bins[i];
+            execvp(bins[i], (char *const *)argv);
+        }
         _exit(127);
     }
     return pid;
+}
+
+/* Full, injection-safe removal of the per-port profile dir
+ * (replaces system("rm -rf ...") — no shell involved). */
+static void rm_profile_dir(const char *profile) {
+    pid_t pid = fork();
+    if (pid < 0) return;
+    if (pid == 0) {
+        int devnull = open("/dev/null", O_WRONLY);
+        if (devnull >= 0) {
+            dup2(devnull, STDOUT_FILENO);
+            dup2(devnull, STDERR_FILENO);
+            if (devnull > STDERR_FILENO) close(devnull);
+        }
+        execlp("rm", "rm", "-rf", "--", profile, (char *)NULL);
+        _exit(127);
+    }
+    int st;
+    while (waitpid(pid, &st, 0) < 0 && errno == EINTR)
+        ;
 }
 
 int init_chrome(chrome *c, int port) {
@@ -271,18 +290,11 @@ int init_chrome(chrome *c, int port) {
     char profile[128];
     snprintf(profile, sizeof(profile), "/tmp/remote-profile-%d", port);
 
-    char rmcmd[256];
-    snprintf(rmcmd, sizeof(rmcmd), "rm -rf %s", profile);
-    if (system(rmcmd) != 0) {
-        /* best-effort */
-    }
-
-    char port_opt[64];
-    snprintf(port_opt, sizeof(port_opt), "--remote-debugging-port=%d", port);
+    rm_profile_dir(profile);
 
     pthread_mutex_lock(&g_chrome_launch_lock);
 
-    c->pid = spawn_chrome(port_opt, profile);
+    c->pid = spawn_chrome(port, profile);
     if (c->pid < 0) {
         perror("fork");
         pthread_mutex_unlock(&g_chrome_launch_lock);
@@ -293,11 +305,9 @@ int init_chrome(chrome *c, int port) {
         fprintf(stderr, "[CDP] first launch on port %d failed; retrying\n", port);
         close_chrome(c);
 
-        char rm2[256];
-        snprintf(rm2, sizeof(rm2), "rm -rf %s", profile);
-        if (system(rm2) != 0) { /* best-effort */ }
+        rm_profile_dir(profile);
 
-        c->pid = spawn_chrome(port_opt, profile);
+        c->pid = spawn_chrome(port, profile);
         if (c->pid < 0) {
             pthread_mutex_unlock(&g_chrome_launch_lock);
             return -1;
@@ -537,9 +547,10 @@ int probe_runtime_marker(chrome *c) {
     if (!c || !c->curl || !c->use_websocket) return 1;
 
     const char *cmd =
-        "{\"id\":77,\"method\":\"Runtime.evaluate\",\"params\":{"
+        "{\"id\":77,\"method\":\"Runtime.evaluate\","
+        "\"params\":{"
         "\"expression\":\"window.__gq_xss===1\","
-        "\"returnByValue\":true}}";
+        "\"returnByValue\": true}}";
 
     for (int attempt = 0; attempt < 6; attempt++) {
         if (ws_send(c, cmd) != 0) return 1;
