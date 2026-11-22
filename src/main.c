@@ -166,7 +166,7 @@ static int run_headless(int argc, char *argv[], const char *mode) {
     /* --- defaults --- */
     g.xss          = true;
     g.deepblue     = false;
-    g.full         = false;
+    g.full         = true;
     g.urlscan      = false;
     g.proxy        = false;
     g.tor          = false;
@@ -246,6 +246,9 @@ static int run_headless(int argc, char *argv[], const char *mode) {
             g.proxy        = false;
             g.tor          = false;
             g.proxy_list[0]= '\0';
+        } else if (strcmp(argv[i], "--fast-scan") == 0) {
+            g.sitescan = true;
+            g.full     = false;
         } else {
             fprintf(stderr, "[-] Unknown flag: %s\n", argv[i]);
             return 1;
@@ -275,11 +278,6 @@ static int run_headless(int argc, char *argv[], const char *mode) {
     else if (strcmp(mode, "--full-scan") == 0) {
         g.sitescan = true;
         g.full     = true;
-        rc = run(NULL);
-    }
-    else if (strcmp(mode, "--fast-scan") == 0) {
-        g.sitescan = true;
-        g.full     = false;
         rc = run(NULL);
     }
     else if (strcmp(mode, "--xss-only") == 0) {

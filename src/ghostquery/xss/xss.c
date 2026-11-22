@@ -561,9 +561,13 @@ void xss_custom(char *url, char *path) {
     char wordlist[512];
     char cand[512];
 
-    data_path("ghostquery/xss/custom.txt", cand, sizeof(cand));
-    if (access(cand, F_OK) != 0)
+    if (!g.full){
+        data_path("ghostquery/xss/custom.txt", cand, sizeof(cand));
+    } else {
         data_path("ghostquery/xss/new.txt", cand, sizeof(cand));
+    }
+    if (access(cand, F_OK) != 0)
+        return;
 
     snprintf(wordlist, sizeof(wordlist), "%s", cand);
 
