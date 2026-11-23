@@ -302,98 +302,119 @@ static int parse_gobuster_line(const char *line, const char *root,
 
     return (n > 0 && (size_t)n < outsz);
 }
-/* ---------- subdomain enumeration (RESTORED) ----------
- * Declared in scan.h, called from main.c and run(), but the definition was
- * lost in a refactor. Delegates to atlas' atlas() and converts its output
- * into the live.txt format the scanning() driver consumes. */
-void subdomain(void) {
-    char domains_path[2400];
-    char domains_dir[2400];
 
-    snprintf(domains_path, sizeof(domains_path), "%s/domains.txt", g.dir);
-    snprintf(domains_dir,  sizeof(domains_dir),  "%s/atlas",       g.dir);
 
-    if (ensure_path(domains_dir) != 0) {
-        fprintf(stderr, "[-] subdomain: cannot create %s\n", domains_dir);
-        return;
-    }
+static int cmp_str(const void *a, const void *b) {
+    return strcmp(*(char * const *)a, *(char * const *)b);
+}
 
-    printf("[+] Subdomain enumeration on %s\n", g.domain);
+/* Reads file, strips empty lines, sorts, dedupes, writes back in place. */
+static void dedupe_file(const char *path) {
+    FILE *fp = fopen(path, "r");
+    if (!fp) { fprintf(stderr, "[!] Cannot open %s for dedupe\n", path); return; }
 
-    /* atlas(host_file, hostdir): reads one domain per line from host_file,
-     * writes results into hostdir. */
-    char seed[1024];
-    snprintf(seed, sizeof(seed), "%s\n", g.domain);
+    char **lines = NULL;
+    size_t n = 0, cap = 0;
+    char buf[4096];
 
-    FILE *sf = fopen(domains_path, "w");
-    if (!sf) {
-        fprintf(stderr, "[-] subdomain: cannot write %s\n", domains_path);
-        return;
-    }
-    fputs(seed, sf);
-    fclose(sf);
+    while (fgets(buf, sizeof(buf), fp)) {
+        size_t len = strlen(buf);
+        if (len && buf[len-1] == '\n') { buf[--len] = '\0'; }
+        if (len && buf[len-1] == '\r') { buf[--len] = '\0'; }
+        if (len == 0) continue;
 
-    int rc = atlas(domains_path, domains_dir);
-    if (rc != 0)
-        printf("[!] atlas exited with code %d\n", rc);
-
-    /* Collect every discovered host from atlas' output into live.txt.
-     * atlas writes a file per source; we scan the dir for lines that look
-     * like hostnames of the target domain. */
-    char live[1600];
-    snprintf(live, sizeof(live), "%s/live.txt", g.dir);
-
-    FILE *out = fopen(live, "w");
-    if (!out) {
-        fprintf(stderr, "[-] subdomain: cannot write %s\n", live);
-        return;
-    }
-
-    DIR *d = opendir(domains_dir);
-    if (d) {
-        struct dirent *e;
-        char line[4096];
-        char *suffix = g.domain;    /* match hosts ending in the target domain */
-        size_t slen = strlen(suffix);
-
-        while ((e = readdir(d)) != NULL) {
-            char path[2400];
-            snprintf(path, sizeof(path), "%s/%s", domains_dir, e->d_name);
-            if (is_dir_entry(domains_dir, e->d_name))
-                continue;
-
-            FILE *in = fopen(path, "r");
-            if (!in) continue;
-
-            while (fgets(line, sizeof(line), in)) {
-                size_t l = strlen(line);
-                while (l && (line[l - 1] == '\n' || line[l - 1] == '\r'))
-                    line[--l] = '\0';
-                if (l == 0 || l < slen)
-                    continue;
-
-                for (char *q = line; *q; q++)
-                    *q = (char)tolower((unsigned char)*q);
-
-                /* crude but effective: does the line end with ".domain" or
-                 * equal the domain itself? */
-                if (strcmp(line, suffix) == 0 ||
-                    (l > slen && strcmp(line + l - slen, suffix) == 0 &&
-                     line[l - slen - 1] == '.'))
-                    fprintf(out, "%s\n", line);
+        if (n >= cap) {
+            cap = cap ? cap * 2 : 64;
+            char **tmp = realloc(lines, cap * sizeof(char *));
+            if (!tmp) {
+                fprintf(stderr, "[!] realloc failed in dedupe_file\n");
+                for (size_t i = 0; i < n; i++) free(lines[i]);
+                free(lines); fclose(fp); return;
             }
-            fclose(in);
+            lines = tmp;
         }
-        closedir(d);
+        lines[n] = strdup(buf);
+        if (!lines[n]) {
+            fprintf(stderr, "[!] strdup failed in dedupe_file\n");
+            for (size_t i = 0; i < n; i++) free(lines[i]);
+            free(lines); fclose(fp); return;
+        }
+        n++;
+    }
+    fclose(fp);
+
+    if (n == 0) { free(lines); return; }
+
+    qsort(lines, n, sizeof(char *), cmp_str);
+
+    FILE *out = fopen(path, "w");
+    if (!out) {
+        fprintf(stderr, "[!] Cannot open %s for writing\n", path);
+        for (size_t i = 0; i < n; i++) free(lines[i]);
+        free(lines); return;
     }
 
-    /* Always include the apex itself so the homepage gets scanned even if
-     * atlas found nothing. */
-    fprintf(out, "%s\n", g.domain);
+    char *prev = NULL;                       /* last line actually written */
+    for (size_t i = 0; i < n; i++) {
+        if (prev && strcmp(lines[i], prev) == 0)
+            continue;                        /* drop duplicate; free later */
+        fprintf(out, "%s\n", lines[i]);
+        prev = lines[i];                     /* lines[i] still alive here */
+    }
     fclose(out);
 
+    for (size_t i = 0; i < n; i++)           /* single cleanup pass */
+        free(lines[i]);
+    free(lines);
+}
+
+/* ---------- subdomain enumeration ---------- */
+
+void subdomain() {
+    printf("[+] Starting subdomain enumeration...\n");
+
+    char subfile[2048];
+    snprintf(subfile, sizeof(subfile), "%s/subdomains.txt", g.dir);
+
+    /* Passive: subfinder – no built-in output; we capture stdout */
+    char *sf_args[] = {"subfinder", "-d", g.domain, "-silent", "-all", NULL};
+    int rc = run_tool_out(sf_args, subfile, false);
+    if (rc != 0) printf("[!] subfinder failed with code %d\n", rc);
+
+    /* Passive: assetfinder – no built-in output; capture stdout */
+    char *af_args[] = {"assetfinder", "--subs-only", g.domain, NULL};
+    rc = run_tool_out(af_args, subfile, true);
+    if (rc != 0) printf("[!] assetfinder failed with code %d\n", rc);
+
+    dedupe_file(subfile);
+
+    /* Health check: httpx – no built-in output; capture stdout */
+    char live[2048];
+    snprintf(live, sizeof(live), "%s/live.txt", g.dir);
+    char *hx_args[] = {"httpx", "-silent", "-l", subfile, NULL};
+    rc = run_tool_out(hx_args, live, false);
+    if (rc != 0) printf("[!] httpx failed with code %d\n", rc);
+
     dedupe_file(live);
-    printf("[+] live.txt written from atlas results\n");
+
+    /* Takeover checks: subzy – no built-in output (writes to stdout) */
+    char subzy_out[2048], subjack_out[2048];
+    snprintf(subzy_out,  sizeof(subzy_out),  "%s/subzy.txt",    g.dir);
+    snprintf(subjack_out, sizeof(subjack_out), "%s/subjack.txt", g.dir);
+
+    char *sz_args[] = {"subzy", "run", "--targets", live, "--hide_fails", NULL};
+    rc = run_tool_out(sz_args, subzy_out, false);
+    if (rc != 0) printf("[!] subzy failed with code %d\n", rc);
+
+    /* subjack has its own -o flag – we should NOT capture stdout to the same file */
+    char *sj_args[] = {"subjack", "-w", live, "-t", "100", "-o", subjack_out, NULL};
+    rc = run_tool(sj_args);   /* use run_tool (no redirection) */
+    if (rc != 0) printf("[!] subjack failed with code %d\n", rc);
+
+    // custom tooling
+    atlas(subfile, g.dir);
+
+    printf("[+] Subdomain enumeration complete.\n");
 }
 
 /* ---------- gobuster ---------- */
