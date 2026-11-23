@@ -599,22 +599,24 @@ void scanning(char *target_url)
         if (!g.full){
             int is_api = check_api(&root_req, host, g.domain);
             request_free(&root_req);
-        }
-
-        printf("[*] %s is %s an API endpoint\n", base_url, is_api == 1 ? "" : "not");
-
-        if (is_api == 1) {
-            char apifile[2600];
-            snprintf(apifile, sizeof(apifile), "%s/api.txt", hostdir);
-            FILE *af = fopen(apifile, "a");
-            if (af) {
-                fprintf(af, "%s\n", base_url);
-                fclose(af);
+            printf("[*] %s is %s an API endpoint\n", base_url, is_api == 1 ? "" : "not");
+            
+            if (is_api == 1) {
+                char apifile[2600];
+                snprintf(apifile, sizeof(apifile), "%s/api.txt", hostdir);
+                FILE *af = fopen(apifile, "a");
+                if (af) {
+                    fprintf(af, "%s\n", base_url);
+                    fclose(af);
+                }
+                printf("[+] API endpoint: %s\n", base_url);
+            } else {
+                scan_one_host(base_url, hostdir);
             }
-            printf("[+] API endpoint: %s\n", base_url);
-        }else {
-            scan_one_host(base_url, hostdir);
         }
+
+ 
+        scan_one_host(base_url, hostdir);
     }
 
     fclose(fp);
