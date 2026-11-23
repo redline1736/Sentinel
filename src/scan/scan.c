@@ -446,15 +446,19 @@ static void scan_one_host(const char *base_url, const char *hostdir)
 {
     printf("[*] scanning host %s\n", base_url);
 
+
     /* 1. gobuster is the only thing that writes into the host folder. */
+    printf("[*] gobuster on %s\n", base_url);
     gobuster_run(base_url, hostdir);
 
     /* 2. The homepage itself is a valid URL — give it its own folder. */
+    printf("[*] Creating directory for %s\n", base_url);
     char rootdir[2600];
     snprintf(rootdir, sizeof(rootdir), "%s/root", hostdir);
     scan_url(base_url, rootdir);
 
     /* 3. Loop: every gobuster URL gets its own folder + scan results. */
+    printf("[*] scanning gobuster URLs for %s\n", base_url);
     char urls_path[2600];
     snprintf(urls_path, sizeof(urls_path), "%s/gobuster_urls.txt", hostdir);
 
@@ -502,7 +506,8 @@ static void scan_one_host(const char *base_url, const char *hostdir)
 
         idx++;
         printf("  [%d/%d]\n", idx, total);
-
+        printf("  [url] %s\n", line);
+        printf("  [dir] %s\n", urldir);
         scan_url(line, urldir);
     }
 
@@ -527,7 +532,7 @@ void scanning(char *target_url)
         return;
     }
 
-    /* --full-scan / --fast-scan / --scan-site: one folder per live host. */
+    /* --full-scan / --scan-site: one folder per live host. */
     char live[1600];
     snprintf(live, sizeof(live), "%s/live.txt", g.dir);
 
@@ -549,6 +554,26 @@ void scanning(char *target_url)
 
         char host[512];
         url_to_host(line, host, sizeof(host));
+        
+        if (!g.full){
+            if (strncmp(host, "dev", 3) != 0 ||
+                strncmp(host, "staging", 7) != 0 ||
+                strncmp(host, "api", 3) != 0 ||
+                strncmp(host, "test", 4) != 0 ||
+                strncmp(host, "qa", 2) != 0 ||
+                strncmp(host, "uat", 3) != 0 ||
+                strncmp(host, "admin", 5) != 0 ||
+                strncmp(host, "beta", 4) != 0 ||
+                strncmp(host, "internal", 8) != 0 ||
+                strncmp(host, "sandbox", 7) != 0 ||
+                strncmp(host, "demo", 4) != 0 ||
+                strncmp(host, "old", 3) != 0 ||
+                strncmp(host, "legacy", 6) != 0)
+            {
+                printf("[*] skipping %s (production host)\n", host);
+                continue;
+            }
+        }
         if (!host[0])
             continue;
 
@@ -571,11 +596,12 @@ void scanning(char *target_url)
                 continue;
             }
         }
+        if (!g.full){
+            int is_api = check_api(&root_req, host, g.domain);
+            request_free(&root_req);
+        }
 
-        int is_api = check_api(&root_req, host, g.domain);
-        request_free(&root_req);
-
-        scan_one_host(base_url, hostdir);
+        printf("[*] %s is %s an API endpoint\n", base_url, is_api == 1 ? "" : "not");
 
         if (is_api == 1) {
             char apifile[2600];
@@ -586,6 +612,8 @@ void scanning(char *target_url)
                 fclose(af);
             }
             printf("[+] API endpoint: %s\n", base_url);
+        }else {
+            scan_one_host(base_url, hostdir);
         }
     }
 

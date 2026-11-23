@@ -276,7 +276,6 @@ static int run_headless(int argc, char *argv[], const char *mode) {
         printf("[+] Subdomain enumeration complete. Results in %s/\n", g.dir);
     }
     else if (strcmp(mode, "--full-scan") == 0) {
-        g.sitescan = true;
         g.full     = true;
         rc = run(NULL);
     }
