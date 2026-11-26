@@ -32,7 +32,9 @@ static int check_xml(char *target_url){
 
 static int confirm_xxe(char *target_url , char *output_dir) {
     request r = {0,0,0,0,0,0};
-    FILE *fp = fopen("xxe_results.txt", "w");
+    char output_path[2048];
+    snprintf(output_path, sizeof(output_path), "%s/xxe_results.txt", output_dir);
+    FILE *fp = fopen(output_path, "w");
     if (!fp) {
         fprintf(stderr, "[-] cannot write xxe_results.txt: %s\n", strerror(errno));
         fclose(fp);

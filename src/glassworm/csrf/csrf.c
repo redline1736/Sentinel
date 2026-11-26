@@ -86,7 +86,9 @@ int csrf_token_exists(char *target_url, char *output_dir) {
 
         remove(r.filename);
     }
-    FILE *fp = fopen("csrf_results.txt", "w");
+    char output_path[2048];
+    snprintf(output_path, sizeof(output_path), "%s/csrf_results.txt", output_dir);
+    FILE *fp = fopen(output_path, "w");
     if (!fp) {
         fprintf(stderr, "[-] cannot write csrf_results.txt: %s\n", strerror(errno));
         fclose(fp);
