@@ -1,7 +1,3 @@
-/* _GNU_SOURCE supplied via CFLAGS (-D_GNU_SOURCE) — do not redefine. */
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
 #include <unistd.h>
 #include "util.h"
 #include "../prox/prox.h"

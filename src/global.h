@@ -5,6 +5,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdbool.h>
+#include <errno.h>
 
 #define G_DOMAIN_MAX 512
 #define G_DIR_MAX    1536
