@@ -55,7 +55,7 @@ static const char *CSRF_ERROR_PHRASES[] = {
     NULL
 };
 
-int csrf_token_exists(char *target_url) {
+int csrf_token_exists(char *target_url, char *output_dir) {
     request r = {0};
 
     if (!http_send_post(&r, target_url, false, NULL, false, NULL)) {
@@ -86,6 +86,16 @@ int csrf_token_exists(char *target_url) {
 
         remove(r.filename);
     }
+    FILE *fp = fopen("csrf_results.txt", "w");
+    if (!fp) {
+        fprintf(stderr, "[-] cannot write csrf_results.txt: %s\n", strerror(errno));
+        fclose(fp);
+        request_free(&r);
+        return 1;
+    }
+    printf("[csrf] CSRF token %sfound on %s\n", found ? "" : "not ", target_url);
+    fprintf(fp, "[csrf] CSRF token %sfound on %s\n", found ? "" : "not ", target_url);
+    fclose(fp);
 
     request_free(&r);
     return found;

@@ -280,9 +280,9 @@ static int run_headless(int argc, char *argv[], const char *mode) {
         g.full     = true;
         rc = run(NULL);
     } else if (strcmp(mode, "--xxe-only") == 0) {
-        rc = xxe(g.target);
+        rc = xxe(g.target, g.dir);
     } else if (strcmp(mode, "--csrf-only") == 0) {
-        rc = csrf(g.target);
+        rc = csrf(g.target, g.dir);
     } else if (strcmp(mode, "--xss-only") == 0) {
         rc = xss_run(g.target, g.dir, g.dir);
     }

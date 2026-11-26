@@ -15,7 +15,7 @@ int glassworm_run(char *url, char *path) {
     }
 
     printf("[glassworm_run] Running CSRF scan...\n");
-    int rc = csrf(url);
+    int rc = csrf(url, path);
     if (rc == 1) {
         printf("[glassworm_run] CSRF token found on %s\n", url);
     } else if (rc == 0) {
@@ -29,6 +29,5 @@ int glassworm_run(char *url, char *path) {
     } else {
         fprintf(stderr, "[glassworm_run] Error running XXE scan on %s\n", url);
     }
-    s
     return 0;
 }
