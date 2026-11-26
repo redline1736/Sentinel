@@ -8,21 +8,17 @@ static int check_xml(char *target_url){
     int rc = http_send_post(&r, target_url, true, "/usr/share/sentinel/glassworm/XXE/test.xml", false, NULL);
     FILE *file = fopen(r.filename, "r");
     if (!file) {
+        fclose(file);
         return 1;
     }
-    fclose(file);
+    
     char buffer[1024];
-    bool xml = false;
-
     while(fgets(buffer, sizeof(buffer), file) != NULL) {
         if (strstr(buffer, "Unsupported Media Type") || r.code == 415) {
-            xml = false;
             return 1;
         } else if (strstr(buffer, "XMLSyntaxError") || strstr(buffer, "SAXParseException")) {
-            xml = true;  
             return -1;
         } else if (r.code == 200) {
-            xml = true;
             return 0;
         }
     }
@@ -31,7 +27,8 @@ static int check_xml(char *target_url){
 }
 
 static int confirm_xxe(char *target_url , char *output_dir) {
-    request r = {0,0,0,0,0,0};
+    request r[5] = {0,0,0,0,0};
+
     char output_path[2048];
     snprintf(output_path, sizeof(output_path), "%s/xxe_results.txt", output_dir);
     FILE *fp = fopen(output_path, "w");
@@ -40,32 +37,32 @@ static int confirm_xxe(char *target_url , char *output_dir) {
         fclose(fp);
         return 1;
     }
-    int rc = http_send_post(&r, target_url, true, "/usr/share/sentinel/glassworm/XXE/request.xml", false, NULL);
-    if (r.code == 200 && rc == 0) {
+    int rc = http_send_post(&r[0], target_url, true, "/usr/share/sentinel/glassworm/XXE/request.xml", false, NULL);
+    if (r[0].code == 200 && rc == 0) {
         printf("[xxe] XXE vulnerability confirmed on %s with payload request.xml\n", target_url);
         fprintf(fp, "[xxe] XXE vulnerability confirmed on %s with payload request.xml\n", target_url);
     }
 
-    rc = http_send_post(&r, target_url, true, "/usr/share/sentinel/glassworm/XXE/command.xml", false, NULL);
-    if (r.code == 200 && rc == 0) {
+    rc = http_send_post(&r[1], target_url, true, "/usr/share/sentinel/glassworm/XXE/command.xml", false, NULL);
+    if (r[1].code == 200 && rc == 0) {
         printf("[xxe] XXE vulnerability confirmed on %s with payload command.xml\n", target_url);
         fprintf(fp, "[xxe] XXE vulnerability confirmed on %s with payload command.xml\n", target_url);
     }
 
-    rc = http_send_post(&r, target_url, true, "/usr/share/sentinel/glassworm/XXE/file.xml", false, NULL);
-    if (r.code == 200 && rc == 0) {
+    rc = http_send_post(&r[2], target_url, true, "/usr/share/sentinel/glassworm/XXE/file.xml", false, NULL);
+    if (r[2].code == 200 && rc == 0) {
         printf("[xxe] XXE vulnerability confirmed on %s with payload file.xml\n", target_url);
         fprintf(fp, "[xxe] XXE vulnerability confirmed on %s with payload file.xml\n", target_url);
     }
 
-    rc = http_send_post(&r, target_url, true, "/usr/share/sentinel/glassworm/XXE/exfil_command.xml", false, NULL);
-    if (r.code == 200 && rc == 0) {
+    rc = http_send_post(&r[3], target_url, true, "/usr/share/sentinel/glassworm/XXE/exfil_command.xml", false, NULL);
+    if (r[3].code == 200 && rc == 0) {
         printf("[xxe] XXE vulnerability confirmed on %s with payload exfil_command.xml\n", target_url);
         fprintf(fp, "[xxe] XXE vulnerability confirmed on %s with payload exfil_command.xml\n", target_url);
     }
 
-    rc = http_send_post(&r, target_url, true, "/usr/share/sentinel/glassworm/XXE/exfil_file.xml", false, NULL);
-    if (r.code == 200 && rc == 0) {
+    rc = http_send_post(&r[4], target_url, true, "/usr/share/sentinel/glassworm/XXE/exfil_file.xml", false, NULL);
+    if (r[4].code == 200 && rc == 0) {
         printf("[xxe] XXE vulnerability confirmed on %s with payload exfil_file.xml\n", target_url);
         fprintf(fp, "[xxe] XXE vulnerability confirmed on %s with payload exfil_file.xml\n", target_url);
     }
