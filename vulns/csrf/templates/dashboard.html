@@ -1,0 +1,50 @@
+
+<!DOCTYPE html>
+<html>
+<head>
+    <title>SecureBank Dashboard</title>
+</head>
+<body>
+
+    <h1>Welcome, {{ username }}</h1>
+
+    <h2>Account balance</h2>
+
+    <h3>{{ balance }} credits</h3>
+
+    <hr>
+
+    <h2>Transfer credits</h2>
+
+    <form action="/transfer" method="POST">
+
+        <label>Recipient:</label>
+
+        <select name="recipient">
+            <option value="alice">Alice</option>
+            <option value="bob">Bob</option>
+        </select>
+
+        <br><br>
+
+        <label>Amount:</label>
+
+        <input
+            type="number"
+            name="amount"
+            min="1"
+            required
+        >
+
+        <br><br>
+
+        <button type="submit">Transfer</button>
+
+    </form>
+
+    <br>
+
+    <a href="/logout">Logout</a>
+
+</body>
+</html>

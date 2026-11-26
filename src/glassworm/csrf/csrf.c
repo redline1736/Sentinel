@@ -1,5 +1,3 @@
-#include <stdio.h>
-#include <string.h>
 #include "csrf.h"
 #include "../../global.h"
 #include "../../http/http.h"

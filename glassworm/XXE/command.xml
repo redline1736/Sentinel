@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<!DOCTYPE test [
+    <!ENTITY data SYSTEM "ls">
+]>
+
+<test>
+    <title>XML External Entity (XXE) Test</title>
+    <description>This is a test for XML External Entity (XXE) vulnerabilities.</description>
+    <author>&data;</author>
+</test>

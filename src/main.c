@@ -278,8 +278,11 @@ static int run_headless(int argc, char *argv[], const char *mode) {
     else if (strcmp(mode, "--full-scan") == 0) {
         g.full     = true;
         rc = run(NULL);
-    }
-    else if (strcmp(mode, "--xss-only") == 0) {
+    } else if (strcmp(mode, "--xxe-only") == 0) {
+        rc = xxe(g.target);
+    } else if (strcmp(mode, "--csrf-only") == 0) {
+        rc = csrf(g.target);
+    } else if (strcmp(mode, "--xss-only") == 0) {
         rc = xss_run(g.target, g.dir, g.dir);
     }
     else if (strcmp(mode, "--scan-url") == 0 || strcmp(mode, "--url") == 0) {

@@ -2,12 +2,13 @@
 #include "../util/util.h"
 #include "../http/http.h"
 #include "csrf/csrf.h"
-
+#include "xxe/xxe.h"
 
 int csrf(char *target_url) {
     return csrf_token_exists(target_url);
 }
 
+int 
 int glassworm_run(char *url, char *path) {
     if (!url || !path) {
         fprintf(stderr, "glassworm_run: invalid arguments\n");
