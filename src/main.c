@@ -13,6 +13,7 @@
 #include "scan/scan.h"
 #include "ghostquery/xss/xss.h"
 #include "glassworm/gw.h"
+#include "glassworm/xxe/xxe.h"
 #include "global.h"
 
 #include "gui/ui.h"
