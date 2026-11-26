@@ -4,8 +4,8 @@
 #include "csrf/csrf.h"
 #include "xxe/xxe.h"
 
-int csrf(char *target_url) {
-    return csrf_token_exists(target_url);
+int csrf(char *target_url, char *output_dir) {
+    return csrf_token_exists(target_url, output_dir);
 }
 
 int glassworm_run(char *url, char *path) {
