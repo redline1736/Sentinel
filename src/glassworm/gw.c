@@ -8,7 +8,6 @@ int csrf(char *target_url) {
     return csrf_token_exists(target_url);
 }
 
-int 
 int glassworm_run(char *url, char *path) {
     if (!url || !path) {
         fprintf(stderr, "glassworm_run: invalid arguments\n");
@@ -24,6 +23,12 @@ int glassworm_run(char *url, char *path) {
     } else {
         fprintf(stderr, "[glassworm_run] Error checking CSRF token on %s\n", url);
     }
-
-    return rc;
+    rc = xxe(url, path);
+    if (rc == 0) {
+        printf("[glassworm_run] XXE scan completed successfully on %s\n", url);
+    } else {
+        fprintf(stderr, "[glassworm_run] Error running XXE scan on %s\n", url);
+    }
+    s
+    return 0;
 }

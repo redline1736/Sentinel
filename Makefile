@@ -1,6 +1,6 @@
 CC      ?= gcc
 CFLAGS  += -Wall -Wextra -O2 -D_GNU_SOURCE -pthread \
-           -Wno-unused-result -MMD -MP
+           -Wno-unused-result -Wunused-function -MMD -MP
 
 # SDL3 + SDL3_ttf via pkg-config (falls back to nothing so the build
 # still fails loudly if SDL3 isn't installed, rather than silently)

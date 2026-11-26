@@ -70,6 +70,7 @@ static int confirm_xxe(char *target_url , char *output_dir) {
     fclose(fp);
     return 0;
 }
+
 int xxe(char *target_url, char *output_dir) {
     int rc = check_xml(target_url);
     if (rc == 1) {
