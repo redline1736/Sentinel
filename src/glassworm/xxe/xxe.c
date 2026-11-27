@@ -8,7 +8,6 @@ static int check_xml(char *target_url){
     int rc = http_send_post(&r, target_url, true, "/usr/share/sentinel/glassworm/XXE/test.xml", false, NULL);
     FILE *file = fopen(r.filename, "r");
     if (!file) {
-        fclose(file);
         return 1;
     }
     
@@ -22,12 +21,12 @@ static int check_xml(char *target_url){
             return 0;
         }
     }
-
+    fclose(file);
     return 0;
 }
 
 static int confirm_xxe(char *target_url , char *output_dir) {
-    request r[5] = {0,0,0,0,0};
+    request r[5] = {0};
 
     char output_path[2048];
     snprintf(output_path, sizeof(output_path), "%s/xxe_results.txt", output_dir);
