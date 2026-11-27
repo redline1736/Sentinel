@@ -138,7 +138,9 @@ static void write_live(const char *host) {
 static int is_url_mode(const char *mode) {
     return (strcmp(mode, "--scan-url")  == 0) ||
            (strcmp(mode, "--scan-site") == 0) ||
-           (strcmp(mode, "--xss-only")  == 0);
+           (strcmp(mode, "--xss-only")  == 0) ||
+           (strcmp(mode, "--csrf-only") == 0) ||
+           (strcmp(mode, "--xxe-only")  == 0);
 }
 
 static int is_domain_mode(const char *mode) {
