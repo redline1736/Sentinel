@@ -381,8 +381,8 @@ int openredirect_run(const char *url, char *path) {
 
             tested++;
 
-            char final_url[2048] = {0};
-            char loc_hdr[2048]   = {0};
+            char final_url[2048 + MAX_URL_LEN] = {0};
+            char loc_hdr[2048  + MAX_URL_LEN]   = {0};
             int  hit = 0;
 
             if (have_chrome) {
