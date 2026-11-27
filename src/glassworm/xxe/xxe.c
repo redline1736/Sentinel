@@ -6,6 +6,10 @@
 static int check_xml(char *target_url){
     request r = {0};
     int rc = http_send_post(&r, target_url, true, "/usr/share/sentinel/glassworm/XXE/test.xml", false, NULL);
+    if (rc != 0) {
+        fprintf(stderr, "[-] http_send_post failed with code %d\n", rc);
+        return 1;
+    }
     FILE *file = fopen(r.filename, "r");
     if (!file) {
         return 1;
@@ -33,7 +37,6 @@ static int confirm_xxe(char *target_url , char *output_dir) {
     FILE *fp = fopen(output_path, "w");
     if (!fp) {
         fprintf(stderr, "[-] cannot write xxe_results.txt: %s\n", strerror(errno));
-        fclose(fp);
         return 1;
     }
     int rc = http_send_post(&r[0], target_url, true, "/usr/share/sentinel/glassworm/XXE/request.xml", false, NULL);
