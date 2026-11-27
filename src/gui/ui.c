@@ -22,8 +22,6 @@
 #define FND_CAP 2000
 #define FND_TXT 1024
 
-/* STOP escalation: SIGTERM first, SIGKILL this many seconds later,
- * re-arming so a stubborn process group gets repeated SIGKILLs. */
 #define STOP_KILL_SECS 5
 
 static const SDL_Color C_BG     = {0x0e,0x0f,0x13,0xff};
@@ -90,7 +88,7 @@ typedef struct {
     Rect      r_mode, r_xss, r_deepblue, r_tor, r_elite, r_run, r_stop;
     Rect      r_tab_log, r_tab_find, r_log_area, r_find_area;
 
-    const char *modes[8];
+    const char *modes[9];
     int         mode_count, mode_idx;
     bool        flag_xss, flag_deepblue, flag_tor, flag_elite;
 
@@ -110,8 +108,8 @@ typedef struct {
     bool      running;
     int       exit_code;
 
-    bool      stop_requested;        /* B7 */
-    time_t    stop_requested_at;     /* B7 */
+    bool      stop_requested;
+    time_t    stop_requested_at;
 
     pthread_mutex_t q_lock;
     PendingLine    *q_head, *q_tail;
@@ -134,9 +132,6 @@ static void set_status(App *a, const char *fmt, ...) {
     va_end(ap);
 }
 
-/* B2: anchor severity matches so info chatter can't flood the
- * Findings tab. "vulnerab" alone no longer maps to low; only an
- * explicit "low:" / "severity: low" does. */
 static Severity classify(const char *s) {
     if (!s) return SEV_INFO;
     if (s[0] == '[' && s[1]) {
@@ -193,8 +188,6 @@ static void log_free(LogLine *l) {
     memset(l, 0, sizeof(*l));
 }
 
-/* B1: scroll state is owned exclusively by render_log(); this function
- * no longer touches log_scroll. B11: strdup failure is guarded. */
 static void log_append(App *a, const char *line) {
     if (!line) return;
     Severity sev = classify(line);
@@ -202,7 +195,7 @@ static void log_append(App *a, const char *line) {
         log_free(&a->log[0]);
         memmove(&a->log[0], &a->log[1], sizeof(LogLine) * (LOG_CAP - 1));
         a->log_count--;
-        if (a->log_autoscroll) a->log_scroll = 0; /* render_log re-pins to bottom */
+        if (a->log_autoscroll) a->log_scroll = 0;
     }
     char *dup = strdup(line);
     if (!dup) return;
@@ -272,22 +265,36 @@ static const char *self_exe(void) {
     return "sentinel";
 }
 
+/* FIX: is the selected mode a URL mode that shouldn't get --xss-no? */
+static bool mode_is_special_url_only(const App *a) {
+    const char *m = a->modes[a->mode_idx];
+    return strcmp(m, "--csrf-only") == 0 || strcmp(m, "--xxe-only") == 0;
+}
+
 static bool spawn_scan(App *a) {
     if (a->running) return false;
 
+    /* FIX: snapshot the editable buffers BEFORE forking. The user can
+     * still type in the boxes while the fork happens; handing the
+     * live buffers to execvp risks tearing a string mid-edit. */
+    static char outdir_snap[512], target_snap[512], proxy_snap[512];
+    snprintf(outdir_snap, sizeof(outdir_snap), "%s", a->e_outdir.buf);
+    snprintf(target_snap, sizeof(target_snap), "%s", a->e_target.buf);
+    snprintf(proxy_snap,  sizeof(proxy_snap),  "%s", a->e_proxy.buf);
+    const char *mode = a->modes[a->mode_idx];
+
     char *argv[64]; int n = 0;
     argv[n++] = (char *)self_exe();
-    argv[n++] = a->e_outdir.buf;
-    argv[n++] = (char *)a->modes[a->mode_idx];
-    argv[n++] = a->e_target.buf;
-    if (!a->flag_xss)       argv[n++] = "--xss-no";
+    argv[n++] = outdir_snap;
+    argv[n++] = (char *)mode;
+    argv[n++] = target_snap;
+    if (!a->flag_xss && !mode_is_special_url_only(a))
+        argv[n++] = "--xss-no";
     if (a->flag_deepblue)   argv[n++] = "--deepblue";
     if (a->flag_tor)        argv[n++] = "--tor";
     else if (a->flag_elite) argv[n++] = "--elite";
-    /* B13: explicit precedence — tor/elite win, proxy file is ignored
-     * rather than silently overriding tor depending on argv order */
     if (!a->flag_tor && !a->flag_elite && a->e_proxy.len) {
-        argv[n++] = "--proxy"; argv[n++] = a->e_proxy.buf;
+        argv[n++] = "--proxy"; argv[n++] = proxy_snap;
     }
     argv[n++] = "--no-ui";
     argv[n]   = NULL;
@@ -303,7 +310,6 @@ static bool spawn_scan(App *a) {
     }
     if (pid == 0) {
         setsid();
-        /* B5: never inherit the GUI's terminal as stdin */
         int devnull = open("/dev/null", O_RDONLY);
         if (devnull >= 0) {
             dup2(devnull, STDIN_FILENO);
@@ -318,14 +324,12 @@ static bool spawn_scan(App *a) {
         _exit(127);
     }
     close(pfd[1]);
-    /* B4: arm the signal handler before anything else can race */
     g_child           = pid;
     a->child_pid      = pid;
     a->child_stdout   = pfd[0];
     a->running        = true;
     a->exit_code      = 0;
     a->stop_requested = false;
-    /* B3: check pthread_create; degrade gracefully if it fails */
     a->reader_running = (pthread_create(&a->reader_thread, NULL,
                                         reader_main, a) == 0);
     if (!a->reader_running)
@@ -337,12 +341,15 @@ static bool spawn_scan(App *a) {
         strncat(line, argv[i], sizeof(line) - strlen(line) - 1);
     }
     log_append(a, line);
-    set_status(a, "running: %s", a->modes[a->mode_idx]);
+    set_status(a, "running: %s", mode);
     return true;
 }
 
-/* B7: SIGTERM, then escalate to SIGKILL after STOP_KILL_SECS,
- * re-arming so a process group that ignores signals keeps getting hit. */
+/* FIX: stop_escalate now genuinely re-arms. Previously it cleared
+ * stop_requested after SIGKILL, which made the "repeated SIGKILL"
+ * path unreachable. Now it keeps sending SIGKILL every interval
+ * until the process group is gone (waitpid reaps it or the user
+ * restarts). */
 static void stop_scan(App *a) {
     if (!a->running || a->child_pid <= 0) return;
     kill(-a->child_pid, SIGTERM);
@@ -357,8 +364,7 @@ static void stop_escalate(App *a) {
     if (!a->running || !a->stop_requested || a->child_pid <= 0) return;
     if (time(NULL) - a->stop_requested_at < STOP_KILL_SECS) return;
     kill(-a->child_pid, SIGKILL);
-    a->stop_requested = false;   /* if it survives even SIGKILL, re-arm */
-    a->stop_requested_at = time(NULL);
+    a->stop_requested_at = time(NULL);   /* keep the cycle armed */
     log_append(a, "[!] sent SIGKILL to scan process group");
 }
 
@@ -392,7 +398,6 @@ static void reap_children(App *a) {
     a->stop_requested = false;
     a->exit_code = WIFEXITED(st)   ? WEXITSTATUS(st) :
                    WIFSIGNALED(st) ? 128 + WTERMSIG(st) : -1;
-    /* B6: literal format strings only */
     char msg[128];
     if (a->exit_code == 0)
         snprintf(msg, sizeof(msg), "[+] job finished (rc=0) \xe2\x80\x94 UI stays open");
@@ -616,7 +621,7 @@ static void render_log(App *a) {
     float content = (float)(a->log_count * lh);
     float view    = a->r_log_area.h;
     float maxscr  = content > view ? content - view : 0;
-    if (a->log_autoscroll) a->log_scroll = (int)maxscr;   /* sole scroll owner */
+    if (a->log_autoscroll) a->log_scroll = (int)maxscr;
     if (a->log_scroll < 0) a->log_scroll = 0;
     if ((float)a->log_scroll > maxscr) a->log_scroll = (int)maxscr;
 
@@ -770,8 +775,6 @@ static void on_key(App *a, const SDL_KeyboardEvent *ev) {
         if (ctrl && k == SDLK_V) {
             char *c = SDL_GetClipboardText();
             if (c) {
-                /* B9: strip non-ASCII so a multibyte paste can't leave
-                 * an invalid-UTF-8 buffer for the mono font renderer */
                 char clean[512];
                 size_t j = 0;
                 for (size_t i = 0; c[i] && j < sizeof(clean) - 1; i++)
@@ -798,6 +801,9 @@ static void on_key(App *a, const SDL_KeyboardEvent *ev) {
             es[(cur + 1) % 3]->focused = true;
             return;
         }
+        /* FIX: ESC while typing only drops focus; it must not stop a
+         * running scan unless nothing is focused. */
+        if (k == SDLK_ESCAPE) { t->focused = false; return; }
     }
     if (k == SDLK_ESCAPE && a->running) stop_scan(a);
 }
@@ -805,7 +811,6 @@ static void on_key(App *a, const SDL_KeyboardEvent *ev) {
 static void on_text(App *a, const SDL_TextInputEvent *ev) {
     TextEntry *t = focused_entry(a);
     if (!t) return;
-    /* B9: same ASCII filter for typed input */
     if ((unsigned char)ev->text[0] < 0x20 || (unsigned char)ev->text[0] >= 0x80)
         return;
     te_insert(t, ev->text);
@@ -827,7 +832,6 @@ static void on_mouse_up(App *a, float x, float y, int b) {
     bool hit_stop = a->r_stop.down;
     a->r_run.down = a->r_stop.down = false;
 
-    /* text entries */
     TextEntry *es[] = {&a->e_outdir, &a->e_target, &a->e_proxy};
     for (int i = 0; i < 3; i++) {
         TextEntry *e = es[i];
@@ -835,8 +839,6 @@ static void on_mouse_up(App *a, float x, float y, int b) {
             unfocus_all(a);
             e->focused = true;
             float local = x - e->x - 8;
-            /* B8: cap measurement so entries beyond tmp[] are clamped
-             * instead of silently unmeasurable */
             char  tmp[512];
             int   bi = 0;
             for (int c = 0; c <= e->len && c < (int)sizeof(tmp) - 1; c++) {
@@ -850,18 +852,15 @@ static void on_mouse_up(App *a, float x, float y, int b) {
             return;
         }
     }
-    /* click outside the controls: drop focus */
     if (!(x >= a->e_outdir.x && x < a->e_proxy.x + a->e_proxy.w &&
           y >= a->e_outdir.y && y < a->r_stop.y + a->r_stop.h))
         unfocus_all(a);
 
-    /* mode cycle */
     if (x >= a->r_mode.x && x < a->r_mode.x + a->r_mode.w &&
         y >= a->r_mode.y && y < a->r_mode.y + a->r_mode.h) {
         a->mode_idx = (a->mode_idx + 1) % a->mode_count;
         return;
     }
-    /* checkboxes */
     Rect *fr[] = {&a->r_xss, &a->r_deepblue, &a->r_tor, &a->r_elite};
     bool *fv[] = {&a->flag_xss, &a->flag_deepblue, &a->flag_tor, &a->flag_elite};
     for (int i = 0; i < 4; i++) {
@@ -871,11 +870,9 @@ static void on_mouse_up(App *a, float x, float y, int b) {
             return;
         }
     }
-    /* RUN / STOP */
     if (hit_run && !a->running) {
         if (!a->e_target.len) { set_status(a, "target required"); return; }
         if (!a->e_outdir.len) { set_status(a, "outdir required"); return; }
-        /* B6-side guard: never let the user inject --no-ui via fields */
         if (strstr(a->e_target.buf, "--no-ui") ||
             strstr(a->e_outdir.buf, "--no-ui")) {
             set_status(a, "'--no-ui' not allowed in fields");
@@ -886,7 +883,6 @@ static void on_mouse_up(App *a, float x, float y, int b) {
     }
     if (hit_stop && a->running) { stop_scan(a); return; }
 
-    /* tabs */
     if (x >= a->r_tab_log.x && x < a->r_tab_log.x + a->r_tab_log.w &&
         y >= a->r_tab_log.y && y < a->r_tab_log.y + a->r_tab_log.h) {
         a->active_tab = TAB_LOG;
@@ -900,8 +896,8 @@ static void on_mouse_up(App *a, float x, float y, int b) {
 }
 
 static void on_motion(App *a, float x, float y) {
-    Rect *rs[] = {&a->r_run, &a->r_stop, &a->r_tab_log, &a->r_tab_find};
-    for (int i = 0; i < 4; i++) {
+    Rect *rs[] = {&a->r_run, &a->r_stop, &a->r_tab_log, &a->r_tab_find, &a->r_mode};
+    for (int i = 0; i < 5; i++) {
         Rect *r = rs[i];
         r->hover = (x >= r->x && x < r->x + r->w &&
                     y >= r->y && y < r->y + r->h);
@@ -955,8 +951,6 @@ static void prefill(App *a, int argc, char **argv) {
     }
 }
 
-/* B10: extended font probe with a glob-free recursive scan fallback
- * so non-Debian layouts degrade instead of hard-failing. */
 static const char *pick_font(void) {
     static char found[512];
     static const char *paths[] = {
@@ -974,7 +968,6 @@ static const char *pick_font(void) {
     for (int i = 0; paths[i]; i++)
         if (access(paths[i], R_OK) == 0) return paths[i];
 
-    /* last resort: find any readable .ttf under /usr/share/fonts */
     static const char *dirs[] = {
         "/usr/share/fonts/truetype", "/usr/share/fonts/TTF",
         "/usr/share/fonts/opentype", "/usr/share/fonts/OTF",
@@ -1044,8 +1037,9 @@ int ui_run(int argc, char **argv) {
     a.line_h = TTF_GetFontLineSkip(a.font);
     if (a.line_h <= 0) a.line_h = 18;
 
-    /* B14: --gobuster removed until the engine wires it (it currently
-     * always fails with rc=1 in run_headless) */
+    /* FIX: --csrf-only and --xxe-only added. They were accepted by
+     * main() but missing here, so prefill() couldn't match argv[2]
+     * and the GUI silently substituted mode index 0 (--scan-url). */
     a.modes[0] = "--scan-url";
     a.modes[1] = "--scan-site";
     a.modes[2] = "--xss-only";
@@ -1053,7 +1047,9 @@ int ui_run(int argc, char **argv) {
     a.modes[4] = "-sub";
     a.modes[5] = "--full-scan";
     a.modes[6] = "--fast-scan";
-    a.mode_count = 7;
+    a.modes[7] = "--csrf-only";
+    a.modes[8] = "--xxe-only";
+    a.mode_count = 9;
     a.mode_idx   = 0;
     a.flag_xss   = true;
     a.active_tab = TAB_LOG;
@@ -1093,14 +1089,14 @@ int ui_run(int argc, char **argv) {
                 default: break;
             }
         }
-        stop_escalate(&a);   /* B7 */
+        stop_escalate(&a);
         drain_pending(&a);
         reap_children(&a);
         render(&a);
         SDL_Delay(15);
     }
 
-    if (a.running && a.child_pid > 0) {
+    if (a.running && a->child_pid > 0) {
         kill(-a.child_pid, SIGKILL);
         waitpid(a.child_pid, NULL, 0);
     }
