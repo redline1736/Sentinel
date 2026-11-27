@@ -1096,10 +1096,11 @@ int ui_run(int argc, char **argv) {
         SDL_Delay(15);
     }
 
-    if (a.running && a->child_pid > 0) {
+    if (a.running && a.child_pid > 0) {
         kill(-a.child_pid, SIGKILL);
         waitpid(a.child_pid, NULL, 0);
     }
+    
     for (int i = 0; i < a.log_count; i++) log_free(&a.log[i]);
     TTF_CloseFont(a.font);
     SDL_DestroyRenderer(a.ren);
