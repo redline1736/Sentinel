@@ -56,6 +56,7 @@ static const char *CSRF_ERROR_PHRASES[] = {
 };
 
 int csrf_token_exists(char *target_url, char *output_dir) {
+    printf("[csrf] Checking for CSRF token on %s\n", target_url);
     request r = {0};
 
     if (!http_send_post(&r, target_url, false, NULL, false, NULL)) {
