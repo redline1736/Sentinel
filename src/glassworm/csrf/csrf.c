@@ -58,8 +58,8 @@ static const char *CSRF_ERROR_PHRASES[] = {
 int csrf_token_exists(char *target_url, char *output_dir) {
     printf("[csrf] Checking for CSRF token on %s\n", target_url);
     request r = {0};
-
-    if (!http_send_post(&r, target_url, false, NULL, false, NULL)) {
+    int rc =  http_send_post(&r, target_url, false, NULL, false, NULL);
+    if (rc == 1){
         fprintf(stderr, "HTTP POST failed for %s\n", target_url);
         request_free(&r);
         return -1;
@@ -75,40 +75,46 @@ int csrf_token_exists(char *target_url, char *output_dir) {
 
     int found = 0;
 
-    /* All markers are looked up in the mirrored response file. */
-    if (r.filename && r.filename[0]) {
 
-        for (int i = 0; CSRF_COOKIE_NAMES[i] && !found; i++) {
-            if (find_string_in_file(r.filename, CSRF_COOKIE_NAMES[i])) {
-                printf("[csrf] Found CSRF cookie name: %s\n", CSRF_COOKIE_NAMES[i]);
-                fprintf(fp, "[csrf] Found CSRF cookie name: %s\n", CSRF_COOKIE_NAMES[i]);
-                found = 1;
-            }
-        }
+    printf("[csrf] Checking mirrored response file: %s\n", r.filename);
 
-        for (int i = 0; CSRF_META_NAMES[i] && !found; i++) {
-            if (find_string_in_file(r.filename, CSRF_META_NAMES[i])) {
-                printf("[csrf] Found CSRF meta name: %s\n", CSRF_META_NAMES[i]);
-                fprintf(fp, "[csrf] Found CSRF meta name: %s\n", CSRF_META_NAMES[i]);
-                found = 1;
-            }
-        }   
-        for (int i = 0; CSRF_FORM_FIELDS[i] && !found; i++) {
-            if (find_string_in_file(r.filename, CSRF_FORM_FIELDS[i])) {
-                printf("[csrf] Found CSRF form field name: %s\n", CSRF_FORM_FIELDS[i]);
-                fprintf(fp, "[csrf] Found CSRF form field name: %s\n", CSRF_FORM_FIELDS[i]);
-                found = 1;
-            }
+    printf("[csrf] Checking for CSRF cookie names...\n");
+    for (int i = 0; CSRF_COOKIE_NAMES[i] && !found; i++) {
+        if (find_string_in_file(r.filename, CSRF_COOKIE_NAMES[i])) {
+            printf("[csrf] Found CSRF cookie name: %s\n", CSRF_COOKIE_NAMES[i]);
+            fprintf(fp, "[csrf] Found CSRF cookie name: %s\n", CSRF_COOKIE_NAMES[i]);
+            found = 1;
         }
-        for (int i = 0; CSRF_ERROR_PHRASES[i] && !found; i++) {
-            if (find_string_in_file(r.filename, CSRF_ERROR_PHRASES[i])) {
-                printf("[csrf] Found CSRF error phrase: %s\n", CSRF_ERROR_PHRASES[i]);
-                fprintf(fp, "[csrf] Found CSRF error phrase: %s\n", CSRF_ERROR_PHRASES[i]);
-                found = 1;
-            }
-        }
-        remove(r.filename);
     }
+
+    printf("[csrf] Checking for CSRF meta names...\n"); 
+    for (int i = 0; CSRF_META_NAMES[i] && !found; i++) {
+        if (find_string_in_file(r.filename, CSRF_META_NAMES[i])) {
+            printf("[csrf] Found CSRF meta name: %s\n", CSRF_META_NAMES[i]);
+            fprintf(fp, "[csrf] Found CSRF meta name: %s\n", CSRF_META_NAMES[i]);
+            found = 1;
+        }
+    }   
+
+    printf("[csrf] Checking for CSRF form field names...\n");
+    for (int i = 0; CSRF_FORM_FIELDS[i] && !found; i++) {
+        if (find_string_in_file(r.filename, CSRF_FORM_FIELDS[i])) {
+            printf("[csrf] Found CSRF form field name: %s\n", CSRF_FORM_FIELDS[i]);
+            fprintf(fp, "[csrf] Found CSRF form field name: %s\n", CSRF_FORM_FIELDS[i]);
+            found = 1;
+        }
+    }
+
+    printf("[csrf] Checking for CSRF error phrases...\n");
+    for (int i = 0; CSRF_ERROR_PHRASES[i] && !found; i++) {
+        if (find_string_in_file(r.filename, CSRF_ERROR_PHRASES[i])) {
+            printf("[csrf] Found CSRF error phrase: %s\n", CSRF_ERROR_PHRASES[i]);
+            fprintf(fp, "[csrf] Found CSRF error phrase: %s\n", CSRF_ERROR_PHRASES[i]);
+            found = 1;
+        }
+    }
+    remove(r.filename);
+    
 
     printf("[csrf] CSRF token %sfound on %s\n", found ? "" : "not ", target_url);
     fprintf(fp, "[csrf] CSRF token %sfound on %s\n", found ? "" : "not ", target_url);
