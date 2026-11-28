@@ -59,7 +59,7 @@ int csrf_token_exists(char *target_url, char *output_dir) {
     printf("[csrf] Checking for CSRF token on %s\n", target_url);
     request r = {0};
     int rc =  http_send_post(&r, target_url, false, NULL, false, NULL);
-    if (rc == 1){
+    if (rc == 0){
         fprintf(stderr, "HTTP POST failed for %s\n", target_url);
         request_free(&r);
         return -1;
